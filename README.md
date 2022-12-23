@@ -1,7 +1,7 @@
 
 # bookcase-ops
 
-*bookcase-ops* ( or DevSecBookcaseOps if you want to throw in a couple more buzz-syllables ) is a series of packer scripts and ansible tasks to maintain the handful of machines I have running in that bookcase over there.
+**bookcase-ops** ( or DevSecBookcaseOps if you want to throw in a couple more buzz-syllables ) is a series of packer scripts and ansible tasks to maintain the handful of machines I have running in that bookcase over there.
 
 It mostly exists because we're now using Kubernetes at work and I feel I now need to burden myself with configuring and running this on 
 my home servers as well.
