@@ -1,0 +1,21 @@
+{
+    "esxi_host": "bnehyp05.dev.randomnoun",
+    "esxi_datastore": "datastore1",
+
+    "builder_hostname" : "bnekub03",
+    "builder_numvpus" : "2",
+    "builder_numcores" : "1", 
+    "builder_memsize" : "2048",
+    "builder_disksize" : "20000",
+
+    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:00",
+    "_comment2": "before creating image, add a MAC->IP mapping to DHCP and name->IP mapping to DNS",
+    "builder_ethernet0_mac" : "00:00:2B:92:5E:9B",
+    
+    "kubernetes_fqdn" : "bnekub03.dev.randomnoun",
+    "kubernetes_clustername" : "bnekub03",
+    "kubernetes_token": "abcdef.0123456789abcdef",
+    
+    "backup_host": "bnenas04.dev.randomnoun",
+    "backup_path": "/mnt/raidvolume/compressed/backup/bnekub03"
+}
