@@ -2,6 +2,10 @@
 
 So these are the bits of kit I'm configuring with this project:
 
+# The bookcase
+
+It's metal and it's got 5 shelves on it.
+
 # bnenas04
 
 A ZFS storage server, running TrueNAS SCALE ( which is based on Linux ). 
