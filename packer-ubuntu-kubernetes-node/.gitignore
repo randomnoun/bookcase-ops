@@ -1,0 +1,4 @@
+/.project
+/target/
+/vault-login.sh
+/src/main/packer/simple-vars.json
