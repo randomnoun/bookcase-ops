@@ -1,0 +1,29 @@
+{
+    "esxi_host": "bnehyp05.dev.randomnoun",
+    "esxi_datastore": "datastore1",
+    "esxi_username": "knoxg",
+    "esxi_password": "*** the esxi password ***",
+
+    "cloud_init_username" : "knoxg",
+    "cloud_init_fullname" : "Greg Knox",
+    "cloud_init_password" : "*** the password for the cloud_init user ***",
+    "cloud_init_password_hash": "*** the hash for that password ***",
+    "cloud_init_authorized_keys": "ssh-rsa AAAA*** the public key to preinstall *** knoxg@eximer",
+	
+	"builder_hostname" : "bnesql02",
+	"builder_numvpus" : "2",
+	"builder_numcores" : "1", 
+	"builder_memsize" : "2048",
+	"builder_disksize" : "20000",
+
+    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:00",
+    "builder_ethernet0_mac" : "00:00:20:2A:D3:CC",
+	
+	"mysql_root_password" : "abc123",
+	
+    "backup_host": "bnenas04",
+    "backup_path": "/mnt/raidvolume/compressed/backup/bnesql02",
+    "backup_username": "knoxg",
+    "backup_password": "*** the ssh password for that username ***"
+    
+}

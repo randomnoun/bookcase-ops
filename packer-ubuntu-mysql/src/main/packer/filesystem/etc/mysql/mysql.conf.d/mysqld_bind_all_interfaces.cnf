@@ -1,0 +1,6 @@
+# /etc/mysql/mysql.conf.d/mysqld_bind_all_interfaces.cnf 
+# 
+# because a database is slightly more useful if you can connect to it
+
+[mysqld]
+bind-address            = 0.0.0.0

@@ -1,0 +1,52 @@
+#cloud-config
+autoinstall:
+  version: 1
+  # see https://www.aerialls.eu/posts/ubuntu-server-2204-image-packer-subiquity-for-proxmox/
+  storage:
+    layout:
+      # will occupy entire disk. lvm won't by default without further config.
+      name: direct
+  apt:
+    geoip: true
+    disable_components: []
+    preserve_sources_list: false
+    primary:
+      - arches: [amd64, i386]
+        uri: http://au.archive.ubuntu.com/ubuntu
+      - arches: [default]
+        uri: http://ports.ubuntu.com/ubuntu-ports
+  early-commands:
+    - sudo systemctl stop ssh        
+  locale: en_US
+  keyboard:
+    layout: en
+    variant: us
+
+  identity:
+    hostname: ${BUILDER_HOSTNAME}
+    username: ${CLOUD_INIT_USERNAME}
+    password: ${CLOUD_INIT_PASSWORD_HASH}
+  ssh:
+    install-server: yes
+    # even if this is true, cloud-init complains about missing keys
+    # see https://ubuntu.com/server/docs/install/autoinstall-reference for some terrible documentation
+    # think this is in /etc/ssh/sshd_config.d/50-cloud-init.conf not the real conf
+    allow-pw: true
+    authorized-keys:
+      - ${CLOUD_INIT_AUTHORIZED_KEYS}
+  packages:
+    - openssh-server
+    - open-vm-tools
+    - net-tools
+    - cloud-init
+    - whois
+    - zsh
+    - wget
+    - tasksel
+  user-data:
+    disable_root: false
+    timezone: UTC
+  late-commands:
+    - echo '${CLOUD_INIT_USERNAME} ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/${CLOUD_INIT_USERNAME}
+
+    
