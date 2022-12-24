@@ -1,4 +1,4 @@
-# ESX prerequisites
+# bookcase-ops ESX prerequisites
 
 This project has been tested on the free version of [ESXi 6.0](https://www.vmware.com/au/products/esxi-and-esx.html) 
 
