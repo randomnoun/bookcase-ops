@@ -59,11 +59,5 @@ Total: 420.00
 
 # That's it ?
 
-Yep.
-
-
-
-
-
-
+Yep. Well, there's a network switch, and a KVM attached to an old monitor/keyboard, and some other miscellaneous crap, but the boxes listed above is what this particular project is configuring. 
 
