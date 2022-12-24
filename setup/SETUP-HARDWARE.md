@@ -8,7 +8,7 @@ It's metal and it's got 5 shelves on it.
 
 # bnenas04
 
-A ZFS storage server, running TrueNAS SCALE ( which is based on Linux ). 
+A ZFS storage server, running TrueNAS SCALE ( based on Linux, which is a step up from my earlier nas servers which ran on FreeNAS/FreeBSD ). 
 
 Everything below is from umart.com.au, unless mentioned otherwise.
 
@@ -29,6 +29,8 @@ Everything below is from umart.com.au, unless mentioned otherwise.
    * so that I could fit the optane memory in there
 
 You need that SLOG by the way, otherwise NFS runs slower than a 3600 baud modem for some tasks.
+
+Those 8 drives are configured in a raidz2 volume, so 2 of them provide resiliency in the case of hardware failures.
 
 Total: 3087.38
 
