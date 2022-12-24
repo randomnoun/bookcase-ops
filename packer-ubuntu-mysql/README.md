@@ -13,7 +13,7 @@ This version has been tested on packer 1.8.1 and has been updated to use the new
 
 # Variables
 
-Unlike the other virtual machines in this project, the mysql server does use vault, so you'll have to put big bad passwords into the vars.json 
+Unlike the other virtual machines in this project, the mysql server does not use vault, so you'll have to put big bad passwords into the `vars.json` 
 file.
 
 Copy the [src/main/packer/vars.json.sample](src/main/packer/vars.json.sample) file to `src/main/packer/vars.json` and set your passwords there
