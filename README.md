@@ -14,8 +14,9 @@ Okay so what you've got is:
    * [SETUP-ARCHITECTURE.md](setup/SETUP-ARCHITECTURE.md) - bits and pieces
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
    * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.0
+* [packer-ubuntu-mysql](packer-ubuntu-mysql/README.md) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 22
+   * You'll need to create this first, as it will contain the vault server holding the secrets used in configuring kubernetes
    * [SETUP-VAULT.md](setup/SETUP-VAULT.md) - setting up vault
-* [packer-ubuntu-mysql](packer-ubuntu-mysql/README.md) - a packer script to create a VM to run MySQL 8.0 and vault ( which holds the secrets used in configuring kubernetes ), on ubuntu 22
 * [packer-ubuntu-kubernetes](packer-ubuntu-kubernetes/README.md) - a packer script to create a kubernetes 1.25 cluster / API server running on ubuntu 22
 * [packer-ubuntu-kubernetes-node](packer-ubuntu-kubernetes-node/README.md) - a packer script to create a kubernetes 1.25 node running on ubuntu 22
 * [ansible](ansible/README.md) - an ansible repository which deploys the following into kubernetes
