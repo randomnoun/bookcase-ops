@@ -11,7 +11,7 @@ my home servers as well.
 Okay so what you've got is:
 
 * setup - a few READMEs describing how it fits together and what you prerequisites you need installed
-   * [SETUP-ARCHITECTURE.md](setup/ARCHITECTURE.md) - bits and pieces
+   * [SETUP-ARCHITECTURE.md](setup/SETUP-ARCHITECTURE.md) - bits and pieces
    * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.0
    * [SETUP-VAULT.md](setup/SETUP-VAULT.md) - setting up vault
 * [packer-ubuntu-mysql](packer-ubuntu-mysql/README.md) - a packer script to create a VM to run MySQL 8.0 and vault ( which holds the secrets used in configuring kubernetes ), on ubuntu 22
