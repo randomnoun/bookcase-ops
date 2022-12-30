@@ -143,4 +143,4 @@ export SECRET_ID="$(vault write -force -field=secret_id auth/approle/role/ansibl
 echo $SECRET_ID
 ```
 
-You'll need to put those role IDs and secret IDS into `ansible/vault-login.sh.sample` and rename it to `ansible/vault-login.sh`
+You'll need to put those role IDs and secret IDS into [`ansible/vault-login.sh.sample`](../ansible/vault-login.sh.sample) and copy it to `ansible/vault-login.sh`
