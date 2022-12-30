@@ -120,13 +120,20 @@ cd ~
 vault policy write ansible-read-policy - << EOF
 # ansible-read-policy
 #
-# gives read access to the secrets under 'k8s', including
+# gives read access to the secrets under 'k8s', and 'db', including
 #   k8s/bnekub02/storageclass
 #   k8s/bnekub02/secret
+#   db/bnesql02/
 path "secret/data/k8s/*" {
   capabilities = ["read"]
 }
 path "secret/metadata/k8s/*" {
+  capabilities = ["list", "read"]
+}
+path "secret/data/db/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/db/*" {
   capabilities = ["list", "read"]
 }
 EOF
@@ -144,3 +151,5 @@ echo $SECRET_ID
 ```
 
 You'll need to put those role IDs and secret IDS into [`ansible/vault-login.sh.sample`](../ansible/vault-login.sh.sample) and copy it to `ansible/vault-login.sh`
+
+Notice the policy grants access to the 'db' path in vault, which will hold database credentials; see [SETUP-DATABASE.md](SETUP-DATABASE.md) on creating those.

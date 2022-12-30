@@ -4,6 +4,9 @@
 #
 # Uploads the base64 form of a site certificate to vault. You must already be logged into vault. 
 
+HOST=$1
+PATH=$2
+
 echo Uploading to vault path ................. ${PATH}
 echo Uploading private key ................... private/${HOST}-key.pem
 cat private/${HOST}-key.pem | base64 -w0 | vault kv patch -mount=secret "${PATH}" tls.key=-
