@@ -10,4 +10,7 @@ xwiki_tls_secret_key: ""
 
 xwiki_volume_size_gb: 40
 
-
+xwiki_db_host: ""
+xwiki_db_schema: ""
+xwiki_db_username: ""
+xwiki_db_password: ""

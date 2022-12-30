@@ -45,14 +45,14 @@ spec:
           env:
             - name: XWIKI_VERSION
               value: "14.3"
-            - name: DB_USER
-              value: xwiki
-            - name: DB_PASSWORD
-              value: abc123
-            - name: DB_DATABASE
-              value: xwiki
             - name: DB_HOST
-              value: bnesql02.dev.randomnoun
+              value: "{{ xwiki_db_host }}"
+            - name: DB_DATABASE
+              value: "{{ xwiki_db_schema }}"
+            - name: DB_USER
+              value: "{{ xwiki_db_username }}"
+            - name: DB_PASSWORD
+              value: "{{ xwiki_db_password }}"
           ports:
             - name: http
               containerPort: 8080
