@@ -1,0 +1,17 @@
+# gitlab_aws_region: "ap-southeast-2"
+
+kube_context_gitlab: ""
+kube_namespace_gitlab: "dev-gitlab"
+kube_storageclass_gitlab: "freenas-nfs"
+  
+gitlab_ingress_host: ""
+gitlab_tls_secret_cert: ""
+gitlab_tls_secret_key: ""
+
+gitlab_volume_size_gb: 20
+
+gitlab_smtp_host: ""
+gitlab_smtp_port: 587
+gitlab_smtp_username: ""
+gitlab_smtp_password: ""
+

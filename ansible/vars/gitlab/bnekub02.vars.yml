@@ -1,0 +1,14 @@
+kube_context_gitlab: "bnekub02"
+kube_storageclass_gitlab: "bnenas04-nfs-csi"
+
+gitlab_ingress_host: "gitlab.dev.randomnoun"
+gitlab_ingress_class: "nginx-internal"
+
+gitlab_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-gitlab/gitlab-tls-secret:tls.crt')}}"
+gitlab_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-gitlab/gitlab-tls-secret:tls.key')}}"
+
+gitlab_volume_size_gb: 256
+
+gitlab_smtp_host: ""
+gitlab_smtp_username: ""
+gitlab_smtp_password: ""

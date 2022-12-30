@@ -1,0 +1,265 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nexus3-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_nexus3 }}"   
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ nexus3_volume_size_gb }}Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexus3
+  template:
+    metadata:
+      labels:
+        app: nexus3
+    spec:
+      containers:
+        - name: nexus3
+          image: sonatype/nexus3
+          resources:
+            # memory minimum and maximum. they couldn't call it that though. oh no. requests and limits it is.
+            # in k8s, G = power of 10, Gi = power of 2. rather than using 'GB' like everyone else.
+            # incidentally, the reason the 80386 added support for virtual memory in 1985 was so that we didn't have to do this sort of thing 
+            requests:
+              memory: "2Gi"          
+            limits:
+              memory: "3Gi"
+          
+          env:
+            - name: NEXUS_CONTEXT
+              value: /
+            - name: INSTALL4J_ADD_VM_PARAMS
+              value: -Xms2703m -Xmx2703m -XX:MaxDirectMemorySize=2703m -Djava.util.prefs.userRoot=${NEXUS_DATA}/javaprefs
+          ports:
+            # port names cannot be more than 15 characters (!)
+            # so docker-snapshots is now dcr-snapshots
+            - name: http
+              containerPort: 8081
+            - name: dcr-snapshots
+              containerPort: 9001
+            - name: dcr-releases
+              containerPort: 9003
+            - name: dcr-combined
+              containerPort: 9005
+
+          volumeMounts:
+            - name: nexus3-volume
+              subPath: nexus-data
+              mountPath: "/nexus-data"
+#          livenessProbe:
+#            failureThreshold: 3
+#            initialDelaySeconds: 300
+#            periodSeconds: 5
+#            successThreshold: 1
+#            timeoutSeconds: 10
+#            httpGet:
+#              path: /help
+#              port: 80
+#              scheme: HTTP
+      volumes:
+        - name: nexus3-volume
+          persistentVolumeClaim:
+            claimName: "nexus3-pvc"
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexus3-service
+spec:
+  ports:
+    # port names cannot be more than 15 characters (!)
+    # so docker-snapshots is now dcr-snapshots
+    - name: http
+      port: 8081
+      targetPort: 8081
+    - name: dcr-snapshots
+      port: 9001
+      targetPort: 9001
+    - name: dcr-releases
+      port: 9003
+      targetPort: 9003
+    - name: dcr-combined
+      port: 9005
+      targetPort: 9005
+  selector:
+    app: nexus3
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata: 
+  name: nexus3-tls-secret
+data:
+  tls.crt: "{{ nexus3_tls_secret_cert }}"
+  tls.key: "{{ nexus3_tls_secret_key }}"
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata: 
+  name: docker-snapshots-tls-secret
+data: 
+  tls.crt: "{{ nexus3_docker_snapshots_tls_secret_cert }}"
+  tls.key: "{{ nexus3_docker_snapshots_tls_secret_key }}"
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata: 
+  name: docker-releases-tls-secret
+data: 
+  tls.crt: "{{ nexus3_docker_releases_tls_secret_cert }}"
+  tls.key: "{{ nexus3_docker_releases_tls_secret_key }}"
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata: 
+  name: docker-combined-tls-secret
+data: 
+  tls.crt: "{{ nexus3_docker_combined_tls_secret_cert }}"
+  tls.key: "{{ nexus3_docker_combined_tls_secret_key }}"
+
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: nginx-config
+# from tasks/main.yml I guess   
+#  namespace: nginx-ingress
+data:
+  proxy-connect-timeout: "10s"
+  proxy-read-timeout: "10s"
+  client-max-body-size: "2m"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nexus3-ingress
+  annotations:
+# OK, so it's the annotations at https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/
+# not the annotations at https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/  
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/client-max-body-size: "0"
+    nginx.org/redirect-to-https: "false"
+    ingress.kubernetes.io/ssl-redirect: "false"
+
+spec:
+# static config as per
+# https://medium.com/avmconsulting-blog/how-to-secure-applications-on-kubernetes-ssl-tls-certificates-8f7f5751d788#:~:text=Securing%20an%20application%20running%20on,443%2C%20and%20assumes%20TLS%20termination.
+  tls:
+    - hosts:
+        - {{ nexus3_ingress_host }}
+      secretName: nexus3-tls-secret
+  rules:
+    - host: {{ nexus3_ingress_host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: nexus3-service
+                port:
+                  name: http
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docker-snapshots-nexus3-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/client-max-body-size: "0"
+    nginx.org/redirect-to-https: "false"
+    ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  tls:
+    - hosts:
+        - docker-snapshots.{{ nexus3_ingress_host }}
+      secretName: docker-snapshots-tls-secret
+  rules:
+    - host: docker-snapshots.{{ nexus3_ingress_host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: nexus3-service
+                port:
+                  name: dcr-snapshots
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docker-releases-nexus3-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/client-max-body-size: "0"
+    nginx.org/redirect-to-https: "false"
+    ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  tls:
+    - hosts:
+        - docker-releases.{{ nexus3_ingress_host }}
+      secretName: docker-releases-tls-secret
+  rules:
+    - host: docker-releases.{{ nexus3_ingress_host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: nexus3-service
+                port:
+                  name: dcr-releases
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docker-combined-nexus3-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/client-max-body-size: "0"
+    nginx.org/redirect-to-https: "false"
+    ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  tls:
+    - hosts:
+        - docker-combined.{{ nexus3_ingress_host }}
+      secretName: docker-combined-tls-secret
+  rules:
+    - host: docker-combined.{{ nexus3_ingress_host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: nexus3-service
+                port:
+                  name:
+                    dcr-combined

@@ -1,0 +1,26 @@
+# The k8s-gitlab-user was created separately
+#
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: gitlab-runner-role
+  namespace: "{{ kube_namespace_gitlab }}"
+rules:
+- apiGroups: ["", "extensions", "apps"]
+  resources: ["deployments", "replicasets", "pods", "secrets", "configmaps", "pods/attach", "pods/exec"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] # You can also use ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: gitlab-runner-role
+  namespace: "{{ kube_namespace_gitlab }}"
+subjects:
+- kind: User
+  name: k8s-gitlab-user
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: gitlab-runner-role
+  apiGroup: ""

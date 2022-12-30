@@ -1,0 +1,131 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: xwiki-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_xwiki }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ xwiki_volume_size_gb }}Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xwiki
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xwiki
+  template:
+    metadata:
+      labels:
+        app: xwiki
+    spec:
+      # this is needed to resolve bnesql02 from within the container. Note that 'Default' isn't the default, 'ClusterFirst' is
+      # because of course it is.
+      dnsPolicy: Default
+      containers:
+        - name: xwiki
+          image: xwiki:14.3
+          resources:
+            # memory minimum and maximum. they couldn't call it that though. oh no. requests and limits it is.
+            # in k8s, G = power of 10, Gi = power of 2. rather than using 'GB' like everyone else.
+            # incidentally, the reason the 80386 added support for virtual memory in 1985 was so that we didn't have to do this sort of thing 
+            requests:
+              memory: "2Gi"          
+            limits:
+              memory: "2Gi"
+            # this now seems necessary as well
+            # 'The node was low on resource: ephemeral-storage. Container xwiki was using 1784Ki, which exceeds its request of 0.'
+              ephemeral-storage: "4Gi"
+          env:
+            - name: XWIKI_VERSION
+              value: "14.3"
+            - name: DB_USER
+              value: xwiki
+            - name: DB_PASSWORD
+              value: abc123
+            - name: DB_DATABASE
+              value: xwiki
+            - name: DB_HOST
+              value: bnesql02.dev.randomnoun
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: xwiki-volume
+              subPath: xwiki-data
+              mountPath: "/usr/local/xwiki"
+#          livenessProbe:
+#            failureThreshold: 3
+#            initialDelaySeconds: 300
+#            periodSeconds: 5
+#            successThreshold: 1
+#            timeoutSeconds: 10
+#            httpGet:
+#              path: /help
+#              port: 80
+#              scheme: HTTP
+      volumes:
+        - name: xwiki-volume
+          persistentVolumeClaim:
+            claimName: "xwiki-pvc"
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xwiki-service
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: xwiki
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata: 
+  name: xwiki-tls-secret
+data: 
+  tls.crt: "{{ xwiki_tls_secret_cert }}"
+  tls.key: "{{ xwiki_tls_secret_key }}"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: xwiki-ingress
+  annotations:
+# OK, so it's the annotations at https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/
+# not the annotations at https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/  
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/redirect-to-https: "false"
+    nginx.org/client-max-body-size: "0"
+    nginx.org/proxy-read-timeout: "600s"
+    nginx.org/proxy-send-timeout: "600s"
+    
+spec:
+  tls:
+    - hosts:
+        - {{ xwiki_ingress_host }}
+      secretName: xwiki-tls-secret
+  rules:
+    - host: {{ xwiki_ingress_host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: xwiki-service
+                port:
+                  name: http

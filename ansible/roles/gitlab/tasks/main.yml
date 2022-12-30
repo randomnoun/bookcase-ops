@@ -1,0 +1,22 @@
+- name: "kubernetes gitlab namespace"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_gitlab }}"
+    wait: true
+    definition: "{{ lookup('template', 'gitlab-namespace.j2.yml')  }}"
+
+- name: "kubernetes gitlab role"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_gitlab }}"
+    wait: true
+    definition: "{{ lookup('template', 'gitlab-role.j2.yml')  }}"
+
+
+- name: "kubernetes gitlab deployment"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_gitlab }}"
+    namespace: "{{ kube_namespace_gitlab }}"
+    wait: true
+    definition: "{{ lookup('template', 'gitlab.j2.yml')  }}"

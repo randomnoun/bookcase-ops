@@ -1,0 +1,16 @@
+- name: "kubernetes namespace nexus3"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nexus3 }}"
+    wait: true
+    definition: "{{ lookup('template', '01-nexus3-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment nexus3"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nexus3 }}"
+    namespace: "{{ kube_namespace_nexus3 }}"
+    wait: true
+    definition: "{{ lookup('template', '02-nexus3.j2.yml')  }}"
+
+

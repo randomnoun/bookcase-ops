@@ -1,0 +1,13 @@
+# xwiki_aws_region: "ap-southeast-2"
+
+kube_context_xwiki: ""
+kube_namespace_xwiki: "dev-xwiki"
+kube_storageclass_xwiki: "freenas-nfs"
+
+xwiki_ingress_host: ""
+xwiki_tls_secret_cert: ""
+xwiki_tls_secret_key: ""
+
+xwiki_volume_size_gb: 40
+
+

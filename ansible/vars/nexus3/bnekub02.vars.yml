@@ -1,0 +1,23 @@
+kube_context_nexus3: "bnekub02"
+kube_storageclass_nexus3: "bnenas04-nfs-csi"
+
+nexus3_ingress_host: "nexus3.dev.randomnoun"
+nexus3_docker_snapshots_ingress_host: "docker-snapshots.nexus3.dev.randomnoun"
+nexus3_docker_releases_ingress_host: "docker-releases.nexus3.dev.randomnoun"
+nexus3_docker_combined_ingress_host: "docker.nexus3.dev.randomnoun"
+
+nexus3_ingress_class: "nginx-internal"
+
+nexus3_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-nexus3/nexus3-tls-secret:tls.crt')}}"
+nexus3_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-nexus3/nexus3-tls-secret:tls.key')}}"
+
+nexus3_docker_snapshots_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-nexus3/docker-snapshots-tls-secret:tls.crt')}}"
+nexus3_docker_snapshots_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-nexus3/docker-snapshots-tls-secret:tls.key')}}"
+
+nexus3_docker_releases_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-nexus3/docker-releases-tls-secret:tls.crt')}}"
+nexus3_docker_releases_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-nexus3/docker-releases-tls-secret:tls.key')}}"
+
+nexus3_docker_combined_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-nexus3/docker-combined-tls-secret:tls.crt')}}"
+nexus3_docker_combined_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-nexus3/docker-combined-tls-secret:tls.key')}}"
+
+nexus3_volume_size_gb: 256

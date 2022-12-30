@@ -1,0 +1,20 @@
+# gitlab_aws_region: "ap-southeast-2"
+
+kube_context_democratic_csi: ""
+kube_namespace_democratic_csi: "democratic-csi"
+kube_storageclass_democratic_csi: "freenas-nfs"
+
+# name of the storage class we're creating
+democratic_storageclass_name: ""
+
+democratic_truenas_host: "--set-from-vault--"
+democratic_truenas_username: "--set-from-vault--"
+democratic_truenas_password: "--set-from-vault--"
+
+# do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
+# they may be siblings, but neither should be nested in the other
+democratic_truenas_datasetParentName: "raidvolume/k8s/bnekub02/nfs/volumes"
+democratic_truenas_detachedSnapshotsDatasetParentName: "raidvolume/k8s/bnekub02/nfs/snapshots"
+
+      
+

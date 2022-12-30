@@ -1,0 +1,26 @@
+- hosts: localhost
+  gather_facts: false
+  vars:
+    k8s_system_bnekub02:
+      deployments:
+
+        - name: kubernetes-democratic-csi
+          role: kubernetes-democratic-csi
+          var_files: [bnekub02]
+
+        - name: kubernetes-nginx-ingress
+          role: kubernetes-nginx-ingress
+          var_files: [bnekub02]
+
+
+  tasks:
+    - name: deploy system
+      include_tasks: apply_role.yml
+      vars:
+        apply_role_name: "{{ _k8s_system_bnekub02_deployment.0.role }}"
+        apply_role_var_files: "{{ _k8s_system_bnekub02_deployment.0.var_files }}"
+      loop: "{{ k8s_system_bnekub02.deployments | product(deployments.split(',')) | list }}"
+      loop_control: { loop_var: _k8s_system_bnekub02_deployment }
+      when:
+        - deployments is not defined or true      
+

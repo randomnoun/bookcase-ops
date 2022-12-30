@@ -1,0 +1,22 @@
+# nexus3_aws_region: "ap-southeast-2"
+
+kube_context_nexus3: ""
+kube_namespace_nexus3: "dev-nexus3"
+kube_storageclass_nexus3: "freenas-nfs"
+
+nexus3_ingress_host: ""
+nexus3_tls_secret_cert: ""
+nexus3_tls_secret_key: ""
+
+nexus3_docker_snapshots_tls_secret_cert: ""
+nexus3_docker_snapshots_tls_secret_key: ""
+
+nexus3_docker_releases_tls_secret_cert: ""
+nexus3_docker_releases_tls_secret_key: ""
+
+nexus3_docker_combined_tls_secret_cert: ""
+nexus3_docker_combined_tls_secret_key: ""
+
+nexus3_volume_size_gb: 256
+
+

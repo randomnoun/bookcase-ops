@@ -1,0 +1,7 @@
+kube_context_democratic_csi: "bnekub02"
+democratic_storageclass_name: "bnenas04-nfs-csi"
+
+democratic_truenas_host: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/storageclass/bnenas04-nfs-csi:host')}}"
+democratic_truenas_username: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/storageclass/bnenas04-nfs-csi:username')}}"
+democratic_truenas_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/storageclass/bnenas04-nfs-csi:password')}}"
+

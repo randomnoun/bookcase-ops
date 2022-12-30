@@ -1,0 +1,17 @@
+# ordinarily ansible would load and merge the role defaults by itself, and it does.
+# but because we're calling a role multiple times with different input vars,
+# this explicit reload of the defaults serves to "reset" all the vars for the next run.
+# if we don't do this, vars from one deployment can pollute the vars from another.
+- name: include role vars
+  include_vars:
+    file: "roles/{{ apply_role_name }}/defaults/main.yml"
+
+- name: include instance vars
+  include_vars:
+    file: "{{ apply_role_name }}/{{ _apply_role_var_file }}.vars.yml"
+  loop: "{{ apply_role_var_files }}"
+  loop_control: { loop_var: _apply_role_var_file }
+
+- name: deploy {{ apply_role_name }}
+  include_role:
+    name: "{{ apply_role_name }}"

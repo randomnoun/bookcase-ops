@@ -1,0 +1,9 @@
+- name: "kubernetes democratic-csi"
+  kubernetes.core.helm:
+#     name: "bnenas04-nfs-csi"
+    context: "{{ kube_context_democratic_csi }}"
+    release_namespace: "{{ kube_namespace_democratic_csi }}"
+    release_name: "zfs-nfs"
+    wait: true
+    chart_ref: "democratic-csi/democratic-csi" 
+    values: "{{ lookup('template', 'truenas-nfs.j2.yml') | from_yaml }}"

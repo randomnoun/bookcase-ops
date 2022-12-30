@@ -1,0 +1,155 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_gitlab }}"  
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ gitlab_volume_size_gb }}Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab
+  template:
+    metadata:
+      labels:
+        app: gitlab
+    spec:
+      containers:
+        - name: gitlab
+          image: gitlab/gitlab-ce:14.9.3-ce.0 
+          resources:
+            # memory minimum and maximum. they couldn't call it that though. oh no. requests and limits it is.
+            # in k8s, G = power of 10, Gi = power of 2. rather than using 'GB' like everyone else.
+            # incidentally, the reason the 80386 added support for virtual memory in 1985 was so that we didn't have to do this sort of thing
+            # still, great to see windows 1.0 era .PIF files have a revival 
+            requests:
+              memory: "2Gi"          
+            limits:
+              memory: "5Gi"
+          env:
+            - name: GITLAB_OMNIBUS_CONFIG
+              value: |
+                external_url "http://{{ gitlab_ingress_host }}";
+                gitlab_rails['gitlab_host'] = '{{ gitlab_ingress_host }}';
+                gitlab_rails['gitlab_shell_ssh_port'] = 2222;
+                gitlab_rails['smtp_enable'] = true;
+                gitlab_rails['smtp_address'] = "{{ gitlab_smtp_host }}";
+                gitlab_rails['smtp_port'] = {{ gitlab_smtp_port }};
+                gitlab_rails['smtp_user_name'] = "{{ gitlab_smtp_username }}";
+                gitlab_rails['smtp_password'] = "{{ gitlab_smtp_password }}";
+                gitlab_rails['smtp_domain'] = "jacobistrategies.com";
+                gitlab_rails['smtp_authentication'] = "login";
+                gitlab_rails['smtp_enable_starttls_auto'] = "true";
+                gitlab_rails['gitlab_email_from'] = 'gitlab@jacobistrategies.com';
+                gitlab_rails['gitlab_email_reply_to'] = 'noreply@jacobistrategies.com';
+                gitlab_rails['gitlab_email_display_name'] = "GitLab";
+                nginx['listen_port'] = 80;
+                nginx['listen_https'] = false;
+                prometheus['enable'] = false;
+                node_exporter['enable'] = false;
+                redis_exporter['enable'] = false;
+          ports:
+            - name: http
+              containerPort: 80
+            - name: ssh
+              containerPort: 22
+            - name: git-ssh
+              containerPort: 2222
+          volumeMounts:
+            - name: gitlab-volume
+              subPath: config
+              mountPath: "/etc/gitlab"
+            - name: gitlab-volume
+              subPath: logs
+              mountPath: "/var/log/gitlab"
+            - name: gitlab-volume
+              subPath: data
+              mountPath: "/var/opt/gitlab"
+#          livenessProbe:
+#            failureThreshold: 3
+#            initialDelaySeconds: 300
+#            periodSeconds: 5
+#            successThreshold: 1
+#            timeoutSeconds: 10
+#            httpGet:
+#              path: /help
+#              port: 80
+#              scheme: HTTP
+      volumes:
+        - name: gitlab-volume
+          persistentVolumeClaim:
+            claimName: "gitlab-pvc"
+
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab-service
+spec:
+  ports:
+    - name: http
+      port: 80
+    - name: ssh
+      port: 22
+      targetPort: 22
+    - name: git-ssh
+      port: 2222
+      targetPort: 2222
+  selector:
+    app: gitlab
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata: 
+  name: gitlab-tls-secret
+data: 
+  tls.crt: "{{ gitlab_tls_secret_cert }}"
+  tls.key: "{{ gitlab_tls_secret_key }}"
+
+---
+
+# apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitlab-ingress
+  annotations:
+# OK, so it's the annotations at https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/
+# not the annotations at https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/  
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/client-max-body-size: "0"
+    # both of these are required to disable the http->https redirect
+    nginx.org/redirect-to-https: "false"
+    ingress.kubernetes.io/ssl-redirect: "false"
+
+spec:
+  tls:
+    - hosts:
+        - {{ gitlab_ingress_host }}
+      secretName: gitlab-tls-secret
+  rules:
+    - host: {{ gitlab_ingress_host }}
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: gitlab-service
+                port:
+                  name: http  

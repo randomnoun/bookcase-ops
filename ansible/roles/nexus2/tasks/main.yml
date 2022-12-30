@@ -1,0 +1,16 @@
+- name: "kubernetes namespace nexus2"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nexus2 }}"
+    wait: true
+    definition: "{{ lookup('template', 'nexus2-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment nexus2"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nexus2 }}"
+    namespace: "{{ kube_namespace_nexus2 }}"
+    wait: true
+    definition: "{{ lookup('template', 'nexus2.j2.yml')  }}"
+
+

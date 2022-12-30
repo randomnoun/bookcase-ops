@@ -1,0 +1,5 @@
+
+kube_context_nginx: "bnekub01"
+
+# this namespace var isn't referenced it's just hardcoded everywhere
+kube_namespace_nginx: "kube-system"

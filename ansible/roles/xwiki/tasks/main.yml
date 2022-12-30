@@ -1,0 +1,16 @@
+- name: "kubernetes namespace xwiki"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_xwiki }}"
+    wait: true
+    definition: "{{ lookup('template', 'xwiki-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment xwiki"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_xwiki }}"
+    namespace: "{{ kube_namespace_xwiki }}"
+    wait: true
+    definition: "{{ lookup('template', 'xwiki.j2.yml')  }}"
+
+

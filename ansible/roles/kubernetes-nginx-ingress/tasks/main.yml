@@ -1,0 +1,85 @@
+# the YAML referenced from this file was sourced from 
+# https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/
+# as at 2022-10-31 ( branch v2.4.1 )
+
+- name: "kubernetes-nginx-ingress 01-ns-and-sa.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '01-ns-and-sa.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 02-rbac.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '02-rbac.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 03-default-server-secret.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '03-default-server-secret.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 04-nginx-config.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '04-nginx-config.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 05-ingress-class.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '05-ingress-class.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 06-k8s.nginx.org_virtualservers.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '06-k8s.nginx.org_virtualservers.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 07-k8s.nginx.org_virtualserverroutes.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '07-k8s.nginx.org_virtualserverroutes.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 08-k8s.nginx.org_transportservers.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '08-k8s.nginx.org_transportservers.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 09-k8s.nginx.org_policies.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '09-k8s.nginx.org_policies.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 10-k8s.nginx.org_globalconfigurations.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '10-k8s.nginx.org_globalconfigurations.yaml')  }}"
+
+- name: "kubernetes-nginx-ingress 11-nginx-ingress.yaml"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nginx }}"
+    wait: true
+    definition: "{{ lookup('template', '11-nginx-ingress.yaml')  }}"
+
+
+
+
+    

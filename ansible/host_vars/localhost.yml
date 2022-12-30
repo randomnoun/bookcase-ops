@@ -1,0 +1,5 @@
+# Variables defined here should be considered "global" vars.
+# They will be available to all playbooks.
+
+
+
