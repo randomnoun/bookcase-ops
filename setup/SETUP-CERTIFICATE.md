@@ -12,7 +12,7 @@ First off, you'll need a certificate authority (CA).
 A CA is a special type of certificate that lets your browser recognise and trust domains 'signed' by that certificate. 
 You've probably got a few dozen CAs already installed in your browser, this will be one more.
 
-You probably want to do create your CA (and they key for that CA) on a relatively secure host. I'm using the same virtual machine I've running **vault** on. 
+You probably want to do create your CA (and the key for that CA) on a relatively secure host. I'm using the same virtual machine I've running **vault** on. 
 
 Run the following
 
@@ -25,7 +25,7 @@ cd /opt/openssl-ca
 ./bin/create-ca.sh
 ```
 
-The `create-ca.sh` command will prompt for country, state, email address 
+The [`.bin/create-ca.sh`](../openssl-ca/bin/create-ca.sh) command will prompt for country, state, locality, organisation, common name, and email address. 
 
 Some sample output and answers::
 
@@ -65,7 +65,7 @@ For each site certificate, you will need to:
 * Generate the certificate extensions (ext)
 * Generate a TLS certificate for the site, signed by the CA.
 
-The `.bin/create-certificate.sh` script will perform these tasks, but you might want to run through it manually the first time to make sure it's doing what you think it should be doing.
+The [`./bin/create-certificate.sh`](../openssl-ca/bin/create-certificate.sh) script will perform these tasks, but you might want to run through it manually the first time to make sure it's doing what you think it should be doing.
 
 You may want to also want change the SUBJECT variable ( `/C=AU...` ) at the top of the script to match your country, state, locality and organisation. 
 The common name (CN) component must remain the web domain of the certificate, which is supplied as the first parameter of the script.
