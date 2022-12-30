@@ -12,7 +12,7 @@ First off, you'll need a certificate authority (CA).
 A CA is a special type of certificate that lets your browser recognise and trust domains 'signed' by that certificate. 
 You've probably got a few dozen CAs already installed in your browser, this will be one more.
 
-You probably want to do create your CA (and the key for that CA) on a relatively secure host. I'm using the same virtual machine I've running **vault** on. 
+You probably want to create your CA (and the key for that CA) on a relatively secure host. I'm using the same virtual machine I've running **vault** on. 
 
 Run the following
 

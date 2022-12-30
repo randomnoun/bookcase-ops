@@ -6,6 +6,22 @@ So these are the bits of kit I'm configuring with this project:
 
 It's metal and it's got 5 shelves on it.
 
+# bnehyp05
+
+The hypervisor, for running virtual machines and containers. 
+
+* Cooler Master MT Case N200, $63.00
+* B360M-PRO-VDH mobo, $123.70 ( amazon )
+* Intel Core i7 8700K Six Core LGA 1151 3.7 GHz CPU Processor, $619.00
+* G.SKILL Ripjaws V Series 64GB (4 x 16GB) 288-Pin DDR4 SDRAM DDR4 2800 (PC4 22400) Desktop Memory Model F4-2800C14Q-64GVK, $536.00 ( newegg )
+* Thermaltake Litepower 500W OEM ATX PSU, $45.00
+* Thermaltake Contac Silent 12 CPU Cooler - AM4 Support, $45.00
+* Samsung 2TB 860 QVO 2.5in SATA SSD, $330.00
+   * think I put an old spinning rust SATA drive in here as well which I use for occasional backups 
+* Logitech M90 Optical Mouse, $9.00
+
+Total: 1770.70 
+
 # bnenas04
 
 A ZFS storage server, running TrueNAS SCALE ( based on Linux, which is a step up from my earlier nas servers which ran on FreeNAS/FreeBSD ). 
@@ -33,22 +49,6 @@ You need that SLOG by the way, otherwise NFS runs slower than a 3600 baud modem 
 Those 8 drives are configured in a raidz2 volume, so 2 of them provide resiliency in the case of hardware failures.
 
 Total: 2924.38
-
-# bnehyp05
-
-The hypervisor, for running virtual machines and containers. 
-
-* Cooler Master MT Case N200, $63.00
-* B360M-PRO-VDH mobo, $123.70 ( amazon )
-* Intel Core i7 8700K Six Core LGA 1151 3.7 GHz CPU Processor, $619.00
-* G.SKILL Ripjaws V Series 64GB (4 x 16GB) 288-Pin DDR4 SDRAM DDR4 2800 (PC4 22400) Desktop Memory Model F4-2800C14Q-64GVK, $536.00 ( newegg )
-* Thermaltake Litepower 500W OEM ATX PSU, $45.00
-* Thermaltake Contac Silent 12 CPU Cooler - AM4 Support, $45.00
-* Samsung 2TB 860 QVO 2.5in SATA SSD, $330.00
-   * think I put an old spinning rust SATA drive in here as well which I use for occasional backups 
-* Logitech M90 Optical Mouse, $9.00
-
-Total: 1770.70 
 
 # bnehyp02
 
