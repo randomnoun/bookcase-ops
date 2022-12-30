@@ -113,12 +113,21 @@ EOF
 
 vault auth enable approle
 
-# you want secret_id_ttl=0 and token_num_uses=0 on that so that tokens and their secrets can be used indefinitely.
+# create 'packer' approle policy
+# you want secret_id_ttl=0 and token_num_uses=0 here so that secrets never expire, and that tokens can be reused any number of times within their time-to-live (ttl)
 vault write auth/approle/role/packer     secret_id_ttl=0     token_num_uses=0     token_ttl=20m     token_max_ttl=30m     token_policies=packer-read-policy
 
+# role id of approle
 export ROLE_ID="$(vault read -field=role_id auth/approle/role/packer/role-id)"
-export SECRET_ID="$(vault write -f -field=secret_id auth/approle/role/packer/secret-id)"
 echo $ROLE_ID
+
+# generate a secret (used to create tokens later)
+export SECRET_ID="$(vault write -f -field=secret_id auth/approle/role/packer/secret-id)"
 echo $SECRET_ID
 ```
+
+This is all you'll need to get the packer scripts running. 
+
+Once you're running ansible, you'll need to create more secrets for it; see [SETUP-CERTIFICATE.md](SETUP-CERTIFICATE.md)
+
  
