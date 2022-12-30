@@ -18,6 +18,7 @@ Okay so what you've got is:
    * You'll need to create this first, as it will contain the vault server holding the secrets used in configuring kubernetes
    * [SETUP-VAULT.md](setup/SETUP-VAULT.md) - setting up vault
    * [SETUP-CERTIFICATE.md](setup/SETUP-CERTIFICATE.md) - setting up a CA and the site certificates used later in kubernetes ingresses
+   * [SETUP-DATABASE.md](setup/SETUP-DATABASE.md) - setting up the db schema and user for xwiki   
 * [packer-ubuntu-kubernetes](packer-ubuntu-kubernetes/) - a packer script to create a kubernetes 1.25 cluster / API server running on ubuntu 22
 * [packer-ubuntu-kubernetes-node](packer-ubuntu-kubernetes-node/) - a packer script to create a kubernetes 1.25 node running on ubuntu 22
 * [ansible](ansible/README.md) - an ansible repository which deploys the following into kubernetes
