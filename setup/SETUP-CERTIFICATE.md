@@ -1,6 +1,6 @@
 # Setting up certificates
 
-Kubernetes seems to work better when everything's running on HTTPS, so you'll need to create some certificates to encrypt traffic to your kubernetes applications.
+Kubernetes and docker seem to work better when everything's running on HTTPS, so you'll need to create some certificates to encrypt traffic to your kubernetes applications.
 
 Because I don't want this stuff accidentally ending up on the internet, I use a private top-level domain (TLD) of `.randomnoun`, which isn't a real TLD. 
 You might want to choose something else. Probably not `verisign` though, as people might confuse that with verisign. Which is completely different.

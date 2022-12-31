@@ -14,10 +14,10 @@ Okay so what you've got is:
    * [SETUP-ARCHITECTURE.md](setup/SETUP-ARCHITECTURE.md) - bits and pieces
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
    * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configuration for the things in this project
-   * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up TrueNAS
+   * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS
    * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.0
 * [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 22
-   * You'll need to create this first, as it will contain the vault server holding the secrets used in configuring kubernetes
+   * This'll need to be the first virtual machine you create, as it will contain the vault server holding the secrets used in configuring kubernetes
    * [SETUP-VAULT.md](setup/SETUP-VAULT.md) - setting up vault
    * [SETUP-CERTIFICATE.md](setup/SETUP-CERTIFICATE.md) - setting up a CA and the site certificates used later in kubernetes ingresses
    * [SETUP-DATABASE.md](setup/SETUP-DATABASE.md) - setting up the db schema and user for xwiki   
