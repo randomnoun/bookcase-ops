@@ -10,11 +10,11 @@ my home servers as well.
 
 Okay so what you've got is:
 
-* setup - a few READMEs describing how it fits together and what you prerequisites you need installed
+* setup - a few READMEs describing how it fits together and what prerequisites you need installed
    * [SETUP-ARCHITECTURE.md](setup/SETUP-ARCHITECTURE.md) - bits and pieces
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
    * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configuration for the things in this project
-   * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS
+   * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS SCALE
    * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.0
 * [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 22
    * This'll need to be the first virtual machine you create, as it will contain the vault server holding the secrets used in configuring kubernetes
@@ -25,17 +25,17 @@ Okay so what you've got is:
 * [packer-ubuntu-kubernetes-node](packer-ubuntu-kubernetes-node/) - a packer script to create a kubernetes 1.25 node running on ubuntu 22
 * [ansible](ansible/README.md) - an ansible repository which deploys the following into kubernetes
    * nginx-ingress - to handle traffic into the cluster
-   * democratic-csi - to handle storage for k8s pods ( connects to a TrueNAS SCALE box over NFS )
+   * democratic-csi - to handle storage for k8s pods ( connects to the TrueNAS SCALE box over NFS )
    * gitlab - a gitlab server
    * nexus2 - a nexus2 repository ( to hold java artifacts )
    * nexus3 - a nexus3 repository ( to hold docker artifacts )
    * xwiki - a wiki
 
-The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but could probably be updated to other hosting environments easily enough.
+The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but could be used to deploy into other hosting environments easily enough.
 
-Everything is hosted as subdomains of 'dev.randomnoun', which isn't a real TLD. So if you're copying any of this you may want to search and replace that to something else.
+Everything is hosted as subdomains of `.dev.randomnoun`, which isn't a real TLD. So if you're copying any of this you may want to search and replace that to something else.
 
-I'm also configuring the DNS and certificates externally to all this, guess I could virtualise that up as well if I'm feeling up to it. 
+I'm configuring the DNS and certificates manually ( see the SETUP docs above ). I guess I could virtualise that up as well if I'm feeling up to it. 
 
 ## License
 
