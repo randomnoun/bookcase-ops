@@ -25,8 +25,6 @@ Replace `super-secret-password` with the random mumbojumbo you used above.
 ```
 vault login
 echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/xwiki" password=-
-vault kv metadata put -mount=secret -custom-metadata=description="database credentials" "db"
-vault kv metadata put -mount=secret -custom-metadata=description="database credentials for bnesql02.dev.randomnoun" "db/bnesql02"
 vault kv metadata put -mount=secret -custom-metadata=description="database credentials for xwiki user on bnesql02.dev.randomnoun" "db/bnesql02/xwiki"
 ```
 

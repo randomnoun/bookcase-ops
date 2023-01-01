@@ -25,6 +25,9 @@ spec:
       labels:
         app: gitlab
     spec:
+      # this is needed to resolve github.com from within the container. Note that 'Default' isn't the default, 'ClusterFirst' is
+      # because of course it is.
+      dnsPolicy: Default
       containers:
         - name: gitlab
           image: gitlab/gitlab-ce:14.9.3-ce.0 
