@@ -6,6 +6,8 @@
 It mostly exists because we're now using Kubernetes at work and I feel I now need to burden myself with configuring and running this on 
 my home servers as well.
 
+Looking over my notes, this took about 4 weekends, spread over about 4 months, so hopefully this will save me / others having to go through all this again when I next have to upgrade all this shit.
+
 # What's in the box ?
 
 Okay so what you've got is:
