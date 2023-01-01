@@ -55,7 +55,7 @@ Once vault is running,
 
 Alternatively, you could use the 'simple' variant of these scripts, which puts all the credentials in a JSON file in the repository.
 
-To enable that
+To disable vault lookups:
 
 * copy the `simple-vars.json.sample` to `simple-vars.json` in the `src/main/packer` folder
 * edit that file with the credentials you want to use. You'll probably want to change most of the entries in that json file. 
