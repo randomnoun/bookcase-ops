@@ -3,7 +3,9 @@
 
 This is the ansible part of bookcase-ops which deploys a few system-related containers into kubernetes, and a handful of applications.
 
-If running this from Windows, you will need to run from WSL ( Windows Subsystem for Linux ).
+If running this from Windows, you will need to run from WSL ( Windows Subsystem for Linux ); the last time I looked, ansible + helm didn't work all that well from Windows directly.
+
+So you'll need to install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html), [helm](https://helm.sh/docs/intro/install/) and probably some [ansible galaxy](https://docs.ansible.com/ansible/latest/collections_guide/collections_installing.html) collections. I didn't come up with these names.
 
 ## Certificates
 
