@@ -5,8 +5,8 @@
     "builder_hostname" : "bnenod04",
     "builder_numvpus" : "2",
     "builder_numcores" : "1", 
-	"builder_memsize" : "32768",
-	"builder_disksize" : "100000",
+    "builder_memsize" : "32768",
+    "builder_disksize" : "100000",
 
     "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:00",
     "_comment2": "before creating image, add a MAC->IP mapping to DHCP and name->IP mapping to DNS",

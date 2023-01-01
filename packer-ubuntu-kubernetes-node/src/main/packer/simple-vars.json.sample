@@ -13,8 +13,8 @@
     "builder_hostname" : "bnenod03",
     "builder_numvpus" : "2",
     "builder_numcores" : "1", 
-	"builder_memsize" : "32768",
-	"builder_disksize" : "100000",
+    "builder_memsize" : "32768",
+    "builder_disksize" : "100000",
 
     "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:00",
     "builder_ethernet0_mac" : "00:00:20:2B:D4:C2",
