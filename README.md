@@ -1,12 +1,14 @@
 
+
 # bookcase-ops
 
 **bookcase-ops** ( or DevSecBookcaseOps if you want to throw in a couple more buzz-syllables ) is a series of packer scripts and ansible tasks to maintain the handful of machines I have running in that bookcase over there.
 
-It mostly exists because we're now using Kubernetes at work and I feel I now need to burden myself with configuring and running this on 
-my home servers as well.
+It mostly exists because we're now using Kubernetes at work and I feel I now need to burden myself with configuring and running this on my home servers as well.
 
-Looking over my notes, this took about 4 weekends, spread over about 4 months, so hopefully this will save me / others having to go through all this again when I next have to upgrade all this shit.
+Looking over my notes, this took about 4 weekends, spread over about 4 months, so hopefully this will save me / others having to go through all this again when I next have to upgrade all this high quality software product.
+
+And you know, when I inevitably kick the bucket, my immediate family, who have difficulty selecting a different HDMI input or operating a printer, might be able to salvage some of my life's work. Which they won't  be unable to understand in any meaningful way. I have a niece starting computer science this year though, so I guess hope springs eternal.
 
 # What's in the box ?
 
@@ -15,7 +17,7 @@ Okay so what you've got is:
 * setup - a few READMEs describing how it fits together and what prerequisites you need installed
    * [SETUP-ARCHITECTURE.md](setup/SETUP-ARCHITECTURE.md) - bits and pieces
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
-   * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configura  tion for the things in this project
+   * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configuration for the things in this project
    * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS SCALE
    * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.0
 * [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 22
