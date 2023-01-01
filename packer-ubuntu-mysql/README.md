@@ -7,6 +7,17 @@ I'm running mysql on a VM rather than a k8s container because in my experience, 
 and I like my databases to not have the rug pulled out from underneath them every so often to really test their resilience to 
 data corruption.
 
+# Networking prerequisites
+
+This VM isn't part of kubernetes, so you'll need to decide on a hostname for the server, and set up some DNS/DHCP rules to resolve it. 
+I also hard-coded a MAC address, which you can generate [from here](https://dnschecker.org/mac-address-generator.php).
+
+The hostname I'm using is `bnesql02` as it's in Brisbane ([BNE](https://www.iata.org/en/publications/directories/code-search/?airport.search=bne)) and this is the second time I've gone through this rigmarole.
+
+I'm also using this VM to hold the vault server, so there's a `vault` CNAME pointing to this host.
+
+See [SETUP-DNS.md](../setup/SETUP-DNS.md) on setting that up.
+
 # Packer prerequisites
 
 This version has been tested on packer 1.8.1 and has been updated to use the new, more complicated and arbitrarily different hcl format.
@@ -25,7 +36,7 @@ before running the build script.
 ./build.sh
 ```
 
-I'm also using the mysql virtual machine to run the vault server, so hop on over to [../setup/SETUP-VAULT.md](SETUP-VAULT.md) on how to do that.
+I'm also using the mysql virtual machine to run the vault server, so hop on over to [SETUP-VAULT.md](../setup/SETUP-VAULT.md) on how to do that.
 
 
 # Notes
