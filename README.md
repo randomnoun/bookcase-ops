@@ -8,7 +8,7 @@ It mostly exists because we're now using Kubernetes at work and I feel I now nee
 
 Looking over my notes, this took about 4 weekends, spread over about 4 months, so hopefully this will save me / others having to go through all this again when I next have to upgrade all this high quality software product.
 
-And you know, when I inevitably kick the bucket, my immediate family, who have difficulty selecting a different HDMI input or operating a printer, might be able to salvage some of my life's work. Which they won't  be unable to understand in any meaningful way. I have a niece starting computer science this year though, so I guess hope springs eternal.
+And you know, when I inevitably kick the bucket, my immediate family, who have difficulty selecting a different HDMI input or operating a printer, might be able to salvage some of my life's work. Which they won't be able to appreciate or comprehend in any way. I guess they could admire the punctuation or something. I have a niece starting computer science this year though, so I guess hope springs eternal.
 
 # What's in the box ?
 
