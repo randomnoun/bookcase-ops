@@ -18,13 +18,13 @@ actually deployed into the cloud somewhere.
 This kubernetes installation uses [calico](https://projectcalico.docs.tigera.io/getting-started/kubernetes/) to provide networking, 
 and [democratic-csi](https://github.com/democratic-csi/democratic-csi) for storage. The democratic-csi bits are installed via ansible later on.
 
-The hostname is `bnekub02` as it's in Brisbane ([BNE](https://www.iata.org/en/publications/directories/code-search/?airport.search=bne)) and this is the second time I've gone through this rigmarole. 
-
 # Networking prerequisites
 
 So yes, kubernetes has it's own networking layer, but you'll probably still want something to point to kubernetes. 
 So you'll want to decide on a hostname for the server, and set up some DNS/DHCP rules to resolve it. 
 I also hard-coded a MAC address, which you can generate [from here](https://dnschecker.org/mac-address-generator.php).
+
+The hostname I'm using is `bnekub02` as it's in Brisbane ([BNE](https://www.iata.org/en/publications/directories/code-search/?airport.search=bne)) and this is the second time I've gone through this rigmarole.
 
 # ESX prerequisites
 
