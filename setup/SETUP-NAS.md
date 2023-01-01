@@ -19,13 +19,17 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 
 ![](image/truenas-1-dashboard.png)
 
+## Create a `raidvolume` pool
+
 * Select 'storage' on the left hand side, then 'Create pool' to create the storage pool:
 
 ![](image/truenas-2-storage.png)
    
-* I've named the pool 'raidvolume', and selected all 8GB disks to comprise the storage, in a raid-z2 formation:
+* I've named the pool `raidvolume`, and selected all 8GB disks to comprise the storage, in a raid-z2 formation:
 
 ![](image/truenas-3-storage-disk.png)
+
+## Create some datasets
 
 * Create a dataset within the pool
 
@@ -40,6 +44,8 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 
 ![](image/truenas-8-dataset-3.png)
 
+## Create an SMB share
+
 * Click 'Sharing' on the left hand side and create an SMB share
 * I've named the share 'raidvolume' and pointed it to the /mnt/raidvolume folder
 
@@ -49,6 +55,8 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 
 ![](image/truenas-6-smb-share-2.png)
 
+## Enable some more services
+
 * Enable a couple more system services ( SSH and S.M.A.R.T. checks )
 * You'll probably need NFS as well for kubernetes later on.
    * Enable NFSv4
@@ -57,6 +65,8 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 ![](image/truenas-7-services.png.png)
 ![](image/truenas-7-services-2.png.png)
 
+## Create a non-root user
+
 * Create a non-root user; I'm using the username `knoxg`
 
 ![](image/truenas-4-user.png)
@@ -64,12 +74,14 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 
 ----
 
-# Adding a SLOG vdev to the pool
+## Adding a SLOG vdev to the pool
 
-So after going through that and setting up the rest of the cluster, I found performance to be pretty dismal - here's an issue raised on the democratic-csi github tracker, with 
+So after going through that and setting up the rest of the cluster, I found performance to be pretty dismal - [here's an issue I raised on the democratic-csi github tracker](https://github.com/democratic-csi/democratic-csi/issues/251), with 
 some I/O performance stats.
 
-The solution was to add a ZFS SLOG drive. Here are the steps to do that:
+The solution was to add a ZFS SLOG drive. 
+
+Here are the steps to do that:
 
 * Under Storage -> Disks, check the disk is appearing. I'm using a small Optane NVMe2 SSD, which can apparently survive power outages a bit more resiliently than non-Optane drives.
 
