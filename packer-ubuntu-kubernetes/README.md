@@ -18,7 +18,7 @@ actually deployed into the cloud somewhere.
 This kubernetes installation uses [calico](https://projectcalico.docs.tigera.io/getting-started/kubernetes/) to provide networking, 
 and [democratic-csi](https://github.com/democratic-csi/democratic-csi) for storage. The democratic-csi bits are installed via ansible later on.
 
-The hostname is `bnekub02` as it's in Brisbane (BNE) and this is the second time I've gone through this rigmarole. 
+The hostname is `bnekub02` as it's in Brisbane ([BNE](https://www.iata.org/en/publications/directories/code-search/?airport.search=bne)) and this is the second time I've gone through this rigmarole. 
 
 # Networking prerequisites
 
