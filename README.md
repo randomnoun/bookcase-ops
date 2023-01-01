@@ -13,7 +13,7 @@ Okay so what you've got is:
 * setup - a few READMEs describing how it fits together and what prerequisites you need installed
    * [SETUP-ARCHITECTURE.md](setup/SETUP-ARCHITECTURE.md) - bits and pieces
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
-   * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configuration for the things in this project
+   * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configura  tion for the things in this project
    * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS SCALE
    * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.0
 * [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 22

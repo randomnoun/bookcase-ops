@@ -19,12 +19,12 @@ The system components installed are:
 
 * **kubernetes-democratic-csi**
    * CSI stands for 'container storage interface', which is a way kubernetes abstracts away filesystems, which you'd think was already a good enough abstraction for most people.
-   * `democratic-csi` is an [open source project](https://github.com/democratic-csi/democratic-csi) providing CSI drivers for for freenas ( now named TrueNAS ),  so you can do things like provision PVCs ( persistent volume claims ), which is something you'll want to do if you're using kubernetes, in order to abstract away your filesystems for you, which is also something you want to do for some reason.  
+   * `democratic-csi` is an [open source project](https://github.com/democratic-csi/democratic-csi) providing CSI drivers for for freenas ( now named TrueNAS ),  so you can do things like provision PVCs ( persistent volume claims ) on the nas.  
 * **kubernetes-nginx-ingress**
    * an ingress is how you get network traffic into you applications in kubernetes. This one uses [nginx](https://nginx.org/en/).
    * There appears to be two flavours of nginx ingresses: one that uses [`nginx.ingress.*` annotations](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/), and one that uses [`org.nginx.*` annotations](https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/).  
      Our ingresses use `org.nginx.*` annotations.
-   * It doesn't use the helm-installed nginx ingress either, because that won't work unless you don't have a 'real' loadbalancer, unless you install something called [MetalLB](https://metallb.universe.tf/) which [doesn't work either](https://metallb.universe.tf/configuration/calico/).
+   * It doesn't use the helm-installed nginx ingress either, because that won't work unless you have a real loadbalancer, unless you install something called [MetalLB](https://metallb.universe.tf/) which [doesn't work either](https://metallb.universe.tf/configuration/calico/).
 
 Anyway to install these two components into the kubernetes cluster, run:   
 
