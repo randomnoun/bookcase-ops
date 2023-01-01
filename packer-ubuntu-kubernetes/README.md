@@ -16,7 +16,9 @@ want to use a version of kubernetes that's less complicated than the kubernetes 
 actually deployed into the cloud somewhere.
 
 This kubernetes installation uses [calico](https://projectcalico.docs.tigera.io/getting-started/kubernetes/) to provide networking, 
-and [democratic-csi](https://github.com/democratic-csi/democratic-csi) for storage. The democratic-csi bits aren't in this project.
+and [democratic-csi](https://github.com/democratic-csi/democratic-csi) for storage. The democratic-csi bits are installed via ansible later on.
+
+The hostname is `bnekub02` as it's in Brisbane (BNE) and this is the second time I've gone through this rigmarole. 
 
 # Networking prerequisites
 
