@@ -1,6 +1,6 @@
 # bookcase-ops NAS
 
-This project has been tested on the free version of [TrueNAS SCALE](https://www.truenas.com/docs/scale/).
+This project uses the free version of [TrueNAS SCALE](https://www.truenas.com/docs/scale/).
 
 TrueNAS is the successor to FreeNAS, and 'TrueNAS SCALE' is the version of TrueNAS that runs on linux, which you are definitely going to prefer to FreeBSD the first time you want to run 
 something on there that you need to install yourself. 
@@ -25,9 +25,10 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 
 ![](image/truenas-2-storage.png)
    
-* I've named the pool `raidvolume`, and selected all 8GB disks to comprise the storage, in a raid-z2 formation:
-   * raid-z2 burns up two of your drives for ZFS resiliency; it allows up to 2 arbitrary drives in the pool to fail before you incur any data loss.
+* I've named the pool `raidvolume`, and selected all 8GB disks to comprise the storage, in a **raid-z2** formation:
+   * You'll notice the estimated capacity here is around 43TB which is a bit less than 64GB. raid-z2 burns up two of your drives for ZFS resiliency; it allows up to 2 arbitrary drives in the pool to fail before you incur any data loss.
    * You want raid-z2 because if you bought all your drives at the same time, when they start failing they'll tend to fail at the same time.
+   * You'll regain some of that capacity by enabling compression on the datasets in the next step. 
 
 ![](image/truenas-3-storage-disk.png)
 
