@@ -58,11 +58,13 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 ## Enable some more services
 
 * Enable a couple more system services ( SSH and S.M.A.R.T. checks )
-* You'll probably need NFS as well for kubernetes later on.
+
+![](image/truenas-7-services.png)
+
+* Enable NFS as well
    * Enable NFSv4
    * Enable NFSv3 ownership model for NFSv4
 
-![](image/truenas-7-services.png)
 ![](image/truenas-7-services-2.png)
 
 ## Create a non-root user
