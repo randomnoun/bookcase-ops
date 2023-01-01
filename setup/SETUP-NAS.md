@@ -62,8 +62,8 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
    * Enable NFSv4
    * Enable NFSv3 ownership model for NFSv4
 
-![](image/truenas-7-services.png.png)
-![](image/truenas-7-services-2.png.png)
+![](image/truenas-7-services.png)
+![](image/truenas-7-services-2.png)
 
 ## Create a non-root user
 
@@ -79,11 +79,11 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 So after going through that and setting up the rest of the cluster, I found performance to be pretty dismal - [here's an issue I raised on the democratic-csi github tracker](https://github.com/democratic-csi/democratic-csi/issues/251), with 
 some I/O performance stats.
 
-The solution was to add a ZFS SLOG drive. 
+The solution was to add a ZFS SLOG (separate log) drive. 
 
 Here are the steps to do that:
 
-* Under Storage -> Disks, check the disk is appearing. I'm using a small Optane NVMe2 SSD, which can apparently survive power outages a bit more resiliently than non-Optane drives.
+* Under Storage -> Disks, check the disk is appearing. I'm using a small Optane NVMe2 SSD, which various sites tell me survive a power outage more resiliently than non-Optane drives. Which apparently is something you want in a SLOG.
 
 ![](image/truenas-9-slog-4.png)
 
