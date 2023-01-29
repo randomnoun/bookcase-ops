@@ -184,7 +184,7 @@ echo $SECRET_ID
 
 This should be all you need to get the packer scripts running. 
 
-When you get round to running those, you'll need to enter that ROLE_ID and SECRET_ID into the [vault-login.sh](../packer-ubuntu-kubernetes/vault-login-sample.sh) files.
+When you get round to running those, you'll need to enter that ROLE_ID and SECRET_ID into the [vault-login.sh](../packer-ubuntu-kubernetes/vault-login.sh.sample) files.
 
 And once you're running ansible, you'll need to create more secrets for it; see [SETUP-CERTIFICATE.md](SETUP-CERTIFICATE.md)
 
