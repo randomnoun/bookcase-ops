@@ -7,17 +7,55 @@ because they're both things you wouldn't want kubernetes having any control over
 
 I'm installing the vault manually rather than scripting it.
 
-## Installing the vault:
+## Installing vault:
 
 ```
+sudo /bin/bash -c 'wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor > /usr/share/keyrings/hashicorp-archive-keyring.gpg'
 echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt update && sudo apt install vault
-vault
-vault server -help
-vault server -dev
+sudo apt update
+sudo apt install vault
 ```
 
-Once it's installed, you might want to set up a name in your DNS that points to the server. 
+## Configuring the vault:
+
+I'm configuring the vault to listen to HTTP requests on port 8200 for now.
+
+You could use HTTPS if you like, but the config is different, you'll need to create the certificates (which will require a CA which we don't have yet), 
+and it'll be more difficult to debug.
+
+Change the `vault.dev.randomnoun` domain name to what you want the domain to be.
+
+```
+cd /etc/vault.d
+sudo cp vault.hcl vault.hcl.orig
+sudo /bin/bash -c 'sudo cat << EOF > /etc/vault.d/vault.hcl
+# Full configuration options can be found at https://www.vaultproject.io/docs/configuration
+
+ui = true
+
+storage "file" {
+  path = "/opt/vault/data"
+}
+
+# HTTP listener
+listener "tcp" {
+  address = "0.0.0.0:8200"
+  tls_disable = 1
+  custom_response_headers {
+    "default" = {
+       "Strict-Transport-Security" = [""]
+    }
+  }
+
+}
+api_addr = "http://vault.dev.randomnoun:8200"
+EOF'
+
+sudo service vault start
+sudo service vault status
+```
+
+Once it's installed and configured, you might want to set up a name in your DNS that points to the server. 
 
 I'm using `vault.dev.randomnoun`, CNAMEd to the same host as my database server ( `bnesql02.dev.randomnoun` ). 
 
@@ -46,7 +84,14 @@ It is possible to generate new unseal keys, provided you have a quorum of
 existing unseal keys shares. See "vault operator rekey" for more information.
 ```
 
+Keep the output somewhere safe, because you'll need it to unseal and login to the vault. 
+
+Tattoo it to the scalp of your first-born, or maybe just dump it into `/etc/vault.d/the-unseal-keys.txt`
+
 ## Unsealing the vault:
+
+Any time the vault server restarts ( including the first time it starts ), you'll need to 'unseal' it.
+Use any 3 of the keys in the output above to unseal it, via something like:
 
 ```
 vault operator unseal asdfasdfasdfasdfSGUf635zZnHTh+FdGCkbt0lxmGiE
@@ -54,7 +99,16 @@ vault operator unseal asdfasdfasdfasdfE5v2MwAGnCkFAOGczwgagJ6rGYl0
 vault operator unseal asdfasdfasdfasdfY8yNWpKfYAVtRbJhjUnhy2D0by6T
 ```
 
+## Check the UI
+
+Now the vault is up and running, try navigating to the vault server via a web browser to see if it's running
+( `http://vault.dev.randomnoun:8200` ). 
+
+Until you create any alternate credentials, you'll need to enter the Initial Root Token from the output above to login.
+
 ## Creating the 'secret' key-value ( kv ) store
+
+Use the Initial Root Token to login via the command-line as well.
 
 ```
 export VAULT_ADDR=http://vault.dev.randomnoun:8200
@@ -126,8 +180,9 @@ export SECRET_ID="$(vault write -f -field=secret_id auth/approle/role/packer/sec
 echo $SECRET_ID
 ```
 
-This is all you'll need to get the packer scripts running. 
+This should be all you need to get the packer scripts running. 
 
-Once you're running ansible, you'll need to create more secrets for it; see [SETUP-CERTIFICATE.md](SETUP-CERTIFICATE.md)
+When you get round to running those, you'll need to enter that ROLE_ID and SECRET_ID into the [../packer-ubuntu-kubernetes/vault-login-sample.sh](vault-login.sh) files.
 
- 
+And once you're running ansible, you'll need to create more secrets for it; see [SETUP-CERTIFICATE.md](SETUP-CERTIFICATE.md)
+
