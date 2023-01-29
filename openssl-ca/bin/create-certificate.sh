@@ -7,9 +7,9 @@
 HOST=$1
 SUBJECT="/C=AU/ST=QLD/L=Brisbane/O=randomnoun/CN=${HOST}"
 
-if []; then
-  echo "Usage: create-certificate.sh HOSTNAME"
-  exit 1
+if [[ $# -ne 1 ]] ; then
+    echo "Usage: create-certificate.sh HOSTNAME"
+    exit 1
 fi
 
 echo Generating private key .................. private/${HOST}-key.pem
