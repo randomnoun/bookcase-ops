@@ -9,6 +9,8 @@ I'm installing the vault manually rather than scripting it.
 
 ## Installing vault:
 
+In a fairly typical depiction of what writing scriptable installations is going to be like for the rest of your life, the steps to do this changed a week after I wrote them down, so you might want to check what they are at [https://www.hashicorp.com/official-packaging-guide](hashicorp) if/when this fails again.
+
 ```
 sudo /bin/bash -c 'wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor > /usr/share/keyrings/hashicorp-archive-keyring.gpg'
 echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
