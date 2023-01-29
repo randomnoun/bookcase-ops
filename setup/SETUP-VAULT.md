@@ -9,7 +9,7 @@ I'm installing the vault manually rather than scripting it.
 
 ## Installing vault:
 
-In a fairly typical depiction of what writing scriptable installations is going to be like for the rest of your life, the steps to do this changed a week after I wrote them down, so you might want to check what they are at [https://www.hashicorp.com/official-packaging-guide](hashicorp) if/when this fails again.
+In a fairly typical depiction of what writing scriptable installations is going to be like for the rest of your life, the steps to do this changed a week after I wrote them down, so you might want to check what they are at [hashicorp](https://www.hashicorp.com/official-packaging-guide) if/when this fails again.
 
 ```
 sudo /bin/bash -c 'wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor > /usr/share/keyrings/hashicorp-archive-keyring.gpg'
@@ -184,7 +184,7 @@ echo $SECRET_ID
 
 This should be all you need to get the packer scripts running. 
 
-When you get round to running those, you'll need to enter that ROLE_ID and SECRET_ID into the [../packer-ubuntu-kubernetes/vault-login-sample.sh](vault-login.sh) files.
+When you get round to running those, you'll need to enter that ROLE_ID and SECRET_ID into the [vault-login.sh](../packer-ubuntu-kubernetes/vault-login-sample.sh) files.
 
 And once you're running ansible, you'll need to create more secrets for it; see [SETUP-CERTIFICATE.md](SETUP-CERTIFICATE.md)
 
