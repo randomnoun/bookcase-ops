@@ -17,9 +17,20 @@ You probably want to create your CA (and the key for that CA) on a relatively se
 Run the following
 
 ```
-# create the folder structure to hold the certificates and working files
-./openssl-ca/bin/init-openssl-ca.sh
+# check out the openssl bits of this project and install them in /opt/openssl-ca
+mkdir src
+cd src
+git clone --no-checkout https://github.com/randomnoun/bookcase-ops.git bookcase-ops
+cd bookcase-ops
+git sparse-checkout set openssl-ca
+git checkout
+chmod a+x openssl-ca/bin/*
+openssl-ca/bin/init-openssl-ca.sh
+```
 
+Then create the initial CA certificate used to sign all the other ones.
+
+```
 # create the initial CA certificate
 cd /opt/openssl-ca
 ./bin/create-ca.sh
