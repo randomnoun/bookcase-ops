@@ -12,5 +12,5 @@ mkdir csr
 mkdir ext
 mkdir cert 
 
-cp ${SCRIPT_DIR}/bin/* /opt/openssl-ca/bin
+cp ${SCRIPT_DIR}/* /opt/openssl-ca/bin
 rm /opt/openssl-ca/bin/init-openssl-ca.sh
