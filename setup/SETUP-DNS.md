@@ -152,31 +152,32 @@ $TTL    604800
 ;@      IN      AAAA    ::1
 
 ; hypers
-bnehyp02    IN  A   192.168.0.24
-bnehyp05    IN  A   192.168.0.112
+bnehyp02      IN  A     192.168.0.24
+bnehyp05      IN  A     192.168.0.112
 
 ; other physical machines/devices
-bnenas04    IN  A   192.168.0.129
-excimer     IN  A   192.168.0.125
-excimer-wifi  IN A  192.168.0.126
+bnenas04      IN  A     192.168.0.129
+excimer       IN  A     192.168.0.125
+excimer-wifi  IN A    192.168.0.126
 
 ; bnehyp05 VMs
-bnekub02    IN  A   192.168.0.130
-bnenod03    IN  A   192.168.0.131
-bnesql02    IN  A   192.168.0.132
+bnekub02      IN  A     192.168.0.130
+bnenod03      IN  A     192.168.0.131
+bnesql02      IN  A     192.168.0.132
 
 ; aliases
-mysql       IN  CNAME bnesql02
-vault       IN  CNAME bnesql02
+mysql         IN  CNAME bnesql02
+vault         IN  CNAME bnesql02
+restic        IN  CNAME bnenas04
 
 ; bnekub02 containers
-docker.nexus3  IN CNAME bnenod03
-docker-combined.nexus3  IN CNAME bnenod03
-docker-releases.nexus3  IN CNAME bnenod03
+docker.nexus3            IN CNAME bnenod03
+docker-combined.nexus3   IN CNAME bnenod03
+docker-releases.nexus3   IN CNAME bnenod03
 docker-snapshots.nexus3  IN CNAME bnenod03
-gitlab         IN CNAME bnenod03
-nexus2         IN CNAME bnenod03
-nexus3         IN CNAME bnenod03
+gitlab        IN CNAME bnenod03
+nexus2        IN CNAME bnenod03
+nexus3        IN CNAME bnenod03
 ```
 
 * Create the file  `/etc/bind/db.192` containing:
