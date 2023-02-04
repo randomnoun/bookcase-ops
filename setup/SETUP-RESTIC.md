@@ -118,7 +118,7 @@ Once you click save, you should eventuall see a restic tile appear on the 'Insta
 
 Once restic is up and running, you can create a user from the commandline on `bnenas04`. 
 
-You can run `sudo docker ps` to get a list of docker containers; from here you might be surprised by the number of docker containers with "k8s" in their names.
+You can run `sudo docker ps` to get a list of docker containers. From here you might be surprised by the number of docker containers with "k8s" in their names.
 
 So it turns out that TrueNAS manages its docker containers using `k3s` ( a cut-down version of kubernetes ), which is sort of interesting considering the whole point of this setup was to create a kubernetes cluster. So just think of this one as another completely different 1-machine cluster, and ignore it for the purposes of the cluster we're setting up later.
 
