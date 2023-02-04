@@ -33,15 +33,23 @@ Select the 'Apps' link on the left hand side of the TrueNAS control panel.
 
 Then select the 'Available Applications' tab, and click the 'Launch Docker Image' button ( that button is available on all tabs on that page, but it only appears to work on that tab ).
 
+### Application name
+
 In step 1 (Application Name), enter the application name `restic`
 
 ![](image/restic-1.png)
+
+### Container images
 
 In step 2 (Container Images), enter the image repository `restic/rest-server`, and leave the other fields as-is.
 
 ![](image/restic-2.png)
 
+### Container entrypoint
+
 Skip step 3 (Container Entrypoint)
+
+### Container environment variables
 
 In step 4 (Container Environment Variables), create an environment variable `OPTIONS` with the value 
 `--listen :9000 --tls --tls-cert /tls/restic.dev.randomnoun.pem --tls-key  /tls/restic.dev.randomnoun-key.pem`
@@ -50,13 +58,19 @@ You're using port 9000 rather than the default port 8000, as TrueNAS won't let y
 
 Also note those paths to the TLS certificates are paths within the restic container, you'll map those to paths on the NAS in step 7 later.
 
-![](image/restic-3.png)
+![](image/restic-4.png)
+
+### Networking
 
 Skip step 5 (Networking)
+
+### Port forwarding
 
 In step 6 (Port Forwarding), click 'Add' and add a mapping from port 9000 on the host to port 9000 in the container.
 
 ![](image/restic-6.png)
+
+### Storage
 
 In step 7 (Storage), you'll create two host path volumes:
 
@@ -70,15 +84,27 @@ In step 7 (Storage), you'll create two host path volumes:
 
 ![](image/restic-7.png)
 
+### Workload details
+
 Skip step 8 (Workload Details)
+
+### Scaling/upgrade policy
 
 Skip step 9 (Scaling/Upgrade Policy)
 
+### Resource reservation
+
 Skip step 10 (Resource Reservation)
+
+### Resource limits
 
 Skip step 11 (Resource Limits)
 
+### Portal configuration
+
 Skip step 12 (Portal Configuration)
+
+### Confirm options
 
 Step 13 (Confirm Options) should look a bit like this:
 
