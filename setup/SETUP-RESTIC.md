@@ -153,8 +153,40 @@ Adding password for user bnehyp02
 
 So now you should be able to connect to that restic server using that username and password.
 
+# Creating backups with restic
 
+So from bnehyp02, copy the CA certificate and install it in the trusted certificate store:
 
+```
+sudo scp knoxg@bnenas04.dev.randomnoun:/mnt/raidvolume/compressed/bookcase-ops/ca/cacert.pem /usr/local/share/ca-certificates/cacert.crt
+sudo update-ca-certificates
+# check the certificate is recognised
+awk -v cmd='openssl x509 -noout -subject' '/BEGIN/{close(cmd)};{print | cmd}' < /etc/ssl/certs/ca-certificates.crt | grep randomnoun
+```
 
+And install the restic client
 
+```
+sudo apt-get install restic
+```
+
+And create a restic repository for that host on the nas
+
+```
+# the repository URL contains the username and user password
+export RESTIC_REPOSITORY=rest:https://bnehyp02:KlMUE62Y887q@restic.dev.randomnoun:9000/bnehyp02/
+
+# this will prompt for a repository password
+restic init
+```
+
+Backup the DHCP and DNS configuration folders
+
+```
+# this fails with some permission denied errors
+restic backup --one-file-system /etc/bind /etc/dhcp
+
+# probably want this instead
+sudo restic -r ${RESTIC_REPOSITORY} backup --one-file-system /etc/bind /etc/dhcp
+```
 

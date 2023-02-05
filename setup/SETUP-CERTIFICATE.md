@@ -64,8 +64,16 @@ Now your have a CA certificate, you can check the certificate has been installed
 awk -v cmd='openssl x509 -noout -subject' '/BEGIN/{close(cmd)};{print | cmd}' < /etc/ssl/certs/ca-certificates.crt | grep randomnoun
 ```
 
-You might want to copy the `/opt/openssl-ca/ca/cacert.crt` certificate to your local machine (or any other machine that will be accessing these dev sites),
-and add them to your browser's certificate store, otherwise you're going to get warnings about untrusted certificates.
+And copy it over to the nas, as we'll need to distribute that CA to any machines that needs to trust it.
+
+```
+# copy the CA certificate to the nas
+ssh knoxg@bnenas04.dev.randomnoun 'mkdir -p /mnt/raidvolume/compressed/bookcase-ops/ca'
+scp ca/cacert.pem knoxg@bnenas04.dev.randomnoun:/mnt/raidvolume/compressed/bookcase-ops/ca/cacert.pem
+```
+
+You might also want to copy that `/opt/openssl-ca/ca/cacert.crt` CA certificate to your local dev machine,
+and add it to your browser's certificate store, otherwise you're going to get warnings about untrusted certificates.
 
 ## Create the site certificates 
 

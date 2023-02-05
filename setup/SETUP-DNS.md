@@ -23,7 +23,19 @@ Actually, if you do install isc-dhcp-server / bind , you'll probably have to dis
 
 You might be able to get away with updating your hosts file ( `/etc/hosts` on linux, `C:\Windows\System32\Drivers\etc\hosts` on Windows ) instead of running bind.
 
+## Installing some things you don't get out of the box
 
+If you're running this on a freshly reinstalled Ubuntu OS, then you'll probably want the `net-tools` so you can use `ifconfig`
+
+```
+sudo apt-get install net-tools
+```
+
+and you'll probably want to install an SSH server so you can logon to the thing remotely
+
+```
+sudo apt-get install openssh-server
+```
 
 ## Installing isc-dhcp-server
 
