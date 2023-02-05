@@ -112,7 +112,7 @@ host BNESQL02   { hardware ethernet 00:0c:29:03:9d:d7; fixed-address 192.168.0.1
 Steps to do that:
 
 ```
-sudo apt-get install bind
+sudo apt-get install bind9
 ```
 
 ## Configuring bind
@@ -211,3 +211,68 @@ $TTL    604800
 # Seems to be some gaps in your IP addresses there
 
 Well yes, I've had the bookcase for a while, and this is not the entire list of crap I've got connecting to this network.
+
+# Why aren't the DNS search domains working any more on the specific version of Ubuntu that I'm running ? ( Ubuntu 22.04.1 LTS )
+
+So I had to reinstall Ubuntu because the graphics driver seized up again, and rediscovered this little doozy after following the steps above. It's not really DHCP/DNS related, but I guess this needs to go somewhere.
+
+You know how Ubuntu reinvents their network stack configuration process with every LTS release ? Well, that's going to happen again.
+
+First off, try to set up your server with a static address using the 'Network Manager' found up the top-right of the Unity desktop.
+
+You'll find that you can't specify a 'DNS search domain', because apparently that's not worthy of including in the GUI any more, so instead  edit the `/etc/netplan/01-network-manager-all.yaml` file so that it contains:
+
+```
+# Let NetworkManager manage all devices on this system
+network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+    eno1:
+      dhcp4: no
+      addresses:
+        - 192.168.0.24/24
+      nameservers:
+        search: [dev.randomnoun]
+        addresses: [192.168.0.24, 203.12.160.35]
+      routes:
+        - to: default
+          via: 192.168.0.1
+```
+
+The addresses in the `nameservers` section are the local IP of bnehyp02 (the same IP address set in the `addresses` section), and the IP of my [internet service provider's DNS address](https://support.tpg.com.au/manually-setting-dns-server), so those will probably be different for you.
+
+You might find some alternate sources on the net that use 'gateway4' instead of 'routes', so that might work if you're using a slightly different version of the easy-to-use configuration tools that Ubuntu has bequeathed us.
+
+Anyway, once you've done that, run
+
+```
+sudo netplan --debug apply
+```
+
+to apply those changes, and then you should be able to do things like `ping bnenas04` instead of `ping bnenas04.dev.randomnoun`.
+
+Instructions taken [from here](https://netplan.io/examples) [and here](https://www.how2shout.com/linux/how-to-set-dns-nameserver-on-ubuntu-22-04-lts-jammy/).
+
+# So why did VNC and RDP stop working after upgrading Ubuntu as well ?
+
+Also not DHCP/DNS related, but if you foolishly performed a `sudo apt-get upgrade`, then you might discover that you can't VNC or RDP into the server any more. 
+
+Or you can, but the screen shown on the remote display is completely black. 
+
+To fix that, disable Wayland by editting `/etc/gdm3/custom.conf` and uncomment this line
+
+```
+WaylandEnable=false
+```
+
+and then restart gnome by running
+
+```
+sudo systemctl restart gdm3
+```
+
+Instructions copied [from here](https://linuxconfig.org/how-to-enable-disable-wayland-on-ubuntu-22-04-desktop).
+
+It's this sort of malarky which may explain why I still prefer using Windows as my main OS. Anyway. Onwards.
+
