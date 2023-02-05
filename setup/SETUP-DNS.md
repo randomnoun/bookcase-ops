@@ -212,9 +212,11 @@ $TTL    604800
 
 Well yes, I've had the bookcase for a while, and this is not the entire list of crap I've got connecting to this network.
 
-# Why aren't the DNS search domains working any more on the specific version of Ubuntu that I'm running ? ( Ubuntu 22.04.1 LTS )
+# Troubleshooting
 
-So I had to reinstall Ubuntu because the graphics driver seized up again, and rediscovered this little doozy after following the steps above. It's not really DHCP/DNS related, but I guess this needs to go somewhere.
+## Setting up DNS search domains
+
+So I reinstalled Ubuntu ( 22.04.1 LTS ) because gnome or X or the graphics driver seized up again after an upgrade, and rediscovered this little doozy after following the steps above. It's not really DHCP/DNS related, but I guess this needs to go somewhere.
 
 You know how Ubuntu reinvents their network stack configuration process with every LTS release ? Well, that's going to happen again.
 
@@ -254,7 +256,7 @@ to apply those changes, and then you should be able to do things like `ping bnen
 
 Instructions taken [from here](https://netplan.io/examples) [and here](https://www.how2shout.com/linux/how-to-set-dns-nameserver-on-ubuntu-22-04-lts-jammy/).
 
-# So why did VNC and RDP stop working after upgrading Ubuntu as well ?
+## Getting VNC and RDP working again
 
 Also not DHCP/DNS related, but if you foolishly performed a `sudo apt-get upgrade`, then you might discover that you can't VNC or RDP into the server any more. 
 
