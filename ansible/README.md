@@ -9,7 +9,7 @@ So you'll need to install [ansible](https://docs.ansible.com/ansible/latest/inst
 
 ## Certificates
 
-Since I use a non-standard `.randomnoun` top level domain on my dev machines, I have to create my own certifates using my own certificate authority (CA), rather
+Since I use a non-standard `.randomnoun` top level domain on my dev machines, I have to create my own certificates using my own certificate authority (CA), rather
 than using letsencrypt. If I find an easier way of doing this in future, I'll update this project.
 
 Setting up the certificates and the various TLS certs are covered in [SETUP-CERTIFICATE.md](../setup/SETUP-CERTIFICATE.md)
