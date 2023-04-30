@@ -1,8 +1,25 @@
+- name: "kubernetes namespace prometheus"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_prometheus }}"
+    wait: true
+    definition: "{{ lookup('template', '01-prometheus-namespace.j2.yml')  }}"
+
+- name: "kubernetes secrets prometheus"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_prometheus }}"
+    namespace: "{{ kube_namespace_prometheus }}"
+    wait: true
+    definition: "{{ lookup('template', '02-prometheus-secret.j2.yml')  }}"
+
 - name: "kubernetes prometheus"
   kubernetes.core.helm:
     context: "{{ kube_context_prometheus }}"
     release_namespace: "{{ kube_namespace_prometheus }}"
     release_name: "prometheus"
+# to uninstall, uncomment this    
+#    release_state: "absent"
     wait: true
     chart_ref: "prometheus-community/prometheus" 
-    values: "{{ lookup('template', 'prometheus-values.j2.yml') | from_yaml }}"
+    values: "{{ lookup('template', '03-prometheus-values.j2.yml') | from_yaml }}"
