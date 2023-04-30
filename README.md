@@ -44,6 +44,18 @@ Everything is hosted as subdomains of `.dev.randomnoun`, which isn't a real TLD.
 
 I'm configuring the DNS and certificates manually ( see the SETUP docs above ). I guess I could virtualise that up as well if I'm feeling up to it. 
 
+# Links to the things running in the cluster
+
+Anyway once everything's running, you should be able to connect to the following in a browser:
+
+* [https://wiki.dev.randomnoun](https://wiki.dev.randomnoun)
+* [https://gitlab.dev.randomnoun](https://gitlab.dev.randomnoun)
+* [https://nexus2.dev.randomnoun](https://nexus2.dev.randomnoun)
+* [https://nexus3.dev.randomnoun](https://nexus3.dev.randomnoun)
+* [https://prometheus.dev.randomnoun](https://prometheus.dev.randomnoun)
+* [https://alertmanager.dev.randomnoun](https://alertmanager.dev.randomnoun)
+* [https://grafana.dev.randomnoun](https://grafana.dev.randomnoun)
+
 ## License
 
 bookcase-ops is licensed under a Simplified BSD License.
