@@ -7,6 +7,7 @@ So these are the bits of kit I'm configuring with this project:
 It's metal and it's got 5 shelves on it.
 
 # bnehyp05
+<img align="right" src="image/pie-bnehyp05.png">
 
 The hypervisor, for running virtual machines and containers. 
 
@@ -23,6 +24,7 @@ The hypervisor, for running virtual machines and containers.
 Total: 1770.70 
 
 # bnenas04
+<img align="right" src="image/pie-bnenas04.png">
 
 A ZFS storage server, running TrueNAS SCALE ( based on Linux, which is a step up from my earlier nas servers which ran on FreeNAS/FreeBSD ). 
 
@@ -51,6 +53,8 @@ Those 8 drives are configured in a raidz2 volume, so 2 of them provide resilienc
 Total: 2924.38
 
 # bnehyp02
+<img align="right" src="image/pie-bnehyp02.png">
+
 
 An older hypervisor that is also running bind9 and isc-dhcp-server
 
