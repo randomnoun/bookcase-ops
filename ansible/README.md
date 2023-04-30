@@ -27,7 +27,7 @@ The system components installed are:
    * There appears to be two flavours of nginx ingresses: one that uses [`nginx.ingress.*` annotations](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/), and one that uses [`org.nginx.*` annotations](https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/).  
      Our ingresses use `org.nginx.*` annotations.
    * It doesn't use the helm-installed nginx ingress either, because that won't work unless you have a real loadbalancer, unless you install something called [MetalLB](https://metallb.universe.tf/) which [doesn't work either](https://metallb.universe.tf/configuration/calico/).
-* **promtheus**
+* **prometheus**
    * prometheus is used for event monitoring and alerting. It's a time series database containing metrics scraped from the other containers in the cluster.
    * there's also an 'alertmanager' component which presumably manages alerts.
 * **grafana**
