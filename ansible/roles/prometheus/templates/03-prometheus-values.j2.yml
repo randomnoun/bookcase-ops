@@ -1,7 +1,4 @@
 server:
-  # see https://github.com/prometheus-community/helm-charts/issues/1594
-  # if changing prefixURL or baseURL
-  # prefixURL: /
   baseURL: http://{{ prometheus_ingress_host }}
   persistentVolume:
     size: "{{ prometheus_volume_size_gb }}Gi"
@@ -17,16 +14,9 @@ server:
       - secretName: prometheus-tls-secret
         hosts:
           - {{ prometheus_ingress_host }}
-                
-#    hosts:
-#      - host: {{ prometheus_ingress_host }}
-#        paths:
-#          - path: /
-#            pathType: ImplementationSpecific
-
                  
 alertmanager:
-  # even within the same chart they can't use the same goddamn key
+  # note different key to 'server' above
   persistence:
     size: "{{ alertmanager_volume_size_gb }}Gi"
     storageClass: {{ kube_storageclass_prometheus }}

@@ -31,6 +31,8 @@ Okay so what you've got is:
 * [ansible](ansible/README.md) - an ansible repository which deploys the following into kubernetes
    * nginx-ingress - to handle traffic into the cluster
    * democratic-csi - to handle storage for k8s pods ( connects to the TrueNAS SCALE box over NFS )
+   * prometheus - monitoring
+   * grafana - a dashboard for the statistics captured in prometheus
    * gitlab - a gitlab server
    * nexus2 - a nexus2 repository ( to hold java artifacts )
    * nexus3 - a nexus3 repository ( to hold docker artifacts )

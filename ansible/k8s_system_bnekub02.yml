@@ -16,6 +16,10 @@
           role: prometheus
           var_files: [bnekub02]
 
+        - name: grafana
+          role: grafana
+          var_files: [bnekub02]
+
   tasks:
     - name: deploy system
       include_tasks: apply_role.yml
