@@ -190,6 +190,9 @@ docker-snapshots.nexus3  IN CNAME bnenod03
 gitlab        IN CNAME bnenod03
 nexus2        IN CNAME bnenod03
 nexus3        IN CNAME bnenod03
+prometheus    IN CNAME bnenod03
+alertmanager  IN CNAME bnenod03
+grafana       IN CNAME bnenod03
 ```
 
 * Create the file  `/etc/bind/db.192` containing:

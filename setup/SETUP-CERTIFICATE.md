@@ -103,6 +103,7 @@ cd /opt/openssl-ca
 ./bin/create-certificate.sh docker-combined.nexus3.dev.randomnoun
 ./bin/create-certificate.sh prometheus.dev.randomnoun
 ./bin/create-certificate.sh alertmanager.dev.randomnoun
+./bin/create-certificate.sh grafana.dev.randomnoun
 ```
 
 So a few notes:
@@ -130,6 +131,7 @@ vault login
 ./bin/upload-certificate.sh docker-combined.nexus3.dev.randomnoun  k8s/bnekub02/secret/dev-nexus3/docker-combined-tls-secret
 ./bin/upload-certificate.sh prometheus.dev.randomnoun   k8s/bnekub02/secret/prometheus/prometheus-tls-secret
 ./bin/upload-certificate.sh alertmanager.dev.randomnoun k8s/bnekub02/secret/prometheus/alertmanager-tls-secret
+./bin/upload-certificate.sh grafana.dev.randomnoun k8s/bnekub02/secret/grafana/grafana-tls-secret
 
 ```
 
