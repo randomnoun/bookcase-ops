@@ -55,6 +55,7 @@ Anyway once everything's running, you should be able to connect to the following
 * [https://prometheus.dev.randomnoun](https://prometheus.dev.randomnoun)
 * [https://alertmanager.dev.randomnoun](https://alertmanager.dev.randomnoun)
 * [https://grafana.dev.randomnoun](https://grafana.dev.randomnoun)
+* [http://vault.dev.randomnoun:8200](http://vault.dev.randomnoun:8200)
 
 ## License
 
