@@ -31,6 +31,8 @@ Okay so what you've got is:
 * [ansible](ansible/README.md) - an ansible repository which deploys the following into kubernetes
    * nginx-ingress - to handle traffic into the cluster
    * democratic-csi - to handle storage for k8s pods ( connects to the TrueNAS SCALE box over NFS )
+   * prometheus - monitoring
+   * grafana - a dashboard for the statistics captured in prometheus
    * gitlab - a gitlab server
    * nexus2 - a nexus2 repository ( to hold java artifacts )
    * nexus3 - a nexus3 repository ( to hold docker artifacts )
@@ -41,6 +43,18 @@ The packer scripts are designed to install virtual machines in the free version 
 Everything is hosted as subdomains of `.dev.randomnoun`, which isn't a real TLD. So if you're copying any of this you may want to search and replace that to something else.
 
 I'm configuring the DNS and certificates manually ( see the SETUP docs above ). I guess I could virtualise that up as well if I'm feeling up to it. 
+
+# Links to the things running in the cluster
+
+Anyway once everything's running, you should be able to connect to the following in a browser:
+
+* [https://wiki.dev.randomnoun](https://wiki.dev.randomnoun)
+* [https://gitlab.dev.randomnoun](https://gitlab.dev.randomnoun)
+* [https://nexus2.dev.randomnoun](https://nexus2.dev.randomnoun)
+* [https://nexus3.dev.randomnoun](https://nexus3.dev.randomnoun)
+* [https://prometheus.dev.randomnoun](https://prometheus.dev.randomnoun)
+* [https://alertmanager.dev.randomnoun](https://alertmanager.dev.randomnoun)
+* [https://grafana.dev.randomnoun](https://grafana.dev.randomnoun)
 
 ## License
 

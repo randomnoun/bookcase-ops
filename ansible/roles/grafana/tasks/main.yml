@@ -1,0 +1,25 @@
+- name: "kubernetes namespace grafana"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_grafana }}"
+    wait: true
+    definition: "{{ lookup('template', '01-grafana-namespace.j2.yml')  }}"
+
+- name: "kubernetes secrets grafana"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_grafana }}"
+    namespace: "{{ kube_namespace_grafana }}"
+    wait: true
+    definition: "{{ lookup('template', '02-grafana-secret.j2.yml')  }}"
+
+- name: "kubernetes grafana"
+  kubernetes.core.helm:
+    context: "{{ kube_context_grafana }}"
+    release_namespace: "{{ kube_namespace_grafana }}"
+    release_name: "grafana"
+# to uninstall, uncomment this    
+#    release_state: "absent"
+    wait: true
+    chart_ref: "grafana/grafana" 
+    values: "{{ lookup('template', '03-grafana-values.j2.yml') | from_yaml }}"

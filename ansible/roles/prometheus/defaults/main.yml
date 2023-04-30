@@ -1,0 +1,9 @@
+# gitlab_aws_region: "ap-southeast-2"
+
+kube_context_prometheus: ""
+kube_namespace_prometheus: "prometheus"
+kube_storageclass_prometheus: "freenas-nfs"
+
+
+      
+
