@@ -1,0 +1,12 @@
+server:
+  persistentVolume:
+    size: "{{ prometheus_volume_size_gb }}Gi"
+    storageClass: {{ kube_storageclass_prometheus }}
+  ingress:
+    enabled: true
+    ingressClassName: {{ prometheus_ingress_class }}
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   kubernetes.io/tls-acme: 'true'
+    hosts:
+      - {{ prometheus_ingress_host }}    

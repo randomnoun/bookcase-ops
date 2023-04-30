@@ -1,0 +1,8 @@
+- name: "kubernetes prometheus"
+  kubernetes.core.helm:
+    context: "{{ kube_context_prometheus }}"
+    release_namespace: "{{ kube_namespace_prometheus }}"
+    release_name: "prometheus"
+    wait: true
+    chart_ref: "prometheus-community/prometheus" 
+    values: "{{ lookup('template', 'prometheus-values.j2.yml') | from_yaml }}"
