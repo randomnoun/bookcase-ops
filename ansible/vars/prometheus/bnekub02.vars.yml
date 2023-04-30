@@ -1,0 +1,11 @@
+kube_context_prometheus: "bnekub02"
+kube_storageclass_prometheus: "bnenas04-nfs-csi"
+
+prometheus_ingress_host: "prometheus.dev.randomnoun"
+prometheus_ingress_class: "nginx-internal"
+
+# prometheus_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-prometheus/prometheus-tls-secret:tls.crt')}}"
+# prometheus_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub02/secret/dev-prometheus/prometheus-tls-secret:tls.key')}}"
+
+prometheus_volume_size_gb: 40
+

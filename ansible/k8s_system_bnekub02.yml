@@ -12,6 +12,9 @@
           role: kubernetes-nginx-ingress
           var_files: [bnekub02]
 
+        - name: prometheus
+          role: prometheus
+          var_files: [bnekub02]
 
   tasks:
     - name: deploy system
