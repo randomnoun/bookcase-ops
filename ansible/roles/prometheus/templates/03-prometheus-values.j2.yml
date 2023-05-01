@@ -1,5 +1,9 @@
 server:
   baseURL: http://{{ prometheus_ingress_host }}
+  global:
+    # this is set to 1m by default, but most dashboards seem to expect 15s
+    # set evaluation_interval as well ?
+    scrape_interval: 15s
   persistentVolume:
     size: "{{ prometheus_volume_size_gb }}Gi"
     storageClass: {{ kube_storageclass_prometheus }}
@@ -32,4 +36,12 @@ alertmanager:
       - secretName: alertmanager-tls-secret
         hosts:
           - {{ alertmanager_ingress_host }}
-                
+  
+
+# copied from https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml    
+prometheus-node-exporter:
+#  namespaceOverride: ""
+  podLabels:
+    ## Add the 'node-exporter' label to be used by serviceMonitor to match standard common usage in rules and grafana dashboards
+    ##
+    job: node-exporter
