@@ -22,8 +22,7 @@ sudo apt install vault
 
 I'm configuring the vault to listen to HTTP requests on port 8200 for now.
 
-You could use HTTPS if you like, but the config is different, you'll need to create the certificates (which will require a CA which we don't have yet), 
-and it'll be more difficult to debug.
+We're keeping HTTPS disabled initially (it requires a CA which we don't have yet), but we'll enable it later in the [SETUP-CERTIFICATE.md](SETUP-CERTIFICATE.md) step.
 
 Change the `vault.dev.randomnoun` domain name to what you want the domain to be.
 
@@ -34,6 +33,7 @@ sudo /bin/bash -c 'sudo cat << EOF > /etc/vault.d/vault.hcl
 # Full configuration options can be found at https://www.vaultproject.io/docs/configuration
 
 ui = true
+
 
 storage "file" {
   path = "/opt/vault/data"
@@ -48,9 +48,22 @@ listener "tcp" {
        "Strict-Transport-Security" = [""]
     }
   }
-
 }
+
+# HTTPS listener
+# this section won't work until we have some certificates, which we'll be creating in the
+# SETUP-CERTIFICATE.md step later. Keep the following section commented out for now
+
+#listener "tcp" {
+#  address       = "0.0.0.0:443"
+#  tls_cert_file = "/etc/vault.d/vault.dev.randomnoun.pem"
+#  tls_key_file  = "/etc/vault.d/vault.dev.randomnoun-key.pem"
+#}
+
+# when we enable HTTPS later, uncomment the https url below and comment out the other one
+# api_addr = "https://vault.dev.randomnoun"
 api_addr = "http://vault.dev.randomnoun:8200"
+
 EOF'
 
 sudo service vault start
