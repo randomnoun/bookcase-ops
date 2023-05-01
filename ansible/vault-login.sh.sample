@@ -1,6 +1,10 @@
-q#/usr/bin/env
+#/usr/bin/env
 #
 # . vault-login.sh
 
 export VAULT_ADDR=http://the-vault-server:8200
+
+# if SSL is enabled for vault, use the following instead. You may need to set VAULT_CACERT.
+# export VAULT_ADDR=https://the-vault-server
+
 export VAULT_TOKEN=$(vault write -format=json auth/approle/login role_id="...the-role-id..." secret_id="...the-secret-id..." | jq -r .auth.client_token)

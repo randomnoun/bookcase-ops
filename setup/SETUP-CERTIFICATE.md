@@ -153,7 +153,8 @@ So now that we have a TLS certificate for vault we can use that to encrypt traff
 cd /opt/openssl-ca
 sudo cp ./cert/vault.dev.randomnoun.pem /etc/vault.d/vault.dev.randomnoun.pem
 sudo cp ./private/vault.dev.randomnoun-key.pem /etc/vault.d/vault.dev.randomnoun-key.pem
-
+sudo cp ./ca/cacert.pem /etc/vault.d/cacert.pem
+ 
 # make them readable by the 'vault' user
 cd /etc/vault.d
 sudo chown vault:vault *.pem
@@ -180,6 +181,23 @@ sudo vi /lib/systemd/system/vault.service
 sudo systemctl daemon-reload
 
 sudo service vault start
+sudo service vault status
+```
+
+Assuming the vault service started OK, unseal the vault again using the steps on [SETUP-VAULT.md](SETUP-VAULT.md). 
+
+You can now do this over HTTPS, by changing your `VAULT_ADDR` environment variable. 
+If you get errors about unrecognised certicates, try setting `VAULT_CACERT` as well.
+
+```
+# may not need to set VAULT_CACERT if the CA certificate is already installed in the
+# machine's trust store.
+export VAULT_CACERT=/etc/vault.d/cacert.pem
+export VAULT_ADDR=https://vault.dev.randomnoun
+
+vault operator unseal asdfasdfasdfasdfSGUf635zZnHTh+FdGCkbt0lxmGiE
+vault operator unseal asdfasdfasdfasdfE5v2MwAGnCkFAOGczwgagJ6rGYl0
+vault operator unseal asdfasdfasdfasdfY8yNWpKfYAVtRbJhjUnhy2D0by6T
 ```
 
 If that works OK, you should now be able to connect to the vault via [https://vault.dev.randomnoun](https://vault.dev.randomnoun) 
