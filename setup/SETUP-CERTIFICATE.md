@@ -200,7 +200,7 @@ vault operator unseal asdfasdfasdfasdfE5v2MwAGnCkFAOGczwgagJ6rGYl0
 vault operator unseal asdfasdfasdfasdfY8yNWpKfYAVtRbJhjUnhy2D0by6T
 ```
 
-If that works OK, you should now be able to connect to the vault via [https://vault.dev.randomnoun](https://vault.dev.randomnoun) 
+And assuming that works OK, you should now be able to connect to the vault via [https://vault.dev.randomnoun](https://vault.dev.randomnoun) 
 ( in addition to [http://vault.dev.randomnoun:8200](http://vault.dev.randomnoun:8200) )
 
 ## Create an ansible approle and long-lived auth token:
