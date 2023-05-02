@@ -21,5 +21,13 @@
 # to uninstall, uncomment this    
 #    release_state: "absent"
     wait: true
-    chart_ref: "prometheus-community/prometheus" 
+    chart_ref: "prometheus-community/kube-prometheus-stack" 
     values: "{{ lookup('template', '03-prometheus-values.j2.yml') | from_yaml }}"
+
+- name: "kubernetes prometheus nginx podmonitor"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_prometheus }}"
+    namespace: "nginx-ingress"
+    wait: true
+    definition: "{{ lookup('template', '04-prometheus-nginx-podmonitor.j2.yml')  }}"
