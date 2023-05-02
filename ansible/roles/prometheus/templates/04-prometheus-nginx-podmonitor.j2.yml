@@ -1,0 +1,24 @@
+# this is in the 'prometheus' ansible role rather than the 'nginx' ansible role
+# as we need the 'ServiceMonitor' custom resource definition (CRD) to exist 
+# before we can create an instance of that resource.
+# nginx is configured as a DaemonSet so think we need a PodMonitor rather than a ServiceMonitor
+
+# note the PodMonitor itself is in the 'nginx-ingress' namespace (not the prometheus namespace).
+
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: nginx-ingress-podmonitor
+  namespace: nginx-ingress
+  labels:
+    prometheus: default
+spec:
+  selector:
+    matchLabels:
+      app: nginx-ingress
+  podTargetLabels: ['app']
+  podMetricsEndpoints:
+    - port: prometheus
+
+
+    
