@@ -1,7 +1,12 @@
+# so I'm guessing these were all take from the 'daemonset' configuration at
+# https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/
+
 apiVersion: v1
 kind: Namespace
 metadata:
   name: nginx-ingress
+  labels:
+    prometheusEnabled: 'true'  
 ---
 apiVersion: v1
 kind: ServiceAccount

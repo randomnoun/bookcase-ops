@@ -11,10 +11,11 @@ spec:
     metadata:
       labels:
         app: nginx-ingress
-     #annotations:
-       #prometheus.io/scrape: "true"
-       #prometheus.io/port: "9113"
-       #prometheus.io/scheme: http
+        # prometheusSpec says something different though ?
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9113"
+      prometheus.io/scheme: http
     spec:
       serviceAccountName: nginx-ingress
       automountServiceAccountToken: true
@@ -33,6 +34,8 @@ spec:
           containerPort: 8081
         - name: prometheus
           containerPort: 9113
+          # maybe it needs to be exposed on the node ?
+          # hostPort: 9113
         readinessProbe:
          httpGet:
            path: /nginx-ready
@@ -65,6 +68,16 @@ spec:
         args:
           - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
           - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
+          - -enable-prometheus-metrics
+        
+         # so it turns out that getting latency metrics, or even metrics on http status codes
+         # requires getting a $3000+ 'nginx plus' license. Yeesh.
+         
+         # there is an opensource module to add the same kind of stats; see
+         #   https://github.com/vozlt/nginx-module-vts and
+         #   https://github.com/nginxinc/kubernetes-ingress/issues/957
+         # later   
+         
          #- -include-year
          #- -v=3 # Enables extensive logging. Useful for troubleshooting.
          #- -report-ingress-status
