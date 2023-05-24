@@ -48,7 +48,7 @@ and use that to stash all your credentials.
 So [here's some steps](../setup/SETUP-VAULT.md) on getting that up and running.
 
 Once vault is running, 
-* copy `vault-login.sh.sample` to `vault-login.sh`
+* copy [`vault-login.sh.sample`](vault-login.sh.sample) to `vault-login.sh`
 * update the `role_id` and `secret_id` to the real role id and secret id that packer will be using to access those credentials
 
 # Alternatively 
@@ -57,9 +57,9 @@ Alternatively, you could use the 'simple' variant of these scripts, which puts a
 
 To disable vault lookups:
 
-* copy the `simple-vars.json.sample` to `simple-vars.json` in the `src/main/packer` folder
+* copy the [`simple-vars.json.sample`](src/main/packer/simple-vars.json) to `simple-vars.json` in the `src/main/packer` folder
 * edit that file with the credentials you want to use. You'll probably want to change most of the entries in that json file. 
-* edit the environment variables at the top of `build.sh` to contain: 
+* edit the environment variables at the top of [`build.sh`](build.sh) to contain: 
 
 ```
 PACKER_VARS=simple-vars.json
