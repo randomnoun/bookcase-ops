@@ -1,7 +1,6 @@
 # see https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
 
 # this is 'prometheus-kube-prometheus' by default which ends up with insanely long names elsewhere
-# I think this might be what's cocking everthing up actually.
 nameOverride: prometheus
 # this then becomes 'prometheus-kube-prometheus-prometheus'
 fullnameOverride: prometheus
