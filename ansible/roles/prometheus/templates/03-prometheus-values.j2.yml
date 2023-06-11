@@ -1,5 +1,16 @@
 # see https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
 
+# this is 'prometheus-kube-prometheus' by default which ends up with insanely long names elsewhere
+# I think this might be what's cocking everthing up actually.
+nameOverride: prometheus
+# this then becomes 'prometheus-kube-prometheus-prometheus'
+fullnameOverride: prometheus
+
+# for some reason we're using a custom podMonitorSelector, serviceMonitorSelector and ruleSelector
+# which all match on this label, so we need to include this label on any resources deployed by this chart 
+commonLabels:
+  prometheus: default
+
 #prometheusOperator:
 #  resources:
 #    requests:
@@ -98,4 +109,21 @@ alertmanager:
 grafana:
   enabled: false
 
+kube-state-metrics:
+  metricLabelsAllowlist:
+    - nodes=[kops.k8s.io/instancegroup,node-role.kubernetes.io/node,topology.kubernetes.io/region,topology.kubernetes.io/zone]
+    - deployments=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance,component,part-of,app,unit]
+    - pods=[app.kubernetes.io/name,app.kubernetes.io/component,app.kubernetes.io/instance,component,part-of,app,unit]
+  prometheus:
+    monitor:
+      additionalLabels:
+        # this label is required in order to match the serviceMonitorSelector specified above
+        prometheus: default
+
+prometheus-node-exporter:
+  prometheus:
+    monitor:
+      additionalLabels:
+        # this label is required in order to match the serviceMonitorSelector specified above
+        prometheus: default
 
