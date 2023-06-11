@@ -32,7 +32,7 @@ Okay so what you've got is:
    * nginx-ingress - to handle traffic into the cluster
    * democratic-csi - to handle storage for k8s pods ( connects to the TrueNAS SCALE box over NFS )
    * prometheus - monitoring
-   * grafana - a dashboard for the statistics captured in prometheus
+   * grafana - a dashboard for the statistics captured in prometheus ( once it's running, see [SETUP-GRAFANA.md](setup/SETUP-GRAFANA.md) )
    * gitlab - a gitlab server
    * nexus2 - a nexus2 repository ( to hold java artifacts )
    * nexus3 - a nexus3 repository ( to hold docker artifacts )
