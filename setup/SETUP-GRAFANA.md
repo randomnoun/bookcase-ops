@@ -1,6 +1,6 @@
 # SETUP-GRAFANA.md
 
-Grafana charts the stuff in prometheus.
+Grafana charts the metrics stored in prometheus.
 
 ## Logging in
 
