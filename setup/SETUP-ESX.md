@@ -1,5 +1,11 @@
 # bookcase-ops ESX prerequisites
 
+**Edit 2024-02-25:** So it looks like vmware is now insisting that people 
+[pay them for ESX](https://www.theregister.com/2024/02/13/broadcom_ends_free_esxi_vsphere/) , 
+which I'm obviously not going to do, so if I was doing this again I'd probably use [proxmox](https://www.proxmox.com/en/) instead.
+
+---
+
 This project uses the free version of [ESXi 6.0](https://www.vmware.com/au/products/esxi-and-esx.html) 
 
 You'll need to jump through a few hoops to get packer to be able to create virtual machines on it.
