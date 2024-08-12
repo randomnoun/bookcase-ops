@@ -37,6 +37,7 @@ Okay so what you've got is:
    * nexus2 - a nexus2 repository ( to hold java artifacts )
    * nexus3 - a nexus3 repository ( to hold docker artifacts )
    * xwiki - a wiki
+   * commafeed - an rss aggregator
 
 The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but could be used to deploy into other hosting environments easily enough.
 
@@ -57,6 +58,7 @@ Anyway once everything's running, you should be able to connect to the following
 * [https://grafana.dev.randomnoun](https://grafana.dev.randomnoun)
 * [https://vault.dev.randomnoun](http://vault.dev.randomnoun)
 * [http://vault.dev.randomnoun:8200](http://vault.dev.randomnoun:8200) (HTTP port)
+* [https://commafeed.dev.randomnoun](https://commafeed.dev.randomnoun)
 
 ## License
 

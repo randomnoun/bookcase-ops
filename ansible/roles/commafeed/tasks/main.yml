@@ -1,0 +1,16 @@
+- name: "kubernetes namespace commafeed"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_commafeed }}"
+    wait: true
+    definition: "{{ lookup('template', 'commafeed-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment commafeed"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_commafeed }}"
+    namespace: "{{ kube_namespace_commafeed }}"
+    wait: true
+    definition: "{{ lookup('template', 'commafeed.j2.yml')  }}"
+
+

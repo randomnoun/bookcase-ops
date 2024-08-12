@@ -1,0 +1,14 @@
+kube_context_commafeed: ""
+kube_namespace_commafeed: "dev-commafeed"
+kube_storageclass_commafeed: "freenas-nfs"
+
+commafeed_ingress_host: ""
+commafeed_tls_secret_cert: ""
+commafeed_tls_secret_key: ""
+
+commafeed_volume_size_gb: 40
+
+commafeed_db_host: ""
+commafeed_db_schema: ""
+commafeed_db_username: ""
+commafeed_db_password: ""
