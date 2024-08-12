@@ -62,6 +62,7 @@ The initial set of applications are:
 
 * gitlab
 * xwiki
+* commafeed
 * nexus2
 * nexus3
 

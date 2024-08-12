@@ -109,6 +109,7 @@ cd /opt/openssl-ca
 ./bin/create-certificate.sh alertmanager.dev.randomnoun
 ./bin/create-certificate.sh grafana.dev.randomnoun
 ./bin/create-certificate.sh vault.dev.randomnoun
+./bin/create-certificate.sh commafeed.dev.randomnoun
 ```
 
 So a few notes:
@@ -137,6 +138,7 @@ vault login
 ./bin/upload-certificate.sh prometheus.dev.randomnoun   k8s/bnekub02/secret/prometheus/prometheus-tls-secret
 ./bin/upload-certificate.sh alertmanager.dev.randomnoun k8s/bnekub02/secret/prometheus/alertmanager-tls-secret
 ./bin/upload-certificate.sh grafana.dev.randomnoun      k8s/bnekub02/secret/grafana/grafana-tls-secret
+./bin/upload-certificate.sh commafeed.dev.randomnoun     k8s/bnekub02/secret/dev-commafeed/xwiki-tls-secret
 ```
 
 We're not uploading the vault certificate to the vault, because vault can't use itself for it's own certficates. OR CAN IT. *( googles that )*. No, no it can't.
