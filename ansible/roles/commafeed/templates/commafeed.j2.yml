@@ -39,7 +39,7 @@ spec:
               memory: "2Gi"
           env:
             - name: CF_APP_PUBLICURL
-              value: https://commafeed.dev.randomnoun/
+              value: https://{{ commafeed_ingress_host }}/
             - name: CF_DATABASE_DRIVERCLASS
               value: com.mysql.cj.jdbc.Driver
             - name: CF_DATABASE_URL
@@ -62,7 +62,7 @@ spec:
 #            successThreshold: 1
 #            timeoutSeconds: 10
 #            httpGet:
-#              path: /help
+#              path: /
 #              port: 80
 #              scheme: HTTP
       volumes:
