@@ -1,5 +1,3 @@
-# gitlab_aws_region: "ap-southeast-2"
-
 kube_context_democratic_csi: ""
 kube_namespace_democratic_csi: "democratic-csi"
 kube_storageclass_democratic_csi: "freenas-nfs"
