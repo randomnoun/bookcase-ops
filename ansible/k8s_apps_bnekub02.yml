@@ -3,21 +3,21 @@
   vars:
     k8s_apps_bnekub02:
       deployments:
-#        - name: gitlab-bnekub02
-#          role: gitlab
-#          var_files: [bnekub02]
-#        - name: xwiki-bnekub02
-#          role: xwiki
-#          var_files: [bnekub02]
-#        - name: nexus2-bnekub02
-#          role: nexus2
-#          var_files: [bnekub02]
-#        - name: nexus3-bnekub02
-#          role: nexus3
-#          var_files: [bnekub02]
-#        - name: commafeed-bnekub02
-#          role: commafeed
-#          var_files: [bnekub02]
+        - name: gitlab-bnekub02
+          role: gitlab
+          var_files: [bnekub02]
+        - name: xwiki-bnekub02
+          role: xwiki
+          var_files: [bnekub02]
+        - name: nexus2-bnekub02
+          role: nexus2
+          var_files: [bnekub02]
+        - name: nexus3-bnekub02
+          role: nexus3
+          var_files: [bnekub02]
+        - name: commafeed-bnekub02
+          role: commafeed
+          var_files: [bnekub02]
         - name: karakeep-bnekub02
           role: karakeep
           var_files: [bnekub02]

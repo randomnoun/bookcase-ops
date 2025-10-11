@@ -38,6 +38,7 @@ Okay so what you've got is:
    * nexus3 - a nexus3 repository ( to hold docker artifacts )
    * xwiki - a wiki
    * commafeed - an rss aggregator
+   * karakeep - a bookmark organiser
 
 The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but could be used to deploy into other hosting environments easily enough.
 
@@ -59,6 +60,7 @@ Anyway once everything's running, you should be able to connect to the following
 * [https://vault.dev.randomnoun](http://vault.dev.randomnoun)
 * [http://vault.dev.randomnoun:8200](http://vault.dev.randomnoun:8200) (HTTP port)
 * [https://commafeed.dev.randomnoun](https://commafeed.dev.randomnoun)
+* [https://karakeep.dev.randomnoun](https://karakeep.dev.randomnoun)
 
 ## License
 
