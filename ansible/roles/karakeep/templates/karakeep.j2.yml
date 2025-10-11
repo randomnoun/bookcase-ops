@@ -1,0 +1,234 @@
+# k8s yaml based on those found at https://github.com/karakeep-app/karakeep/blob/main/kubernetes
+---
+# data-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_karakeep }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# meilisearch-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: meilisearch-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_karakeep }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# chrome-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chrome
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chrome
+  template:
+    metadata:
+      labels:
+        app: chrome
+    spec:
+      containers:
+        - name: chrome
+          image: gcr.io/zenika-hub/alpine-chrome:124
+          command:
+            - chromium-browser
+            - --headless
+            - --no-sandbox
+            - --disable-gpu
+            - --disable-dev-shm-usage
+            - --remote-debugging-address=0.0.0.0
+            - --remote-debugging-port=9222
+            - --hide-scrollbars
+---
+# meilisearch-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meilisearch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meilisearch
+  template:
+    metadata:
+      labels:
+        app: meilisearch
+    spec:
+      containers:
+        - name: meilisearch
+          image: getmeili/meilisearch:v1.11.1
+          env:
+            - name: MEILI_NO_ANALYTICS
+              value: "true"
+          # used to be stored as secrets
+            - name: NEXTAUTH_SECRET
+              value: "aO0vgYF7WIdOec05KKGBc4anU68c3XTnm+KACs586InKyJ+B"
+            - name: MEILI_MASTER_KEY
+              value: "LNPqraizTtZYmb6BoNuUCGB6FydPOLfgUm5KDmGUR0VgMc/C"
+            - name: NEXT_PUBLIC_SECRET
+              value: "BvGvZ+XgkG1bimZVg+VtizT2ntYmwF/nBnLzLy8gzOY5xpQS"
+          # used to be stored as configMap
+            - name: NEXTAUTH_URL
+              value: http://localhost:3000
+            - name: KARAKEEP_VERSION
+              value: release
+          volumeMounts:
+            - mountPath: /meili_data
+              name: meilisearch
+          envFrom:
+            #- secretRef:
+            #    name: karakeep-secrets
+            #- configMapRef:
+            #    name: karakeep-configuration
+      volumes:
+        - name: meilisearch
+          persistentVolumeClaim:
+            claimName: meilisearch-pvc
+---
+# web-deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: karakeep-web
+  template:
+    metadata:
+      labels:
+        app: karakeep-web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/karakeep-app/karakeep
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: MEILI_ADDR
+              value: http://meilisearch:7700
+            - name: BROWSER_WEB_URL
+              value: http://chrome:9222
+            - name: DATA_DIR
+              value: /data
+            # Add OPENAI_API_KEY to the ConfigMap if necessary
+            # used to be stored as secrets
+            # used to be stored as secrets
+            - name: NEXTAUTH_SECRET
+              value: "aO0vgYF7WIdOec05KKGBc4anU68c3XTnm+KACs586InKyJ+B"
+            - name: MEILI_MASTER_KEY
+              value: "LNPqraizTtZYmb6BoNuUCGB6FydPOLfgUm5KDmGUR0VgMc/C"
+            - name: NEXT_PUBLIC_SECRET
+              value: "BvGvZ+XgkG1bimZVg+VtizT2ntYmwF/nBnLzLy8gzOY5xpQS"
+            # used to be stored as configMap
+            - name: NEXTAUTH_URL
+              value: http://localhost:3000
+            - name: KARAKEEP_VERSION
+              value: release
+          volumeMounts:
+            - mountPath: /data
+              name: data
+          envFrom:
+            #- secretRef:
+            #    name: karakeep-secrets
+            #- configMapRef:
+            #    name: karakeep-configuration
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data-pvc
+---
+# chrome-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: chrome
+spec:
+  selector:
+    app: chrome
+  ports:
+    - protocol: TCP
+      port: 9222
+      targetPort: 9222
+  type: ClusterIP
+---
+# meilisearch-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: meilisearch
+spec:
+  selector:
+    app: meilisearch
+  ports:
+    - protocol: TCP
+      port: 7700
+      targetPort: 7700
+---
+# web-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: karakeep-web
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: LoadBalancer
+---
+
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata: 
+  name: karakeep-tls-secret
+data: 
+  tls.crt: "{{ karakeep_tls_secret_cert }}"
+  tls.key: "{{ karakeep_tls_secret_key }}"
+
+---
+# ingress_sample.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: karakeep-web-ingress
+  # namespace: karakeep
+  annotations:
+    kubernetes.io/ingress.class: "nginx"  
+spec:
+  tls:
+    - hosts:
+        - {{ karakeep_ingress_host }}
+      secretName: karakeep-tls-secret    
+  rules:
+  - host: {{ karakeep_ingress_host }}
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: "web"
+            port:
+              number: 3000    
+
