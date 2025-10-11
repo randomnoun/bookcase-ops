@@ -1,0 +1,14 @@
+kube_context_karakeep: ""
+kube_namespace_karakeep: "dev-karakeep"
+kube_storageclass_karakeep: "freenas-nfs"
+
+karakeep_ingress_host: ""
+karakeep_tls_secret_cert: ""
+karakeep_tls_secret_key: ""
+
+karakeep_volume_size_gb: 40
+
+karakeep_db_host: ""
+karakeep_db_schema: ""
+karakeep_db_username: ""
+karakeep_db_password: ""

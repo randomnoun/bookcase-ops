@@ -1,0 +1,16 @@
+- name: "kubernetes namespace karakeep"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_karakeep }}"
+    wait: true
+    definition: "{{ lookup('template', 'karakeep-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment karakeep"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_karakeep }}"
+    namespace: "{{ kube_namespace_karakeep }}"
+    wait: true
+    definition: "{{ lookup('template', 'karakeep.j2.yml')  }}"
+
+
