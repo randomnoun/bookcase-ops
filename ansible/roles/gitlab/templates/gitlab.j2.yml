@@ -30,7 +30,42 @@ spec:
       dnsPolicy: Default
       containers:
         - name: gitlab
-          image: gitlab/gitlab-ce:14.9.3-ce.0 
+          # heap of upgrades on 2025-01-03, need to do these in sequence
+          # next time I do this, remember to check https://gitlab.dev.randomnoun/admin/background_migrations
+          # on each step and wait for migration jobs to complete before continuing
+          
+          # to perform backups:
+          # $ kubectl -n dev-gitlab get pods
+          # $ kubectl -n dev-gitlab exec -it gitlab-7657d77c65-z22jc -- /bin/bash
+          # # gitlab-backup create
+          
+          # image: gitlab/gitlab-ce:14.9.3-ce.0
+          # image: gitlab/gitlab-ce:14.10.5-ce.0
+          # image: gitlab/gitlab-ce:15.1.6-ce.0
+          # image: gitlab/gitlab-ce:15.4.6-ce.0
+          # image: gitlab/gitlab-ce:15.11.13-ce.0
+          # image: gitlab/gitlab-ce:16.0.10-ce.0
+          # image: gitlab/gitlab-ce:16.1.8-ce.0
+          # image: gitlab/gitlab-ce:16.2.11-ce.0
+          # image: gitlab/gitlab-ce:16.3.8-ce.0
+          # image: gitlab/gitlab-ce:16.7.10-ce.0
+          # image: gitlab/gitlab-ce:16.11.10-ce.0
+          # image: gitlab/gitlab-ce:17.1.8-ce.0
+          # image: gitlab/gitlab-ce:17.3.7-ce.0
+          image: gitlab/gitlab-ce:17.5.4-ce.0
+          
+          
+          # if it breaks, uncomment to manually run commands in container
+          # see https://forum.gitlab.com/t/gitlab-ctl-reconfigure-doesnt-work-after-gitlab-omnibus-updated/68715/2
+          #command: ["/bin/sh"]
+          #args: ["-c", "tail -f /dev/null"]
+          #securityContext:
+          #  privileged: true
+
+          # then use this to reset
+          #command: null
+          #args: null          
+          #securityContext: null
           resources:
             # memory minimum and maximum. they couldn't call it that though. oh no. requests and limits it is.
             # in k8s, G = power of 10, Gi = power of 2. rather than using 'GB' like everyone else.
