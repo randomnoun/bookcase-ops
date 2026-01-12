@@ -7,7 +7,7 @@ So each kubernetes cluster has a single k8s API server ( although that can be sp
 
 The is the node bit.
 
-It obtains the credentials to join the cluster from bnenas04 via ssh ( the credentials are copied there as part of the API server installation, but I'll probably move those to vault instead soon ). 
+It obtains the credentials to join the cluster from bnenas05 via ssh ( the credentials are copied there as part of the API server installation, but I'll probably move those to vault instead soon ). 
 
 # Networking prerequisites
 

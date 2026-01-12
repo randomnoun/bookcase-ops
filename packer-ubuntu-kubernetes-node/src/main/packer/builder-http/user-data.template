@@ -20,9 +20,6 @@ autoinstall:
   early-commands:
     - sudo systemctl stop ssh        
   locale: en_US
-  keyboard:
-    layout: en
-    variant: us
 
   identity:
     hostname: ${BUILDER_HOSTNAME}

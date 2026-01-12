@@ -10,9 +10,9 @@
 
     "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:00",
     "_comment2": "before creating image, add a MAC->IP mapping to DHCP and name->IP mapping to DNS",
-    "builder_ethernet0_mac" : "00:00:B3:CC:DD:DE",
+    "builder_ethernet0_mac" : "02:00:32:EB:75:8F",
     
     "_comment3": "backup folder of the API server; is needed for this node to join cluster",
-    "backup_host": "bnenas04.dev.randomnoun",
-    "backup_path": "/mnt/raidvolume/compressed/backup/bnekub02"
+    "backup_host": "bnenas05.dev.randomnoun",
+    "backup_path": "/mnt/raidvolume/compressed/backup/bnekub03"
 }

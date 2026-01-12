@@ -26,12 +26,22 @@ locals {
     backup_password = vault("/secret/data/packer/backup/${var.backup_host}", "password")
 }
 
+packer {
+  required_version = ">= 1.7.0"
+  required_plugins {
+    vmware = {
+      version = ">= 1.2.0"
+      source  = "github.com/hashicorp/vmware"
+    }
+  }
+}
 
 source "vmware-iso" "kubernetes-node" {
 
   vm_name                = "${var.builder_hostname}"
   guest_os_type          = "ubuntu-64"
-  // missing version
+  # 13 = esx 6.5; see https://knowledge.broadcom.com/external/article?articleNumber=315655
+  version                = "13"
   headless               = false
   format                 = "ova"
 
@@ -49,12 +59,18 @@ source "vmware-iso" "kubernetes-node" {
     "ethernet0.addressType" = "static"
     "ethernet0.address"     = "${var.builder_ethernet0_mac}"
     
+    # this shouldn't be necessary, but without it, packer creates this line in the vmx file:
+    # ide0:0.filename = "C:\vmfs\volumes\datastore1\packer_cache\73b4f11c1cb8dc57fb78ad9d7b5baf123159250e.iso"
+    # which is obviously wrong
+    
+    "ide0:0.filename"       = "/vmfs/volumes/datastore1/packer_cache/73b4f11c1cb8dc57fb78ad9d7b5baf123159250e.iso"
   }
   disk_size              = "${var.builder_disksize}"
 
   
-  iso_url                = "https://releases.ubuntu.com/22.04/ubuntu-22.04.1-live-server-amd64.iso"
-  iso_checksum           = "10f19c5b2b8d6db711582e0e27f5116296c34fe4b313ba45f9b201a5007056cb"
+  iso_url                = "https://releases.ubuntu.com/noble/ubuntu-24.04.3-live-server-amd64.iso"
+  #iso_url                 = "[datastore1] setup/ubuntu-24.04.3-live-server-amd64.iso"
+  iso_checksum            = "c3514bf0056180d09376462a7a1b4f213c1d6e8ea67fae5c25099c6fd3d8274b"
   output_directory       = "target/build"
   snapshot_name          = "clean"  
   

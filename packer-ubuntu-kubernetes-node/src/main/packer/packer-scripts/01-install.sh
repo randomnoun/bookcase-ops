@@ -38,6 +38,8 @@ echo '>>>> Copying files from /opt/packer to filesystem'
  
 mv /opt/packer/root/.inputrc ${HOME}/.inputrc
 
+# taken from https://www.cherryservers.com/blog/install-kubernetes-ubuntu
+
 echo '>>>> Installing NFS client'
 
 apt install -y nfs-common
@@ -84,13 +86,13 @@ systemctl enable containerd
 
 
 echo '>>>> Installing kubernetes'
-curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-# once there's support for it, 'xenial' here can be changed to 'jammy'
+# ubuntu 24.04.3 == noble numbat
  
-apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
 apt update
-apt install -y kubelet kubeadm kubectl kubernetes-cni
+apt install -y kubeadm kubelet kubectl
 apt-mark hold kubelet kubeadm kubectl
 
 echo '>>>> Initialising kubernetes'
