@@ -24,7 +24,7 @@ So yes, kubernetes has it's own networking layer, but you'll probably still want
 So you'll want to decide on a hostname for the server, and set up some DNS/DHCP rules to resolve it. 
 I also hard-coded a MAC address, which you can generate [from here](https://dnschecker.org/mac-address-generator.php).
 
-The hostname I'm using is `bnekub02` as it's in Brisbane ([BNE](https://www.iata.org/en/publications/directories/code-search/?airport.search=bne)) and this is the second time I've gone through this rigmarole.
+The hostname I'm using is `bnekub03` as it's in Brisbane ([BNE](https://www.iata.org/en/publications/directories/code-search/?airport.search=bne)) and this is the third time I've gone through this rigmarole.
 
 # ESX prerequisites
 

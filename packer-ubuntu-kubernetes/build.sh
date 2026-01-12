@@ -103,7 +103,7 @@ export PACKER_LOG=1
 export PACKER_LOG_PATH="../packerlog.txt"
 
 # uncomment to initialise packer
-# packer init .
+packer init -var-file=${PACKER_VARS} ${PACKER_HCL} 
 
 echo VAULT_TOKEN is ${VAULT_TOKEN}
 
