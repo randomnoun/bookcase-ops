@@ -101,7 +101,7 @@ Contents of  `/etc/dhcp/dhcpd-hosts.conf`
 # hardware devices that exist in the real world
 host BNEHYP02   { hardware ethernet 18:03:73:C7:91:6C; fixed-address 192.168.0.24 ; }
 host BNEHYP05   { hardware ethernet 68:05:ca:9a:18:44; fixed-address 192.168.0.112 ; }
-host BNENAS04   { hardware ethernet d0:50:99:c7:13:66; fixed-address 192.168.0.129 ; } # created 2022-08-20
+host BNENAS05   { hardware ethernet d0:50:99:d1:1c:36; fixed-address 192.168.0.111 ; }
 
 # dev laptop
 host EXCIMER        { hardware ethernet 80:FA:5B:9E:D4:9A; fixed-address 192.168.0.125 ; }
@@ -109,8 +109,8 @@ host EXCIMER-WIFI   { hardware ethernet F0:9E:4A:96:1E:23; fixed-address 192.168
 
 # bnehyp05 VMs
 # NB these MAC address were selected randomly and match the MACs in the packer scripts
-host BNEKUB02   { hardware ethernet 00:00:20:2A:D3:CB; fixed-address 192.168.0.130 ; }
-host BNENOD03   { hardware ethernet 00:00:B3:CC:14:DD; fixed-address 192.168.0.131 ; }
+host BNEKUB03   { hardware ethernet 02:00:6C:68:00:AD; fixed-address 192.168.0.133 ; }
+host BNENOD04   { hardware ethernet 02:00:32:EB:75:8F; fixed-address 192.168.0.134 ; }
 host BNESQL02   { hardware ethernet 00:0c:29:03:9d:d7; fixed-address 192.168.0.132 ; }
 ```
 
@@ -168,31 +168,31 @@ bnehyp02      IN  A     192.168.0.24
 bnehyp05      IN  A     192.168.0.112
 
 ; other physical machines/devices
-bnenas04      IN  A     192.168.0.129
+bnenas05      IN  A     192.168.0.111
 excimer       IN  A     192.168.0.125
-excimer-wifi  IN A    192.168.0.126
+excimer-wifi  IN  A     192.168.0.126
 
 ; bnehyp05 VMs
-bnekub02      IN  A     192.168.0.130
-bnenod03      IN  A     192.168.0.131
+bnekub03      IN  A     192.168.0.133
+bnenod04      IN  A     192.168.0.134
 bnesql02      IN  A     192.168.0.132
 
 ; aliases
 mysql         IN  CNAME bnesql02
 vault         IN  CNAME bnesql02
-restic        IN  CNAME bnenas04
+restic        IN  CNAME bnenas05
 
-; bnekub02 containers
-docker.nexus3            IN CNAME bnenod03
-docker-combined.nexus3   IN CNAME bnenod03
-docker-releases.nexus3   IN CNAME bnenod03
-docker-snapshots.nexus3  IN CNAME bnenod03
-gitlab        IN CNAME bnenod03
-nexus2        IN CNAME bnenod03
-nexus3        IN CNAME bnenod03
-prometheus    IN CNAME bnenod03
-alertmanager  IN CNAME bnenod03
-grafana       IN CNAME bnenod03
+; bnekub03 containers
+docker.nexus3            IN CNAME bnenod04
+docker-combined.nexus3   IN CNAME bnenod04
+docker-releases.nexus3   IN CNAME bnenod04
+docker-snapshots.nexus3  IN CNAME bnenod04
+gitlab        IN CNAME bnenod04
+nexus2        IN CNAME bnenod04
+nexus3        IN CNAME bnenod04
+prometheus    IN CNAME bnenod04
+alertmanager  IN CNAME bnenod04
+grafana       IN CNAME bnenod04
 ```
 
 * Create the file  `/etc/bind/db.192` containing:
@@ -211,12 +211,13 @@ $TTL    604800
 ;
 @       IN      NS      bnehyp02.
 24.0.168   IN  PTR  bnehyp02
+111.0.168  IN  PTR  bnenas05
+112.0.168  IN  PTR  bnehyp05
 125.0.168  IN  PTR  excimer
 126.0.168  IN  PTR  excimer-wifi
-129.0.168  IN  PTR  bnenas04
-130.0.168  IN  PTR  bnekub02
-131.0.168  IN  PTR  bnenod03
 132.0.168  IN  PTR  bnesql02
+133.0.168  IN  PTR  bnekub03
+134.0.168  IN  PTR  bnenod04
 ```
 
 * Restart bind via `sudo service bind9 restart`
@@ -267,7 +268,7 @@ Anyway, once you've done that, run
 sudo netplan --debug apply
 ```
 
-to apply those changes, and then you should be able to do things like `ping bnenas04` instead of `ping bnenas04.dev.randomnoun`.
+to apply those changes, and then you should be able to do things like `ping bnenas05` instead of `ping bnenas05.dev.randomnoun`.
 
 Instructions taken [from here](https://netplan.io/examples) [and here](https://www.how2shout.com/linux/how-to-set-dns-nameserver-on-ubuntu-22-04-lts-jammy/).
 

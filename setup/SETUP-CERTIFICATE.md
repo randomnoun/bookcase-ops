@@ -72,8 +72,8 @@ And copy it over to the nas, as we'll need to distribute that CA to any machines
 
 ```
 # copy the CA certificate to the nas
-ssh knoxg@bnenas04.dev.randomnoun 'mkdir -p /mnt/raidvolume/compressed/bookcase-ops/ca'
-scp ca/cacert.pem knoxg@bnenas04.dev.randomnoun:/mnt/raidvolume/compressed/bookcase-ops/ca/cacert.pem
+ssh knoxg@bnenas05.dev.randomnoun 'mkdir -p /mnt/raidvolume/compressed/bookcase-ops/ca'
+scp ca/cacert.pem knoxg@bnenas05.dev.randomnoun:/mnt/raidvolume/compressed/bookcase-ops/ca/cacert.pem
 ```
 
 You might also want to copy that `/opt/openssl-ca/ca/cacert.crt` CA certificate to your local dev machine,
@@ -129,18 +129,18 @@ To upload all the certificates for the applications in bookcase-ops, run:
 ```
 # need to be logged into vault first
 vault login
-./bin/upload-certificate.sh wiki.dev.randomnoun     k8s/bnekub02/secret/dev-xwiki/xwiki-tls-secret
-./bin/upload-certificate.sh gitlab.dev.randomnoun   k8s/bnekub02/secret/dev-gitlab/gitlab-tls-secret
-./bin/upload-certificate.sh nexus2.dev.randomnoun   k8s/bnekub02/secret/dev-nexus2/nexus2-tls-secret
-./bin/upload-certificate.sh nexus3.dev.randomnoun   k8s/bnekub02/secret/dev-nexus3/nexus3-tls-secret
-./bin/upload-certificate.sh docker-snapshots.nexus3.dev.randomnoun k8s/bnekub02/secret/dev-nexus3/docker-snapshots-tls-secret
-./bin/upload-certificate.sh docker-releases.nexus3.dev.randomnoun  k8s/bnekub02/secret/dev-nexus3/docker-releases-tls-secret
-./bin/upload-certificate.sh docker-combined.nexus3.dev.randomnoun  k8s/bnekub02/secret/dev-nexus3/docker-combined-tls-secret
-./bin/upload-certificate.sh prometheus.dev.randomnoun   k8s/bnekub02/secret/prometheus/prometheus-tls-secret
-./bin/upload-certificate.sh alertmanager.dev.randomnoun k8s/bnekub02/secret/prometheus/alertmanager-tls-secret
-./bin/upload-certificate.sh grafana.dev.randomnoun      k8s/bnekub02/secret/grafana/grafana-tls-secret
-./bin/upload-certificate.sh commafeed.dev.randomnoun    k8s/bnekub02/secret/dev-commafeed/commafeed-tls-secret
-./bin/upload-certificate.sh karakeep.dev.randomnoun     k8s/bnekub02/secret/dev-commafeed/karakeep-tls-secret
+./bin/upload-certificate.sh wiki.dev.randomnoun     k8s/bnekub03/secret/dev-xwiki/xwiki-tls-secret
+./bin/upload-certificate.sh gitlab.dev.randomnoun   k8s/bnekub03/secret/dev-gitlab/gitlab-tls-secret
+./bin/upload-certificate.sh nexus2.dev.randomnoun   k8s/bnekub03/secret/dev-nexus2/nexus2-tls-secret
+./bin/upload-certificate.sh nexus3.dev.randomnoun   k8s/bnekub03/secret/dev-nexus3/nexus3-tls-secret
+./bin/upload-certificate.sh docker-snapshots.nexus3.dev.randomnoun k8s/bnekub03/secret/dev-nexus3/docker-snapshots-tls-secret
+./bin/upload-certificate.sh docker-releases.nexus3.dev.randomnoun  k8s/bnekub03/secret/dev-nexus3/docker-releases-tls-secret
+./bin/upload-certificate.sh docker-combined.nexus3.dev.randomnoun  k8s/bnekub03/secret/dev-nexus3/docker-combined-tls-secret
+./bin/upload-certificate.sh prometheus.dev.randomnoun   k8s/bnekub03/secret/prometheus/prometheus-tls-secret
+./bin/upload-certificate.sh alertmanager.dev.randomnoun k8s/bnekub03/secret/prometheus/alertmanager-tls-secret
+./bin/upload-certificate.sh grafana.dev.randomnoun      k8s/bnekub03/secret/grafana/grafana-tls-secret
+./bin/upload-certificate.sh commafeed.dev.randomnoun    k8s/bnekub03/secret/dev-commafeed/commafeed-tls-secret
+./bin/upload-certificate.sh karakeep.dev.randomnoun     k8s/bnekub03/secret/dev-commafeed/karakeep-tls-secret
 ```
 
 We're not uploading the vault certificate to the vault, because vault can't use itself for it's own certficates. OR CAN IT. *( googles that )*. No, no it can't.
@@ -219,8 +219,8 @@ vault policy write ansible-read-policy - << EOF
 # ansible-read-policy
 #
 # gives read access to the secrets under 'k8s', and 'db', including
-#   k8s/bnekub02/storageclass
-#   k8s/bnekub02/secret
+#   k8s/bnekub03/storageclass
+#   k8s/bnekub03/secret
 #   db/bnesql02/
 path "secret/data/k8s/*" {
   capabilities = ["read"]

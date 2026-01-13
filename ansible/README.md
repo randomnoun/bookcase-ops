@@ -39,17 +39,17 @@ Anyway to install these components into the kubernetes cluster, run:
 
 ```
 . vault-login.sh
-ansible-playbook -vvv -e deployments=bnekub02 k8s_system_bnekub02.yml
+ansible-playbook -vvv -e deployments=bnekub03 k8s_system_bnekub03.yml
 ```
 
 To verify it's up, run
 
 ```
-knoxg@bnekub02:~$ kubectl -n nginx-ingress get daemonset
+knoxg@bnekub03:~$ kubectl -n nginx-ingress get daemonset
 NAME            DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
 nginx-ingress   1         1         0       1            0           <none>          2s
 
-knoxg@bnekub02:~$ kubectl -n nginx-ingress get pods
+knoxg@bnekub03:~$ kubectl -n nginx-ingress get pods
 NAME                  READY   STATUS    RESTARTS   AGE
 nginx-ingress-s6rqh   1/1     Running   0          37s
 ```
@@ -66,7 +66,7 @@ The initial set of applications are:
 * nexus2
 * nexus3
 
-what I would suggest you do is to comment out all but one of those in k8s_apps_bnekub02.yml and deploy a single application, and then uncomment the rest as you get those up and running. 
+what I would suggest you do is to comment out all but one of those in k8s_apps_bnekub03.yml and deploy a single application, and then uncomment the rest as you get those up and running. 
 
 ### Why both nexus2 and nexu3 ?
 
@@ -78,13 +78,13 @@ To install this stuff, run
 
 ```
 . vault-login.sh
-ansible-playbook -vvv -e deployments=bnekub02 k8s_apps_bnekub02.yml
+ansible-playbook -vvv -e deployments=bnekub03 k8s_apps_bnekub03.yml
 ```
  
 And to check it's running:
 
 ```
-knoxg@bnekub02:~$ kubectl -n dev-xwiki get deployments
+knoxg@bnekub03:~$ kubectl -n dev-xwiki get deployments
 NAME    READY   UP-TO-DATE   AVAILABLE   AGE
 xwiki   1/1     1            1           5m53s
 ```
@@ -92,7 +92,7 @@ xwiki   1/1     1            1           5m53s
 Use this sort of thing to scale it down
 
 ```
-knoxg@bnekub02:~$ kubectl -n dev-xwiki scale deployments/xwiki --replicas=0
+knoxg@bnekub03:~$ kubectl -n dev-xwiki scale deployments/xwiki --replicas=0
 deployment.apps/xwiki scaled
 ```
 

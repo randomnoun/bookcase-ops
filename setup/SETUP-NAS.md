@@ -4,7 +4,7 @@ This project uses the free version of [TrueNAS SCALE](https://www.truenas.com/do
 
 TrueNAS is the successor to FreeNAS, and 'TrueNAS SCALE' is the version of TrueNAS that runs on Linux, as opposed to FreeBSD. Which is the one you are definitely going to prefer the first time you try to run something on there that you need to install yourself. 
 
-The TrueNAS server in this project is called `bnenas04.dev.randomnoun`, so if you want to call it something different then do a search & replace on that.
+The TrueNAS server in this project is called `bnenas05.dev.randomnoun`, so if you want to call it something different then do a search & replace on that.
 
 # Installation
 
@@ -41,8 +41,9 @@ You'll notice the IP addresses and hostnames change in the screenshots below as 
 
 ![](image/truenas-5-dataset-2.png)
 
-* Within the raidvolume pool, create a `k8s` dataset ( for kubernetes ), then a `bnekub02` dataset within that ( for the bnekub02 cluster ), and an `nfs` dataset within that ( for democratic-csi volumes )
+* Within the raidvolume pool, create a `k8s` dataset ( for kubernetes ), then a `bnekub03` dataset within that ( for the bnekub03 cluster ), and an `nfs` dataset within that ( for democratic-csi volumes )
    * I did this a bit later than the other steps, ignore that 'ix-applications' folder.
+   * And this is an old screenshot, so it's not `bnekub03`, not `bnekub02`
 
 ![](image/truenas-8-dataset-3.png)
 
