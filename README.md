@@ -19,15 +19,15 @@ Okay so what you've got is:
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
    * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configuration for the things in this project
    * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS SCALE
-   * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.0
-* [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 22
+   * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.5
+* [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 24
    * This'll need to be the first virtual machine you create, as it will contain the vault server holding the secrets used in configuring kubernetes
    * [SETUP-VAULT.md](setup/SETUP-VAULT.md) - setting up vault
    * [SETUP-CERTIFICATE.md](setup/SETUP-CERTIFICATE.md) - setting up a certificate authority (CA) and the site certificates used later in kubernetes ingresses
    * [SETUP-DATABASE.md](setup/SETUP-DATABASE.md) - setting up the db schema and user for xwiki   
 * [SETUP-RESTIC.md](setup/SETUP-RESTIC.md) - setting up restic. This actually runs on the NAS, but we need to create certificates for it, so we're setting it up here after the CA has been created.
-* [packer-ubuntu-kubernetes](packer-ubuntu-kubernetes/) - a packer script to create a kubernetes 1.25 cluster / API server running on ubuntu 22
-* [packer-ubuntu-kubernetes-node](packer-ubuntu-kubernetes-node/) - a packer script to create a kubernetes 1.25 node running on ubuntu 22
+* [packer-ubuntu-kubernetes](packer-ubuntu-kubernetes/) - a packer script to create a kubernetes 1.35 cluster / API server running on ubuntu 24
+* [packer-ubuntu-kubernetes-node](packer-ubuntu-kubernetes-node/) - a packer script to create a kubernetes 1.35 node running on ubuntu 24
 * [ansible](ansible/README.md) - an ansible repository which deploys the following into kubernetes
    * nginx-ingress - to handle traffic into the cluster
    * democratic-csi - to handle storage for k8s pods ( connects to the TrueNAS SCALE box over NFS )
