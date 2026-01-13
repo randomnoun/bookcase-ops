@@ -1,0 +1,35 @@
+- hosts: localhost
+  gather_facts: false
+  vars:
+    k8s_apps_bnekub03:
+      deployments:
+        - name: gitlab-bnekub03
+          role: gitlab
+          var_files: [bnekub03]
+        - name: xwiki-bnekub03
+          role: xwiki
+          var_files: [bnekub03]
+        - name: nexus2-bnekub03
+          role: nexus2
+          var_files: [bnekub03]
+        - name: nexus3-bnekub03
+          role: nexus3
+          var_files: [bnekub03]
+        - name: commafeed-bnekub03
+          role: commafeed
+          var_files: [bnekub03]
+        - name: karakeep-bnekub03
+          role: karakeep
+          var_files: [bnekub03]
+
+  tasks:
+    - name: deploy apps
+      include_tasks: apply_role.yml
+      vars:
+        apply_role_name: "{{ _k8s_apps_bnekub03_deployment.0.role }}"
+        apply_role_var_files: "{{ _k8s_apps_bnekub03_deployment.0.var_files }}"
+      loop: "{{ k8s_apps_bnekub03.deployments | product(deployments.split(',')) | list }}"
+      loop_control: { loop_var: _k8s_apps_bnekub03_deployment }
+      when:
+        - deployments is not defined or true      
+
