@@ -96,8 +96,8 @@ driver:
     
       # so before installing this, create the datasets:
       # raidvolume/k8s
-      # raidvolume/k8s/bnekub02
-      # raidvolume/k8s/bnekub02/nfs
+      # raidvolume/k8s/bnekub03
+      # raidvolume/k8s/bnekub03/nfs
     
       datasetParentName: {{ democratic_truenas_datasetParentName }}
       # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap

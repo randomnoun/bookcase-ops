@@ -11,8 +11,8 @@ democratic_truenas_password: "--set-from-vault--"
 
 # do NOT make datasetParentName and detachedSnapshotsDatasetParentName overlap
 # they may be siblings, but neither should be nested in the other
-democratic_truenas_datasetParentName: "raidvolume/k8s/bnekub02/nfs/volumes"
-democratic_truenas_detachedSnapshotsDatasetParentName: "raidvolume/k8s/bnekub02/nfs/snapshots"
+democratic_truenas_datasetParentName: "raidvolume/k8s/bnekub03/nfs/volumes"
+democratic_truenas_detachedSnapshotsDatasetParentName: "raidvolume/k8s/bnekub03/nfs/snapshots"
 
       
 

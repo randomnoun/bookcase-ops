@@ -86,11 +86,12 @@ kind: Secret
 type: kubernetes.io/tls
 metadata: 
   name: nexus2-tls-secret
+data:  
   tls.crt: "{{ nexus2_tls_secret_cert }}"
   tls.key: "{{ nexus2_tls_secret_key }}"
 
 ---
-# apiVersion: extensions/v1beta1
+
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

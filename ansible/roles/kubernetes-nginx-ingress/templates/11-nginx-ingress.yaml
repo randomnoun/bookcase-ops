@@ -69,6 +69,7 @@ spec:
           - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
           - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
           - -enable-prometheus-metrics
+          - -enable-snippets
         
          # so it turns out that getting latency metrics, or even metrics on http status codes
          # requires getting a $3000+ 'nginx plus' license. Yeesh.

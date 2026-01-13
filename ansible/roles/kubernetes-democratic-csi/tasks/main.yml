@@ -1,9 +1,16 @@
+- name: "kubernetes namespace democratic-csi"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_democratic_csi }}"
+    wait: true
+    definition: "{{ lookup('template', 'democratic-csi-namespace.j2.yml')  }}"
+
 - name: "kubernetes democratic-csi"
   kubernetes.core.helm:
-#     name: "bnenas04-nfs-csi"
+#     name: "bnenas05-nfs-csi"
     context: "{{ kube_context_democratic_csi }}"
     release_namespace: "{{ kube_namespace_democratic_csi }}"
-    release_name: "zfs-nfs"
+    release_name: "democratic-csi"
     wait: true
     chart_ref: "democratic-csi/democratic-csi" 
-    values: "{{ lookup('template', 'truenas-nfs.j2.yml') | from_yaml }}"
+    values: "{{ lookup('template', 'democratic-csi-helm-values.j2.yml') | from_yaml }}"
