@@ -1,0 +1,15 @@
+kube_context_karakeep: "bnekub03"
+kube_storageclass_karakeep: "bnenas05-nfs-csi"
+
+karakeep_ingress_host: "karakeep.dev.randomnoun"
+karakeep_ingress_class: "nginx-internal"
+
+karakeep_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-karakeep/karakeep-tls-secret:tls.crt')}}"
+karakeep_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-karakeep/karakeep-tls-secret:tls.key')}}"
+
+karakeep_volume_size_gb: 10
+
+#karakeep_db_host: "bnesql02.dev.randomnoun"
+#karakeep_db_schema: "karakeep"
+#karakeep_db_username: "karakeep"
+#karakeep_db_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/karakeep:password')}}"

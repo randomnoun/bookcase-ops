@@ -1,0 +1,11 @@
+kube_context_nexus2: "bnekub03"
+kube_storageclass_nexus2: "bnenas05-nfs-csi"
+
+nexus2_ingress_host: "nexus2.dev.randomnoun"
+nexus2_ingress_class: "nginx-internal"
+
+nexus2_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-nexus2/nexus2-tls-secret:tls.crt')}}"
+nexus2_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-nexus2/nexus2-tls-secret:tls.key')}}"
+
+
+nexus2_volume_size_gb: 256

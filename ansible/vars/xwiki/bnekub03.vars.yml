@@ -1,0 +1,15 @@
+kube_context_xwiki: "bnekub03"
+kube_storageclass_xwiki: "bnenas05-nfs-csi"
+
+xwiki_ingress_host: "wiki.dev.randomnoun"
+xwiki_ingress_class: "nginx-internal"
+
+xwiki_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-xwiki/xwiki-tls-secret:tls.crt')}}"
+xwiki_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-xwiki/xwiki-tls-secret:tls.key')}}"
+
+xwiki_volume_size_gb: 40
+
+xwiki_db_host: "bnesql02.dev.randomnoun"
+xwiki_db_schema: "xwiki"
+xwiki_db_username: "xwiki"
+xwiki_db_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/xwiki:password')}}"

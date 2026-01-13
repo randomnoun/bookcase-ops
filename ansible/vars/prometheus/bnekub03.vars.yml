@@ -1,0 +1,23 @@
+kube_context_prometheus: "bnekub03"
+kube_storageclass_prometheus: "bnenas05-nfs-csi"
+
+prometheus_deployment_name: "bnekub03"
+
+prometheus_ingress_host: "prometheus.dev.randomnoun"
+prometheus_ingress_class: "nginx-internal"
+
+alertmanager_ingress_host: "alertmanager.dev.randomnoun"
+
+prometheus_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/prometheus/prometheus-tls-secret:tls.crt')}}"
+prometheus_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/prometheus/prometheus-tls-secret:tls.key')}}"
+
+alertmanager_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/prometheus/alertmanager-tls-secret:tls.crt')}}"
+alertmanager_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/prometheus/alertmanager-tls-secret:tls.key')}}"
+
+prometheus_retention: 10d
+prometheus_volume_size_gb: 40
+# prometheus_memory_request: "4Gi"
+# prometheus_memory_limit: "4.5Gi"
+
+alertmanager_volume_size_gb: 2
+
