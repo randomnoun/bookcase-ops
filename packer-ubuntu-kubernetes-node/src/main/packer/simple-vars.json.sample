@@ -20,7 +20,7 @@
     "builder_ethernet0_mac" : "00:00:20:2B:D4:C2",
     
     "backup_host": "bnenas05",
-    "backup_path": "/mnt/raidvolume/compressed/backup/bnekub03",
+    "backup_path": "/mnt/raidvolume/compressed/bookcase-ops/bnekub03",
     "backup_username": "knoxg",
     "backup_password": "*** the ssh password for that username ***"
     

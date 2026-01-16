@@ -14,5 +14,5 @@
     
     "_comment3": "backup folder of the API server; is needed for this node to join cluster",
     "backup_host": "bnenas05.dev.randomnoun",
-    "backup_path": "/mnt/raidvolume/compressed/backup/bnekub03"
+    "backup_path": "/mnt/raidvolume/compressed/bookcase-ops/bnekub03"
 }

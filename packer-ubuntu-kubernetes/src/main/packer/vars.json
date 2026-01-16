@@ -17,5 +17,5 @@
     "kubernetes_token": "abcdef.0123456789abcdef",
     
     "backup_host": "bnenas05.dev.randomnoun",
-    "backup_path": "/mnt/raidvolume/compressed/backup/bnekub03"
+    "backup_path": "/mnt/raidvolume/compressed/bookcase-ops/bnekub03"
 }
