@@ -16,8 +16,8 @@
     "builder_memsize" : "32768",
     "builder_disksize" : "100000",
 
-    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:00",
-    "builder_ethernet0_mac" : "00:00:20:2B:D4:C2",
+    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:02",
+    "builder_ethernet0_mac" : "00:02:20:2B:D4:C2",
     
     "backup_host": "bnenas05",
     "backup_path": "/mnt/raidvolume/compressed/bookcase-ops/bnekub03",

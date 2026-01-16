@@ -16,8 +16,8 @@
     "builder_memsize" : "2048",
     "builder_disksize" : "20000",
 
-    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:00",
-    "builder_ethernet0_mac" : "00:00:20:2B:D4:C1",
+    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:02",
+    "builder_ethernet0_mac" : "00:02:20:2B:D4:C1",
     
     "kubernetes_fqdn" : "bnekub03.dev.randomnoun",
     "kubernetes_clustername" : "bnekub03",

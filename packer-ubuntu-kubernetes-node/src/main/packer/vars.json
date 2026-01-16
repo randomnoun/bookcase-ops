@@ -8,7 +8,7 @@
     "builder_memsize" : "32768",
     "builder_disksize" : "100000",
 
-    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:00",
+    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 02:00",
     "_comment2": "before creating image, add a MAC->IP mapping to DHCP and name->IP mapping to DNS",
     "builder_ethernet0_mac" : "02:00:32:EB:75:8F",
     
