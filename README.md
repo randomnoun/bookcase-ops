@@ -6,7 +6,7 @@
 
 It mostly exists because we're now using Kubernetes at work and I feel I now need to burden myself with configuring and running this on my home servers as well.
 
-Looking over my notes, this took about 4 weekends, spread over about 4 months (plus most of my Christmas/New Years downtime which I spent writing up all these READMEs), so hopefully this will save me / others having to go through all this again when I next have to upgrade all this high quality software product. Having said that, this is the second time I've tried to build a kubernetes cluster onto bare VMs; if you haven't done that before then maybe budget another month or two on learning how all that supposedly works.
+Looking over my notes, this took about 4 weekends, spread over about 4 months (plus most of my Christmas/New Years downtime which I spent writing up all these READMEs), so hopefully this will save me / others having to go through all this again when I next have to upgrade all this high quality software product. Having said that, this is the ~~second~~ third time I've tried to build a kubernetes cluster onto bare VMs; if you haven't done that before then maybe budget another month or two on learning how all that supposedly works.
 
 And you know, when I inevitably kick the bucket, my immediate family, who have difficulty selecting a different HDMI input or operating a printer, might be able to salvage some of my life's work. Which they won't be able to appreciate or comprehend in any way. I guess they could admire the punctuation or something. I have a niece starting computer science this year though, so I guess hope springs eternal.
 
@@ -61,6 +61,12 @@ Anyway once everything's running, you should be able to connect to the following
 * [http://vault.dev.randomnoun:8200](http://vault.dev.randomnoun:8200) (HTTP port)
 * [https://commafeed.dev.randomnoun](https://commafeed.dev.randomnoun)
 * [https://karakeep.dev.randomnoun](https://karakeep.dev.randomnoun)
+
+## Updates
+
+* 2026-01: upgraded to k8s 1.35, ubuntu 24, calico 3.31. New k8s API server is bnekub03
+* 2025-10: added karakeep
+* 2025-08: added commafeed
 
 ## License
 
