@@ -1,0 +1,11 @@
+kube_context_atuin: "bnekub03"
+kube_storageclass_atuin: "bnenas05-nfs-csi"
+
+atuin_ingress_host: "atuin.dev.randomnoun"
+atuin_ingress_class: "nginx-internal"
+
+atuin_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-atuin/atuin-tls-secret:tls.crt')}}"
+atuin_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-atuin/atuin-tls-secret:tls.key')}}"
+
+atuin_db_uri: "postgres://atuin:{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/atuin:password')}}@bnesql02.dev.randomnoun/atuin"
+

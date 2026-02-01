@@ -193,6 +193,10 @@ nexus3        IN CNAME bnenod04
 prometheus    IN CNAME bnenod04
 alertmanager  IN CNAME bnenod04
 grafana       IN CNAME bnenod04
+commafeed     IN CNAME bnenod04
+karakeep      IN CNAME bnenod04
+atuin         IN CNAME bnenod04
+
 ```
 
 * Create the file  `/etc/bind/db.192` containing:

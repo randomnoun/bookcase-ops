@@ -39,6 +39,7 @@ Okay so what you've got is:
    * xwiki - a wiki
    * commafeed - an rss aggregator
    * karakeep - a bookmark organiser
+   * atuin - shell history server
 
 The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but could be used to deploy into other hosting environments easily enough.
 
@@ -61,9 +62,11 @@ Anyway once everything's running, you should be able to connect to the following
 * [http://vault.dev.randomnoun:8200](http://vault.dev.randomnoun:8200) (HTTP port)
 * [https://commafeed.dev.randomnoun](https://commafeed.dev.randomnoun)
 * [https://karakeep.dev.randomnoun](https://karakeep.dev.randomnoun)
+* [https://atuin.dev.randomnoun](https://atuin.dev.randomnoun)
 
 ## Updates
 
+* 2026-02: added atuin
 * 2026-01: upgraded to k8s 1.35, ubuntu 24, calico 3.31. New k8s API server is bnekub03
 * 2025-10: added karakeep
 * 2025-08: added commafeed
