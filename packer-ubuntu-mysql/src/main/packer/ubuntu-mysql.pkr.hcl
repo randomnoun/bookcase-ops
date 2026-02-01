@@ -110,7 +110,8 @@ build {
       "BACKUP_PATH=${var.backup_path}", 
       "BACKUP_USERNAME=${var.backup_username}", 
       "BACKUP_PASSWORD=${var.backup_password}", 
-      "MYSQL_ROOT_PASSWORD=${var.mysql_root_password}"
+      "MYSQL_ROOT_PASSWORD=${var.mysql_root_password}",
+      "POSTGRES_PASSWORD=${var.postgres_password}"
     ]
     execute_command  = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
     script           = "packer-scripts/01-install.sh"
