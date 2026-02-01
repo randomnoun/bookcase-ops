@@ -61,10 +61,12 @@ and when it doesn't start up properly, well, that's what google's for.
 The initial set of applications are:
 
 * gitlab
-* xwiki
-* commafeed
 * nexus2
 * nexus3
+* xwiki
+* commafeed
+* karakeep
+* atuin
 
 what I would suggest you do is to comment out all but one of those in k8s_apps_bnekub03.yml and deploy a single application, and then uncomment the rest as you get those up and running. 
 

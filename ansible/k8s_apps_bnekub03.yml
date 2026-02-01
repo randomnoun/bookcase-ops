@@ -21,6 +21,9 @@
         - name: karakeep-bnekub03
           role: karakeep
           var_files: [bnekub03]
+        - name: atuin-bnekub03
+          role: atuin
+          var_files: [bnekub03]
 
   tasks:
     - name: deploy apps

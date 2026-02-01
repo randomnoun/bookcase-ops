@@ -20,6 +20,7 @@
     "builder_ethernet0_mac" : "00:02:20:2A:D3:CC",
     
     "mysql_root_password" : "abc123",
+    "postgres_password" : "abc123",
     
     "backup_host": "bnenas05",
     "backup_path": "/mnt/raidvolume/compressed/backup/bnesql02",

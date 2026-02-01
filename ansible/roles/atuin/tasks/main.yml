@@ -1,0 +1,16 @@
+- name: "kubernetes namespace atuin"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_atuin }}"
+    wait: true
+    definition: "{{ lookup('template', 'atuin-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment atuin"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_atuin }}"
+    namespace: "{{ kube_namespace_atuin }}"
+    wait: true
+    definition: "{{ lookup('template', 'atuin.j2.yml')  }}"
+
+
