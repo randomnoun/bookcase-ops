@@ -1,0 +1,9 @@
+kube_context_atuin: ""
+kube_namespace_atuin: "dev-atuin"
+kube_storageclass_atuin: "freenas-nfs"
+
+atuin_ingress_host: ""
+atuin_tls_secret_cert: ""
+atuin_tls_secret_key: ""
+
+atuin_db_uri: ""
