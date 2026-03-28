@@ -1,0 +1,20 @@
+kube_context_wakapi: "bnekub03"
+kube_storageclass_wakapi: "bnenas05-nfs-csi"
+
+wakapi_ingress_host: "wakapi.dev.randomnoun"
+wakapi_ingress_class: "nginx-internal"
+
+wakapi_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-wakapi/wakapi-tls-secret:tls.crt')}}"
+wakapi_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-wakapi/wakapi-tls-secret:tls.key')}}"
+
+wakapi_password_salt: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/wakapi:salt')}}"
+wakapi_support_contact: "knoxg@randomnoun.com"
+
+wakapi_db_host: "bnesql02.dev.randomnoun"
+wakapi_db_schema: "wakapi"
+wakapi_db_username: "wakapi"
+wakapi_db_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/wakapi:password')}}"
+
+
+
+

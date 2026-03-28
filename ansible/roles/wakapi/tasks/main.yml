@@ -1,0 +1,16 @@
+- name: "kubernetes namespace wakapi"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_wakapi }}"
+    wait: true
+    definition: "{{ lookup('template', 'wakapi-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment wakapi"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_wakapi }}"
+    namespace: "{{ kube_namespace_wakapi }}"
+    wait: true
+    definition: "{{ lookup('template', 'wakapi.j2.yml')  }}"
+
+

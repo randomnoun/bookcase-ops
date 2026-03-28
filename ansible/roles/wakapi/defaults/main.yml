@@ -1,0 +1,14 @@
+kube_context_wakapi: ""
+kube_namespace_wakapi: "dev-wakapi"
+kube_storageclass_wakapi: "freenas-nfs"
+
+wakapi_ingress_host: ""
+wakapi_tls_secret_cert: ""
+wakapi_tls_secret_key: ""
+
+wakapi_db_host: ""
+wakapi_db_schema: ""
+wakapi_db_username: ""
+wakapi_db_password: ""
+
+wakapi_db_uri: ""
