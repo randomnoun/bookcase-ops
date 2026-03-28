@@ -63,6 +63,9 @@ spec:
               value: "8888"
             - name: ATUIN_OPEN_REGISTRATION
               value: "true"
+            # for debugging, set to "debug,atuin_server=debug"
+            - name: RUST_LOG
+              value: ""
           resources:
             limits:
               cpu: 250m
