@@ -29,6 +29,9 @@ spec:
       labels:
         app: wakapi-web
     spec:
+      # this is needed to resolve bnesql02 from within the container. Note that 'Default' isn't the default, 'ClusterFirst' is
+      # because of course it is.
+      dnsPolicy: Default
       containers:
         - name: wakapi
           image: ghcr.io/muety/wakapi:latest
