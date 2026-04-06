@@ -24,6 +24,9 @@
         - name: atuin-bnekub03
           role: atuin
           var_files: [bnekub03]
+        - name: wakapi-bnekub03
+          role: wakapi
+          var_files: [bnekub03]
 
   tasks:
     - name: deploy apps

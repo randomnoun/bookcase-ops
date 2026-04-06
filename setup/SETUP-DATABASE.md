@@ -24,7 +24,7 @@ Replace `super-secret-password` with some random mumbojumbo.
 ```
 mysql -u root -e "CREATE DATABASE xwiki DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;" -p
 mysql -u root -e "CREATE USER 'xwiki'@'%' IDENTIFIED BY 'super-secret-password';" -p
-mysql -u root -e "GRANT ALL PRIVILEGES ON *.* TO xwiki@'%';" -p
+mysql -u root -e "GRANT ALL PRIVILEGES ON xwiki.* TO xwiki@'%';" -p
 ```
 
 ## Creating the `commafeed` database and `commafeed` user
@@ -36,8 +36,22 @@ Replace `super-secret-password` with some random mumbojumbo, different to the ra
 ```
 mysql -u root -e "CREATE DATABASE commafeed DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;" -p
 mysql -u root -e "CREATE USER 'commafeed'@'%' IDENTIFIED BY 'super-secret-password';" -p
-mysql -u root -e "GRANT ALL PRIVILEGES ON *.* TO commafeed@'%';" -p
+mysql -u root -e "GRANT ALL PRIVILEGES ON commafeed.* TO commafeed@'%';" -p
 ```
+
+## Creating the `wakapi` database and `wakapi` user
+
+Steps to do that:
+
+Replace `super-secret-password` with some random mumbojumbo, different to the random mumbojumbo you used for the xwiki user.
+
+```
+mysql -u root -e "CREATE DATABASE wakapi DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;" -p
+mysql -u root -e "CREATE USER 'wakapi'@'%' IDENTIFIED BY 'super-secret-password';" -p
+mysql -u root -e "GRANT ALL PRIVILEGES ON wakapi.* TO wakapi@'%';" -p
+```
+
+You'll also need to configure some salt for passwords stored in this schema, see below
 
 ## Creating the `atuin` database and `atuin` user
 
@@ -64,5 +78,16 @@ vault kv metadata put -mount=secret -custom-metadata=description="database crede
 
 echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/atuin" password=-
 vault kv metadata put -mount=secret -custom-metadata=description="database credentials for atuin user on bnesql02.dev.randomnoun" "db/bnesql02/atuin"
+
+echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/wakapi" password=-
+vault kv metadata put -mount=secret -custom-metadata=description="database credentials for wakapi user on bnesql02.dev.randomnoun" "db/bnesql02/wakapi"
 ```
+
+And some salt for wakapi passwords
+
+```
+# note 'patch' verb, not 'put'
+echo -n super-secret-password  | vault kv patch  -mount=secret "db/bnesql02/wakapi" salt=-
+```
+
 

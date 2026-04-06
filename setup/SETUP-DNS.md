@@ -196,6 +196,7 @@ grafana       IN CNAME bnenod04
 commafeed     IN CNAME bnenod04
 karakeep      IN CNAME bnenod04
 atuin         IN CNAME bnenod04
+wakapi        IN CNAME bnenod04
 
 ```
 

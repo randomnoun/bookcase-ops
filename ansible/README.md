@@ -67,6 +67,7 @@ The initial set of applications are:
 * commafeed
 * karakeep
 * atuin
+* wakapi
 
 what I would suggest you do is to comment out all but one of those in k8s_apps_bnekub03.yml and deploy a single application, and then uncomment the rest as you get those up and running. 
 
