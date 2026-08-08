@@ -47,9 +47,9 @@ spec:
           dnsPolicy: Default
           ports:
             - containerPort: 8888
+          # The image's internal entrypoint will automatically handle the binary swap.
           args:
-            - server
-            - start
+            - start 
           env:
             - name: ATUIN_DB_URI
               valueFrom:
