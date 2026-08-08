@@ -1,0 +1,15 @@
+- name: "kubernetes namespace searxng"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_searxng }}"
+    wait: true
+    definition: "{{ lookup('template', 'searxng-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment searxng"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_searxng }}"
+    namespace: "{{ kube_namespace_searxng }}"
+    wait: true
+    definition: "{{ lookup('template', 'searxng.j2.yml')  }}"
+

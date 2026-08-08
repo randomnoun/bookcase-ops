@@ -1,0 +1,83 @@
+# k8s yaml based on docker config at https://docs.searxng.org/admin/installation-docker.html
+# no valkey/limiter and no persistent volume for now - settings.yml (with its random secret_key,
+# overridden below by SEARXNG_SECRET) just regenerates on every pod restart.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: searxng-web
+  template:
+    metadata:
+      labels:
+        app: searxng-web
+    spec:
+      containers:
+        - name: searxng
+          image: docker.io/searxng/searxng:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SEARXNG_BASE_URL
+              value: "https://{{ searxng_ingress_host }}/"
+            - name: SEARXNG_SECRET
+              value: "{{ searxng_secret_key }}"
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              memory: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: searxng-web
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: searxng-tls-secret
+data:
+  tls.crt: "{{ searxng_tls_secret_cert }}"
+  tls.key: "{{ searxng_tls_secret_key }}"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: searxng-web-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  tls:
+    - hosts:
+        - {{ searxng_ingress_host }}
+      secretName: searxng-tls-secret
+  rules:
+  - host: {{ searxng_ingress_host }}
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: "web"
+            port:
+              number: 8080
