@@ -119,3 +119,10 @@ echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02
 vault kv get -mount=secret -field=master_key "db/bnesql02/litellm"
 ``` 
 
+and not really database related, but you'll need a secret key for searxng for it's CSRF/session signing:
+
+```
+echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-searxng/searxng-secret-key" key=-
+```
+
+

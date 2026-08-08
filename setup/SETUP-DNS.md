@@ -197,7 +197,8 @@ commafeed     IN CNAME bnenod04
 karakeep      IN CNAME bnenod04
 atuin         IN CNAME bnenod04
 wakapi        IN CNAME bnenod04
-
+litellm       IN CNAME bnenod04
+searxng       IN CNAME bnenod04
 ```
 
 * Create the file  `/etc/bind/db.192` containing:
