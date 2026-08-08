@@ -72,6 +72,8 @@ The initial set of applications are:
 
 what I would suggest you do is to comment out all but one of those in k8s_apps_bnekub03.yml and deploy a single application, and then uncomment the rest as you get those up and running. 
 
+Or alternatively restrict to a specific app using `-e app=xxxxx` , see below
+
 ### Why both nexus2 and nexu3 ?
 
 You could probably just get by with nexus3, as it can hold maven artifacts just fine, but I'm using nexus2 for the same reason that sonatype still use nexus2 for maven central. Which is that nexus3, whilst admirably reinventing quite a lot of wheels, doesn't seem to have reached feature parity with nexus2 for maven repositories just yet.
@@ -84,6 +86,14 @@ To install this stuff, run
 . vault-login.sh
 ansible-playbook -vvv -e deployments=bnekub03 k8s_apps_bnekub03.yml
 ```
+
+Or to just install a single app, run
+
+```
+. vault-login.sh
+ansible-playbook -vvv -e deployments=bnekub03 -e app=atuin k8s_apps_bnekub03.yml
+```
+
  
 And to check it's running:
 

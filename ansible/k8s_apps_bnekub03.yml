@@ -41,4 +41,5 @@
       loop_control: { loop_var: _k8s_apps_bnekub03_deployment }
       when:
         - deployments is not defined or true      
+        - app is not defined or _k8s_apps_bnekub03_deployment.0.role == app or _k8s_apps_bnekub03_deployment.0.name == app
 
