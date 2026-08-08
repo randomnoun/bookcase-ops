@@ -1,0 +1,15 @@
+kube_context_litellm: ""
+kube_namespace_litellm: "dev-litellm"
+
+litellm_ingress_host: ""
+litellm_ingress_class: ""
+litellm_tls_secret_cert: ""
+litellm_tls_secret_key: ""
+
+litellm_db_host: ""
+litellm_db_schema: ""
+litellm_db_username: ""
+litellm_db_password: ""
+
+litellm_master_key: ""
+litellm_salt_key: ""

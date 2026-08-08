@@ -64,6 +64,18 @@ psql -h localhost -U postgres -c "CREATE USER atuin WITH PASSWORD 'super-secret-
 psql -h localhost -U postgres -c "CREATE DATABASE atuin OWNER atuin;"
 ```
 
+## Creating the `litellm` database and `litellm` user
+
+Steps to do that:
+
+Replace `super-secret-password` with some random mumbojumbo, different to the random mumbojumbo you used for the other users.
+
+```
+psql -h localhost -U postgres -c "CREATE USER litellm WITH PASSWORD 'super-secret-password';"
+psql -h localhost -U postgres -c "CREATE DATABASE litellm OWNER litellm;"
+```
+
+
 ## Adding credentials to vault 
 
 Replace `super-secret-password` with the random mumbojumbo you used for each database/user above.
@@ -76,12 +88,18 @@ vault kv metadata put -mount=secret -custom-metadata=description="database crede
 echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/commafeed" password=-
 vault kv metadata put -mount=secret -custom-metadata=description="database credentials for commafeed user on bnesql02.dev.randomnoun" "db/bnesql02/commafeed"
 
+echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/wakapi" password=-
+vault kv metadata put -mount=secret -custom-metadata=description="database credentials for wakapi user on bnesql02.dev.randomnoun" "db/bnesql02/wakapi"
+
 echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/atuin" password=-
 vault kv metadata put -mount=secret -custom-metadata=description="database credentials for atuin user on bnesql02.dev.randomnoun" "db/bnesql02/atuin"
 
-echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/wakapi" password=-
-vault kv metadata put -mount=secret -custom-metadata=description="database credentials for wakapi user on bnesql02.dev.randomnoun" "db/bnesql02/wakapi"
+echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/litellm" password=-
+vault kv metadata put -mount=secret -custom-metadata=description="database credentials for litellm user on bnesql02.dev.randomnoun" "db/bnesql02/litellm"
+
 ```
+
+
 
 And some salt for wakapi passwords
 
@@ -90,4 +108,14 @@ And some salt for wakapi passwords
 echo -n super-secret-password  | vault kv patch  -mount=secret "db/bnesql02/wakapi" salt=-
 ```
 
+and a master key + salt key for litellm ( these need to start with "sk-" )
+
+```
+echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02/litellm" master_key=-
+
+echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02/litellm" salt_key=-
+
+# first first login
+vault kv get -mount=secret -field=master_key "db/bnesql02/litellm"
+``` 
 

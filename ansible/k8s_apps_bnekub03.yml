@@ -27,6 +27,9 @@
         - name: wakapi-bnekub03
           role: wakapi
           var_files: [bnekub03]
+        - name: litellm-bnekub03
+          role: litellm
+          var_files: [bnekub03]
 
   tasks:
     - name: deploy apps
