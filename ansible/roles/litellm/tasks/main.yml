@@ -1,0 +1,15 @@
+- name: "kubernetes namespace litellm"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_litellm }}"
+    wait: true
+    definition: "{{ lookup('template', 'litellm-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment litellm"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_litellm }}"
+    namespace: "{{ kube_namespace_litellm }}"
+    wait: true
+    definition: "{{ lookup('template', 'litellm.j2.yml')  }}"
+

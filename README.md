@@ -41,6 +41,7 @@ Okay so what you've got is:
    * karakeep - a bookmark organiser
    * atuin - shell history server
    * wakapi - developer time tracker
+   * litellm - an LLM proxy
 
 The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but could be used to deploy into other hosting environments easily enough.
 

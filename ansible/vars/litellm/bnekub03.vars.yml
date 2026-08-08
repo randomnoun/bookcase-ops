@@ -1,0 +1,15 @@
+kube_context_litellm: "bnekub03"
+
+litellm_ingress_host: "litellm.dev.randomnoun"
+litellm_ingress_class: "nginx-internal"
+
+litellm_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-litellm/litellm-tls-secret:tls.crt')}}"
+litellm_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-litellm/litellm-tls-secret:tls.key')}}"
+
+litellm_db_host: "bnesql02.dev.randomnoun"
+litellm_db_schema: "litellm"
+litellm_db_username: "litellm"
+litellm_db_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/litellm:password')}}"
+
+litellm_master_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/litellm:master_key')}}"
+litellm_salt_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/litellm:salt_key')}}"

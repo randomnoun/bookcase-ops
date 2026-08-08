@@ -1,0 +1,90 @@
+# k8s yaml based on docker config at https://docs.litellm.ai/docs/proxy/deploy
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm-web
+  template:
+    metadata:
+      labels:
+        app: litellm-web
+    spec:
+      # needed to resolve bnesql02 from within the container. Note that 'Default' isn't the default, 'ClusterFirst' is
+      dnsPolicy: Default
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm-database:main-stable
+          imagePullPolicy: Always
+          dnsPolicy: Default
+          ports:
+            - containerPort: 4000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://{{litellm_db_username}}:{{litellm_db_password}}@{{litellm_db_host}}:5432/{{litellm_db_schema}}"
+            - name: LITELLM_MASTER_KEY
+              value: "{{litellm_master_key}}"
+            - name: LITELLM_SALT_KEY
+              value: "{{litellm_salt_key}}"
+            # lets providers/models be managed from the Admin UI instead of a config.yaml
+            - name: STORE_MODEL_IN_DB
+              value: "True"
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              memory: 2Gi
+
+---
+# litellm docs use just a ClusterIP + ingress, I'll stick to LoadBalancer for consistency with the other apps here
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: litellm-web
+  ports:
+    - protocol: TCP
+      port: 4000
+      targetPort: 4000
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: litellm-tls-secret
+data:
+  tls.crt: "{{ litellm_tls_secret_cert }}"
+  tls.key: "{{ litellm_tls_secret_key }}"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: litellm-web-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  tls:
+    - hosts:
+        - {{ litellm_ingress_host }}
+      secretName: litellm-tls-secret
+  rules:
+  - host: {{ litellm_ingress_host }}
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: "web"
+            port:
+              number: 4000
