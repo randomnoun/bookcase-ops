@@ -114,6 +114,7 @@ cd /opt/openssl-ca
 ./bin/create-certificate.sh atuin.dev.randomnoun
 ./bin/create-certificate.sh wakapi.dev.randomnoun
 ./bin/create-certificate.sh litellm.dev.randomnoun
+./bin/create-certificate.sh searxng.dev.randomnoun
 ```
 
 So a few notes:
@@ -147,6 +148,7 @@ vault login
 ./bin/upload-certificate.sh atuin.dev.randomnoun        k8s/bnekub03/secret/dev-atuin/atuin-tls-secret
 ./bin/upload-certificate.sh wakapi.dev.randomnoun       k8s/bnekub03/secret/dev-wakapi/wakapi-tls-secret
 ./bin/upload-certificate.sh litellm.dev.randomnoun      k8s/bnekub03/secret/dev-litellm/litellm-tls-secret
+./bin/upload-certificate.sh searxng.dev.randomnoun      k8s/bnekub03/secret/dev-searxng/searxng-tls-secret
 ```
 
 We're not uploading the vault certificate to the vault, because vault can't use itself for it's own certficates. OR CAN IT. *( googles that )*. No, no it can't.

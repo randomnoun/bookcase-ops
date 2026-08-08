@@ -1,0 +1,9 @@
+kube_context_searxng: ""
+kube_namespace_searxng: "dev-searxng"
+
+searxng_ingress_host: ""
+searxng_ingress_class: ""
+searxng_tls_secret_cert: ""
+searxng_tls_secret_key: ""
+
+searxng_secret_key: ""
