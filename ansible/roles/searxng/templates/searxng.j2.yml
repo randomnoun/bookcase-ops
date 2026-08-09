@@ -1,6 +1,26 @@
 # k8s yaml based on docker config at https://docs.searxng.org/admin/installation-docker.html
-# no valkey/limiter and no persistent volume for now - settings.yml (with its random secret_key,
-# overridden below by SEARXNG_SECRET) just regenerates on every pod restart.
+# no valkey/limiter and no persistent volume for now.
+#
+# settings.yml is supplied directly via ConfigMap (use_default_settings: true merges it over the
+# image's built-in defaults) 
+#
+# json format is enabled (search.formats) so this can be used as an MCP/API search backend
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: searxng-config
+data:
+  settings.yml: |
+    use_default_settings: true
+    server:
+      secret_key: "{{ searxng_secret_key }}"
+      base_url: "https://{{ searxng_ingress_host }}/"
+    search:
+      formats:
+        - html
+        - json
 
 ---
 apiVersion: apps/v1
@@ -23,16 +43,19 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
-          env:
-            - name: SEARXNG_BASE_URL
-              value: "https://{{ searxng_ingress_host }}/"
-            - name: SEARXNG_SECRET
-              value: "{{ searxng_secret_key }}"
+          volumeMounts:
+            - mountPath: /etc/searxng/settings.yml
+              subPath: settings.yml
+              name: searxng-config
           resources:
             limits:
               memory: 512Mi
             requests:
               memory: 512Mi
+      volumes:
+        - name: searxng-config
+          configMap:
+            name: searxng-config
 
 ---
 apiVersion: v1
