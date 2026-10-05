@@ -36,6 +36,7 @@ autoinstall:
   packages:
     - openssh-server
     - open-vm-tools
+    - qemu-guest-agent
     - net-tools
     - cloud-init
     - whois

@@ -41,6 +41,25 @@ PACKER_HCL=simple-ubuntu-kubernetes-node.pkr.hcl
 WITH_VAULT=0
 ```
 
+# Proxmox
+
+To build the image on a Proxmox host instead of ESXi, use the proxmox variant of the scripts (vault is not yet wired up for this one, so it's simple-vars-only):
+
+* copy `simple-proxmox-vars.json.sample` to `simple-proxmox-vars.json` in the `src/main/packer` folder
+* edit that file with the credentials and host details for your proxmox server, in particular:
+  * `proxmox_url` - the API URL for your proxmox host, e.g. `https://<host>:8006/api2/json`
+  * `proxmox_username` / `proxmox_token` - an API token created under Datacenter > Permissions > API Tokens
+  * `proxmox_node`, `proxmox_iso_storage_pool` (needs the `iso` content type, e.g. `local`), `proxmox_disk_storage_pool` / `proxmox_efi_storage_pool` (an lvm-thin or zfs pool capable of storing VM disks - check `pvesm status` on the node for the available pool names, e.g. `local-lvm` or `data`), `proxmox_bridge` (e.g. `vmbr0`)
+* edit the environment variables at the top of `build.sh` to contain:
+
+```
+PACKER_VARS=simple-proxmox-vars.json
+PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl
+WITH_VAULT=0
+```
+
+This variant builds the VM as `q35`/UEFI/`cpu_type=host`, and bakes in NVIDIA drivers + CUDA (`packer-scripts/02-install-nvidia.sh`), for use as a GPU-passthrough-ready Kubernetes node (e.g. for a host with RTX 3090s). The physical GPUs are deliberately **not** attached during the packer build — attach them to the cloned VM afterwards via the Proxmox UI/CLI, since passing them through while packer is provisioning would lock the cards.
+
 # Creating the VM 
 
 Then run the script.

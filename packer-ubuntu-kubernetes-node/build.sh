@@ -4,9 +4,13 @@ set -e
 # uncomment to debug
 # set -o xtrace
 
-PACKER_VARS=vars.json
-PACKER_HCL=ubuntu-kubernetes-node.pkr.hcl
-WITH_VAULT=1
+#PACKER_VARS=vars.json
+#PACKER_HCL=ubuntu-kubernetes-node.pkr.hcl
+#WITH_VAULT=1
+
+PACKER_VARS=simple-proxmox-vars.json
+PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl
+WITH_VAULT=0
 
 SRC_PACKER=src/main/packer
 TARGET_PACKER=target/packer
