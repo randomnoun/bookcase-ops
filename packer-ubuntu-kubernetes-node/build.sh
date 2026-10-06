@@ -9,9 +9,14 @@ set -e
 #PACKER_HCL=esxi-ubuntu-kubernetes-node.pkr.hcl
 #WITH_VAULT=1
 
+#VARIANT=proxmox
+#PACKER_VARS=proxmox-vars.json
+#PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl
+#WITH_VAULT=1
+
 VARIANT=proxmox
 PACKER_VARS=simple-proxmox-vars.json
-PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl
+PACKER_HCL=simple-proxmox-ubuntu-kubernetes-node.pkr.hcl
 WITH_VAULT=0
 
 SRC_PACKER=src/main/packer

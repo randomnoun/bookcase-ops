@@ -166,6 +166,7 @@ $TTL    604800
 ; hypers
 bnehyp02      IN  A     192.168.0.24
 bnehyp05      IN  A     192.168.0.112
+bnellm01      IN  A     192.168.0.144
 
 ; other physical machines/devices
 bnenas05      IN  A     192.168.0.111
@@ -176,6 +177,9 @@ excimer-wifi  IN  A     192.168.0.126
 bnekub03      IN  A     192.168.0.133
 bnenod04      IN  A     192.168.0.134
 bnesql02      IN  A     192.168.0.132
+
+; bnellm01 VMs
+bnenod05      IN  A     192.168.0.145
 
 ; aliases
 mysql         IN  CNAME bnesql02
