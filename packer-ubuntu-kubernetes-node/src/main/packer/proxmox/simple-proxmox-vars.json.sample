@@ -23,7 +23,7 @@
     "builder_hostname" : "bnenod05",
     "builder_numvpus" : "1",
     "builder_numcores" : "24",
-    "builder_memsize" : "122880",
+    "builder_memsize" : "98304",
     "builder_disksize" : "100000",
 
     "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:02",
