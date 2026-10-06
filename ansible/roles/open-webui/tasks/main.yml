@@ -1,0 +1,14 @@
+- name: "kubernetes namespace open-webui"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_open_webui }}"
+    wait: true
+    definition: "{{ lookup('template', 'open-webui-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment open-webui"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_open_webui }}"
+    namespace: "{{ kube_namespace_open_webui }}"
+    wait: true
+    definition: "{{ lookup('template', 'open-webui.j2.yml')  }}"

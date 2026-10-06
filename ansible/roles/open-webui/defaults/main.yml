@@ -1,0 +1,22 @@
+kube_context_open_webui: ""
+kube_namespace_open_webui: "dev-open-webui"
+kube_storageclass_open_webui: "freenas-nfs"
+
+open_webui_ingress_host: ""
+open_webui_tls_secret_cert: ""
+open_webui_tls_secret_key: ""
+
+# litellm's OpenAI-compatible endpoint - this is the only model backend
+# open-webui talks to (ollama's own native API is disabled; litellm is
+# already registered with each ollama model individually)
+open_webui_openai_api_base_url: ""
+open_webui_openai_api_key: ""
+
+open_webui_secret_key: ""
+
+# persist chats/users/etc to postgres instead of the default sqlite file -
+# much harder to switch to after the fact than to set up up front
+open_webui_db_host: ""
+open_webui_db_schema: ""
+open_webui_db_username: ""
+open_webui_db_password: ""
