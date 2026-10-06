@@ -74,7 +74,7 @@ No, because I went and bought another server to use for LLMs:
 
 A relatively new server purchased 2026, which I'm going to use to run LLMs because that's the hot new thing.
 
-Picked this up from mikepc, as they're capable of building PCs with multiple GPU cards. 
+Picked this up from mikepc ( the "Chinook AI Max PC" ), as they're capable of building PCs with multiple GPU cards. 
 Prices below are approximate as I didn't get an itemised bill. 
 
 What it's got:
@@ -84,15 +84,21 @@ What it's got:
 * Mobo: Asus Pro WS X570-ACE , which has enough very-distantly-spaced PCIe slots that I can jam another 3090 card in here later on perhaps, ~ $400
 * Power supply: Corsair HX1500i 1500W, which can also power that if necessary, ~ $390
 * RAM: 128GB DDR4 ; 4x32GB, ~ $1400
-* Main OS storage: 1TB NVMe Gen 3 M.2 SSD , $230
-* Data storage: 2TB NVMe Gen 4 M.2 SSD , $290
+* Main OS storage: 1TB NVMe Gen 3 M.2 SSD , ~ $230
+* Data storage: 2TB NVMe Gen 4 M.2 SSD , ~ $290
+* Putting it together , ~ $1000
 
-Total: about 8 grand.
+Total: about 8 and a half grand.
 
 The cost of everything in this box is outrageous, because anthropic et al are purchasing GPUs, RAM and SSDs like you wouldn't believe. 
 Due to the kind of inverse Moore's Law that we're living in in 2026, this would have cost about half as much if I'd got it last year.
 
-Also, due to the fact that this thing is enormous, it doesn't live in the bookcase, it sits over there in the opposite corner.   
+Also, due to the fact that this thing is enormous, it doesn't live in the bookcase, it sits over there in the opposite corner.
+
+Somewhat alarmingly, every third time I turn it on I get an amber light on the mobo and it doesn't boot up. Seems ok after I powercycle though. 
+The Asus website tells me that's possibly due to incorrectly seated RAM, but I've checked those and run some memtest86 tests and apparently it's fine.
+
+So let's see how that all pans out.
 
 # That's it ?
 
