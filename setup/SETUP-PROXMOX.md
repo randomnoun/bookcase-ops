@@ -292,6 +292,63 @@ lspci -nnk | grep -i nvidia
 nvidia-smi
 lspci should show both cards now bound to the nvidia driver (the one we baked into the template earlier), and nvidia-smi should list both RTX 3090s with their VRAM.
 
+### Attach a model storage disk to bnenod05
+
+bnenod05's OS disk is only 100GB (on `local-lvm`), which isn't enough for LLM model weights. The `data` LVM-thin pool (1.8TB, on the second SSD) was deliberately kept free for exactly this - attach a dedicated second disk from it rather than growing the OS disk or using NFS (NFS would add latency to model loading, and the pod using this storage is permanently pinned to this one node anyway, so there's no portability benefit to lose).
+
+```
+root@bnellm01:~# qm list
+      VMID NAME                       STATUS     MEM(MB)    BOOTDISK(GB) PID
+       100 bnenod05                   running    98304             97.66 3828
+      9000 tpl-ubuntu-kubernetes-node stopped    122880            97.66 0
+root@bnellm01:~# qm set 100 --scsi1 data:1024   # 1TB, thin-provisioned - only consumes real pool space as it's written to
+```
+
+Then inside bnenod05:
+
+```
+knoxg@bnenod05:~$ lsblk  # confirm the new disk shows up
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sda      8:0    0 97.7G  0 disk
+├─sda1   8:1    0    1G  0 part /boot/efi
+└─sda2   8:2    0 96.6G  0 part /var/lib/kubelet/pods/425b91c1-2ae5-4cae-be5d-8376735bde4c/volume-subpaths/tigera-ca-bundle/calico-node/7
+                                /var/lib/kubelet/pods/e6dcb366-64dc-493d-ab3c-c1f0cbf2bcf0/volume-subpaths/tigera-ca-bundle/calico-typha/1
+                                /
+sdb      8:16   0    1T  0 disk
+
+knoxg@bnenod05:~$ sudo parted /dev/sdb --script mklabel gpt mkpart primary ext4 0% 100%
+knoxg@bnenod05:~$ sudo mkfs.ext4 /dev/sdb1
+mke2fs 1.47.0 (5-Feb-2023)
+Discarding device blocks: done
+Creating filesystem with 268434944 4k blocks and 67108864 inodes
+Filesystem UUID: 570ba723-ae5c-4abe-94bd-c1b63c903fe7
+Superblock backups stored on blocks:
+        32768, 98304, 163840, 229376, 294912, 819200, 884736, 1605632, 2654208,
+        4096000, 7962624, 11239424, 20480000, 23887872, 71663616, 78675968,
+        102400000, 214990848
+
+Allocating group tables: done
+Writing inode tables: done
+Creating journal (262144 blocks): done
+Writing superblocks and filesystem accounting information: done
+
+knoxg@bnenod05:~$ sudo mkdir -p /mnt/models
+knoxg@bnenod05:~$ sudo mount /dev/sdb1 /mnt/models
+
+knoxg@bnenod05:~$ sudo blkid /dev/sdb1   # get the UUID for fstab
+/dev/sdb1: UUID="570ba723-ae5c-4abe-94bd-c1b63c903fe7" BLOCK_SIZE="4096" TYPE="ext4" PARTLABEL="primary" PARTUUID="22899cf8-184d-43b9-99d8-253196dd0e10"
+
+knoxg@bnenod05:~$ echo 'UUID=570ba723-ae5c-4abe-94bd-c1b63c903fe7  /mnt/models  ext4  defaults  0  2' | sudo tee -a /etc/fstab
+UUID=570ba723-ae5c-4abe-94bd-c1b63c903fe7  /mnt/models  ext4  defaults  0  2
+
+knoxg@bnenod05:~$ sudo mount -a
+knoxg@bnenod05:~$ df -h /mnt/models
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdb1      1007G   28K  956G   1% /mnt/models
+```
+
+`/mnt/models` is what the `local-path-provisioner` ansible role (see [ansible/README.md](ansible/README.md)) is configured to use as bnenod05's storage path, so ollama's PVC ends up here.
+
 ### Proxmox containers
 
 And then jump over to [ansible/README.md](ansible/README.md) on getting some containers running on the node.
