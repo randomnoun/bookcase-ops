@@ -7,6 +7,13 @@ If running this from Windows, you will need to run from WSL ( Windows Subsystem 
 
 So you'll need to install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html), [helm](https://helm.sh/docs/intro/install/) and probably some [ansible galaxy](https://docs.ansible.com/ansible/latest/collections_guide/collections_installing.html) collections. I didn't come up with these names.
 
+One more complication is that some deployments must run on node with a GPU; I'll be labelling the bnenod05 node ( running on bnellm01 ) with a couple of labels to help with scheduling:
+
+* gpu-vendor=nvidia
+* gpu-model=rtx-3090
+
+with the intention of labelling other nodes with other vendors/models once this all becomes obsolete in a year or two.
+
 ## Certificates
 
 Since I use a non-standard `.randomnoun` top level domain on my dev machines, I have to create my own certificates using my own certificate authority (CA), rather
