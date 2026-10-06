@@ -190,4 +190,112 @@ After a bit of faffing about with the boot partition using an Ubuntu live USB, I
 * then login as that user
 * then Datacenter -> Permissions -> API Tokens, (Add), Token ID: `bookcase-ops`
 * record the token ID and secret for the [SETUP-VAULT.md](SETUP-VAULT.md)step later
+
+### Proxmox node
+
+OK so once you've got this far, deploy `bnenod05` which will be the VM for the kubernetes node running on this box that will contain all the LLM containers.
+
+Check the [packer-ubuntu-kubernetes-node/README.md](packer-ubuntu-kubernetes-node/README.md) on how to configure it, from that folder you'll need to run 
+
+```
+build.sh proxmox
+```
+
+to create the `tpl-ubuntu-kubernetes-node` template. 
+
+Clone and rename it to create `bnenod05`, start it, and join the cluster.
+
+### Configure GPU drivers on host
+
+Then connect the GPUs ... this is all specific to my setup, but I'll run through it anyway.
+
+```
+root@bnellm01:~# dmesg | grep -i -e DMAR -e IOMMU # confirm IOMMI is active
+[...]
+[    0.564739] iommu: Default domain type: Passthrough (set via kernel command line)
+[...]
+
+root@bnellm01:~# lspci -nn | grep -i nvidia       # check IOMMI groups and vendor:device IDs 
+0a:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090] [10de:2204] (rev a1)
+0a:00.1 Audio device [0403]: NVIDIA Corporation GA102 High Definition Audio Controller [10de:1aef] (rev a1)
+0b:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090] [10de:2204] (rev a1)
+0b:00.1 Audio device [0403]: NVIDIA Corporation GA102 High Definition Audio Controller [10de:1aef] (rev a1)
+
+root@bnellm01:~# # check no drivers bound to GPUs ( no 'Kernel driver in use' line )
+root@bnellm01:~# lspci -nnk -s 0a:00.0            
+0a:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090] [10de:2204] (rev a1)
+        Subsystem: Micro-Star International Co., Ltd. [MSI] Device [1462:3881]
+        Kernel modules: nvidiafb, nouveau
+root@bnellm01:~# lspci -nnk -s 0b:00.0            
+0b:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090] [10de:2204] (rev a1)
+        Subsystem: Micro-Star International Co., Ltd. [MSI] Device [1462:3881]
+        Kernel modules: nvidiafb, nouveau
+   
+root@bnellm01:~# # create vfio-pci binding config
+root@bnellm01:~# cat << EOF > /etc/modprobe.d/vfio.conf
+options vfio-pci ids=10de:2204,10de:1aef
+EOF
+
+root@bnellm01:~# # load vfio modules at boot
+root@bnellm01:~# cat << EOF > /etc/modules-load.d/vfio.conf
+vfio
+vfio_iommu_type1
+vfio_pci
+EOF
+
+root@bnellm01:~# # rebuild initramfs and reboot
+root@bnellm01:~# update-initramfs -u -k all
+root@bnellm01:~# reboot
+
+root@bnellm01:~# # after reboot, verify cards are bound to vfio-pci ( 'Kernel driver in use' lines )
+root@bnellm01:~# lspci -nnk -s 0a:00.0
+0a:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090] [10de:2204] (rev a1)
+        Subsystem: Micro-Star International Co., Ltd. [MSI] Device [1462:3881]
+        Kernel driver in use: vfio-pci
+        Kernel modules: nvidiafb, nouveau
+root@bnellm01:~# lspci -nnk -s 0a:00.1
+0a:00.1 Audio device [0403]: NVIDIA Corporation GA102 High Definition Audio Controller [10de:1aef] (rev a1)
+        Subsystem: Micro-Star International Co., Ltd. [MSI] Device [1462:3881]
+        Kernel driver in use: vfio-pci
+        Kernel modules: snd_hda_intel
+root@bnellm01:~# lspci -nnk -s 0b:00.0
+0b:00.0 VGA compatible controller [0300]: NVIDIA Corporation GA102 [GeForce RTX 3090] [10de:2204] (rev a1)
+        Subsystem: Micro-Star International Co., Ltd. [MSI] Device [1462:3881]
+        Kernel driver in use: vfio-pci
+        Kernel modules: nvidiafb, nouveau
+root@bnellm01:~# lspci -nnk -s 0b:00.1
+0b:00.1 Audio device [0403]: NVIDIA Corporation GA102 High Definition Audio Controller [10de:1aef] (rev a1)
+        Subsystem: Micro-Star International Co., Ltd. [MSI] Device [1462:3881]
+        Kernel driver in use: vfio-pci
+        Kernel modules: snd_hda_intel
+```
+
+### Attach GPUs to bnenod05
+
+Via the Proxmox UI:
+
+1. Shut down bnenod05 first (hardware changes require the VM to be off).
+2. Select bnenod05 → Hardware tab → Add → PCI Device.
+3. Choose Raw Device, select 0a:00 from the dropdown (it'll show as the RTX 3090).
+4. Tick All Functions — this passes through both the VGA (0a:00.0) and audio (0a:00.1) parts together as one unit, which is what you want (they're logically one card).
+5. Tick PCI-Express — needed since we built the template on q35, which uses the PCIe bus (not legacy PCI).
+6. Leave Primary GPU unticked — that's for cases where the VM needs the card for its own console/display; bnenod05 is headless and uses the regular Proxmox serial/VNC console, so the 3090s are purely compute devices here.
+7. Click Add, then repeat the same for 0b:00 (the second card) as a second PCI Device entry.
+8. Boot bnenod05.
+
+Equivalent via CLI, if you'd rather:
+qm set <vmid> --hostpci0 0a:00,pcie=1
+qm set <vmid> --hostpci1 0b:00,pcie=1
+
+After boot, inside the guest:
+lspci -nnk | grep -i nvidia
+nvidia-smi
+lspci should show both cards now bound to the nvidia driver (the one we baked into the template earlier), and nvidia-smi should list both RTX 3090s with their VRAM.
+
+### Proxmox containers
+
+And then jump over to [ansible/README.md](ansible/README.md) on getting some containers running on the node.
+
+
+
   

@@ -9,6 +9,16 @@ The is the node bit.
 
 It obtains the credentials to join the cluster from bnenas05 via ssh ( the credentials are copied there as part of the API server installation, but I'll probably move those to vault instead soon ). 
 
+# Layout
+
+* `src/main/packer/common/` - files shared between all variants (cloud-init template, base install script, filesystem overlay)
+* `src/main/packer/esxi/` - ESXi/vmware-iso builder, both vault-backed and simple-vars variants
+* `src/main/packer/proxmox/` - Proxmox/proxmox-iso builder, both vault-backed and simple-vars variants
+
+# Variables
+
+Variables are in [src/main/packer/esxi/esxi-vars.json](src/main/packer/esxi/esxi-vars.json) and [src/main/packer/esxi/esxi-vars.json](src/main/packer/proxmox/proxmox-vars.json) 
+
 # Networking prerequisites
 
 So yes, kubernetes has it's own networking layer, but you'll probably still want something to point to kubernetes. 
@@ -61,21 +71,11 @@ Then run the script.
 
 # Joining the kubernetes cluster
 
-In both cases, the first thing you should do in the new VM once it's running is to rename the host ( if required ), then join the kubernetes cluster, by running
+In both esxi and proxmox, the first thing you should do in the new VM once it's running is to rename the host ( if required ), then join the kubernetes cluster, by running
 
 ```
 sudo /opt/backup/join-command/kubernetes-join-command.sh
 ```
-
-# Layout
-
-* `src/main/packer/common/` - files shared between all variants (cloud-init template, base install script, filesystem overlay)
-* `src/main/packer/esxi/` - ESXi/vmware-iso builder, both vault-backed and simple-vars variants
-* `src/main/packer/proxmox/` - Proxmox/proxmox-iso builder, both vault-backed and simple-vars variants
-
-# Variables
-
-Variables are in [src/main/packer/esxi/esxi-vars.json](src/main/packer/esxi/esxi-vars.json)
 
 # Notes
 
