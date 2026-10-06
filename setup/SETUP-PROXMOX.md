@@ -184,10 +184,10 @@ After a bit of faffing about with the boot partition using an Ubuntu live USB, I
 
 ### Proxmox user
 
-* Datacenter -> Users -> Add,  User name: knoxg, Realm: Linux PAM ( Add )
-* then Datacenter -> Permissions -> Add,  Path = /, Username = knoxg, Role = PVEAdmin 
-* then Datacenter -> Permissions -> Add,  Path = /, Username = knoxg, Role = Administrator 
+* Datacenter -> Users -> Add,  User name: `knoxg`, Realm: `Linux PAM`, then click Add
+* then Datacenter -> Permissions -> Add,  Path = `/`, Username = `knoxg`, Role = `PVEAdmin`
+* then Datacenter -> Permissions -> Add,  Path = `/`, Username = `knoxg`, Role = `Administrator` 
 * then login as that user
-* then Datacenter -> Permissions -> API Tokens, (Add), Token ID: bookcase-ops
+* then Datacenter -> Permissions -> API Tokens, (Add), Token ID: `bookcase-ops`
 * record the token ID and secret for the [SETUP-VAULT.md](SETUP-VAULT.md)step later
   

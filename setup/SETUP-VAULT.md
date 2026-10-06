@@ -141,10 +141,11 @@ Modify this to contain your own username/passwords.
 echo -n knoxg        | vault kv put   -mount=secret packer/esxi/bnehyp05.dev.randomnoun username=-
 echo -n pmfelxcnfI8u | vault kv patch -mount=secret packer/esxi/bnehyp05.dev.randomnoun password=-
 
-# API token credentials for Proxmox server (Datacenter > Permissions > API Tokens).
-# 'username' is the full "user@realm!tokenid" string (e.g. knoxg@pam!packer),
+# API token credentials for Proxmox server (Datacenter > Permissions > API Tokens),
+# created with Token ID 'bookcase-ops' in SETUP-PROXMOX.md.
+# 'username' is the full "user@realm!tokenid" string.
 # 'token' is just the token secret uuid.
-echo -n 'knoxg@pam!packer'                    | vault kv put   -mount=secret packer/proxmox/bnellm01.dev.randomnoun username=-
+echo -n 'knoxg@pam!bookcase-ops'              | vault kv put   -mount=secret packer/proxmox/bnellm01.dev.randomnoun username=-
 echo -n 'put-the-token-uuid-here'             | vault kv patch -mount=secret packer/proxmox/bnellm01.dev.randomnoun token=-
 
 # The initial user for virtual machines created by packer
