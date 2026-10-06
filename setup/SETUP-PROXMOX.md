@@ -10,13 +10,13 @@ and there was that whole drama around vmware pulling support for the free versio
 So a few tips and pointers:
 
 1. Don't try to use the proxmox ISO installer, that can't deal with dual GPUs and crashes during boot, even if you tell it to ignore the video cards
-1. Use the Debian network installer; installer.
-1. during the installation, don't include GNOME or a desktop, because we want to keep the cards free for LLMing.
+1. Instead, use the vanilla Debian network installer ISO.
+1. During the installation, don't include GNOME or a desktop, because we want to keep the cards free for LLMing.
 1. Enable the SSH server though
-1. After installing debian and proxmox, I ended up resizing the root OS partition so that I could stick a local-lvm partition on the OS drive
+1. After installing debian and proxmox, I ended up circling back and resizing the root OS partition so that I could stick a local-lvm partition on the OS drive.
    * apparently proxmox really prefers LVM volumes
-   * I didn't write down the steps for that though, but for future referene, on the boot drive, I've got a 150GB partition for the OS, and the rest is allocated to an LVM-Thin volume called 'local-lvm'. 
-   * The second disk is taken up by an LVM-Thin volume called 'data'. 
+   * I didn't write down the steps for that, but for future referene, on the boot drive, I've now got a 150GB partition for the OS, and the rest is allocated to an LVM-Thin volume called 'local-lvm'. 
+   * the second disk is taken up by an LVM-Thin volume called 'data'. 
 
 Once you've got a minimal Debian OS running, then run this:
 
@@ -24,7 +24,17 @@ Once you've got a minimal Debian OS running, then run this:
 knoxg@bnellm01:~$ ip link   # check the MAC addresses, will need for setting up static DHCP allocation
 knoxg@bnellm01:~$ su -
 root@bnellm01:~$ sudo vi /etc/network/interfaces   # set a static IP
-root@bnellm01:~# vi /etc/hosts                     # comment out 127.0.1.1 line, and replace with static IP
+root@bnellm01:~# vi /etc/hosts                     # comment out 127.0.1.1 line, and replace with static IP, so it looks like...
+root@bnellm01:~# cat /etc/hosts
+127.0.0.1       localhost
+# 127.0.1.1     bnellm01.dev.randomnoun bnellm01
+192.168.0.144   bnellm01.dev.randomnoun bnellm01
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+
 root@bnellm01:~# systemctl restart networking
 root@bnellm01:~# hostname --ip-address
 
@@ -179,5 +189,5 @@ After a bit of faffing about with the boot partition using an Ubuntu live USB, I
 * then Datacenter -> Permissions -> Add,  Path = /, Username = knoxg, Role = Administrator 
 * then login as that user
 * then Datacenter -> Permissions -> API Tokens, (Add), Token ID: bookcase-ops
-* record the token ID and secret for the SETUP-VAULT.md step later
+* record the token ID and secret for the [SETUP-VAULT.md](SETUP-VAULT.md)step later
   
