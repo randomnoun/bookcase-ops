@@ -160,14 +160,14 @@ echo -n '--the contents of your id_rsa.pub file--' | vault kv patch -mount=secre
 
 # Credentials to access backup storage (over ssh)
 # probably want to use a public cert here as well
-echo -n knoxg        | vault kv put   -mount=secret packer/backup/bnenas04.dev.randomnoun username=-
-echo -n Y5sdvJzHdGY3 | vault kv patch -mount=secret packer/backup/bnenas04.dev.randomnoun password=-
+echo -n knoxg        | vault kv put   -mount=secret packer/backup/bnenas05.dev.randomnoun username=-
+echo -n Y5sdvJzHdGY3 | vault kv patch -mount=secret packer/backup/bnenas05.dev.randomnoun password=-
 
 # Store some descriptions in vault as well
 vault kv metadata put -mount=secret -custom-metadata=description='Login credentials for ESXi server' packer/esxi/bnehyp05.dev.randomnoun
 vault kv metadata put -mount=secret -custom-metadata=description='API token credentials for Proxmox server' packer/proxmox/bnellm01.dev.randomnoun
 vault kv metadata put -mount=secret -custom-metadata=description='The initial user for virtual machines created by packer' packer/cloud-init
-vault kv metadata put -mount=secret -custom-metadata=description='Backup login credentials (over ssh)' packer/backup/bnenas04.dev.randomnoun
+vault kv metadata put -mount=secret -custom-metadata=description='Backup login credentials (over ssh)' packer/backup/bnenas05.dev.randomnoun
 ```
 
 ## Creating the packer role and generating a long-lived auth token:

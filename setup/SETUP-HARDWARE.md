@@ -54,6 +54,11 @@ Those 8 drives are configured in a raidz2 volume, so 2 of them provide resilienc
 
 Total: 2924.38
 
+Update 2026-10-06: OK so at some point in 2024 or 2025, the drives in an older box ( `bnenas03` ) died, 
+so I bought some bigger disks and shoved them in there, relabelled it as `bnenas05`, and that became the primary NAS.
+
+I've updated most of the refs in this project to point to that instead. 
+
 # bnehyp02
 <img align="right" src="image/pie-bnehyp02.png">
 
