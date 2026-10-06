@@ -294,7 +294,13 @@ lspci should show both cards now bound to the nvidia driver (the one we baked in
 
 ### Attach a model storage disk to bnenod05
 
-bnenod05's OS disk is only 100GB (on `local-lvm`), which isn't enough for LLM model weights. The `data` LVM-thin pool (1.8TB, on the second SSD) was deliberately kept free for exactly this - attach a dedicated second disk from it rather than growing the OS disk or using NFS (NFS would add latency to model loading, and the pod using this storage is permanently pinned to this one node anyway, so there's no portability benefit to lose).
+The second SSD on bnellm01 is there to hold LLM models; carve out a dedicated thin-provisioned disk to hold these models.
+
+The disk will be mounted as `/mnt/models` on `bnenod05`.
+
+The `local-path-provisioner` ansible role will provision ollama's PVC here. 
+
+Create the disk attached to the VM:
 
 ```
 root@bnellm01:~# qm list
@@ -346,8 +352,6 @@ knoxg@bnenod05:~$ df -h /mnt/models
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/sdb1      1007G   28K  956G   1% /mnt/models
 ```
-
-`/mnt/models` is what the `local-path-provisioner` ansible role (see [ansible/README.md](ansible/README.md)) is configured to use as bnenod05's storage path, so ollama's PVC ends up here.
 
 ### Proxmox containers
 
