@@ -31,11 +31,12 @@ Alternatively, you could use the 'simple' variant of these scripts, which puts a
 
 To disable vault lookups:
 
-* copy the `simple-vars.json.sample` to `simple-vars.json` in the `src/main/packer` folder
+* copy the `simple-vars.json.sample` to `simple-vars.json` in the `src/main/packer/esxi` folder
 * edit that file with the credentials you want to use. You'll probably want to change most of the entries in that json file. 
 * edit the environment variables at the top of `build.sh` to contain: 
 
 ```
+VARIANT=esxi
 PACKER_VARS=simple-vars.json
 PACKER_HCL=simple-ubuntu-kubernetes-node.pkr.hcl
 WITH_VAULT=0
@@ -45,7 +46,7 @@ WITH_VAULT=0
 
 To build the image on a Proxmox host instead of ESXi, use the proxmox variant of the scripts (vault is not yet wired up for this one, so it's simple-vars-only):
 
-* copy `simple-proxmox-vars.json.sample` to `simple-proxmox-vars.json` in the `src/main/packer` folder
+* copy `simple-proxmox-vars.json.sample` to `simple-proxmox-vars.json` in the `src/main/packer/proxmox` folder
 * edit that file with the credentials and host details for your proxmox server, in particular:
   * `proxmox_url` - the API URL for your proxmox host, e.g. `https://<host>:8006/api2/json`
   * `proxmox_username` / `proxmox_token` - an API token created under Datacenter > Permissions > API Tokens
@@ -53,6 +54,7 @@ To build the image on a Proxmox host instead of ESXi, use the proxmox variant of
 * edit the environment variables at the top of `build.sh` to contain:
 
 ```
+VARIANT=proxmox
 PACKER_VARS=simple-proxmox-vars.json
 PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl
 WITH_VAULT=0
@@ -68,9 +70,15 @@ Then run the script.
 ./build.sh
 ```
 
+# Layout
+
+* `src/main/packer/common/` - files shared between all variants (cloud-init template, base install script, filesystem overlay)
+* `src/main/packer/esxi/` - ESXi/vmware-iso builder, both vault-backed and simple-vars variants
+* `src/main/packer/proxmox/` - Proxmox/proxmox-iso builder (simple-vars only for now)
+
 # Variables
 
-Variables are in [src/main/packer/vars.json](src/main/packer/vars.json)
+Variables are in [src/main/packer/esxi/vars.json](src/main/packer/esxi/vars.json)
 
 # Notes
 

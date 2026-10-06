@@ -99,7 +99,7 @@ source "proxmox-iso" "kubernetes-node" {
     iso_download_pve = true
   }
 
-  http_directory = "builder-http"
+  http_directory = "../common/builder-http"
   // pin this explicitly - on a machine with a VPN TAP adapter (or other
   // virtual NICs) packer can autodetect the wrong interface for {{.HTTPIP}},
   // handing the VM a seed URL it can never reach
@@ -140,7 +140,7 @@ build {
   }
 
   provisioner "file" {
-    source      = "filesystem/"
+    source      = "../common/filesystem/"
     destination = "/opt/packer"
   }
 
@@ -153,7 +153,7 @@ build {
       "BACKUP_PASSWORD=${var.backup_password}",
     ]
     execute_command = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
-    script          = "packer-scripts/01-install.sh"
+    script          = "../common/packer-scripts/01-install.sh"
   }
 
   provisioner "shell" {

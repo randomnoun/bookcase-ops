@@ -75,7 +75,7 @@ source "vmware-iso" "kubernetes-node" {
   snapshot_name          = "clean"  
   
   
-  http_directory         = "builder-http"
+  http_directory         = "../common/builder-http"
   ssh_username           = "${local.cloud_init_username}"
   ssh_password           = "${local.cloud_init_password}"
   shutdown_command       = "echo '${local.cloud_init_password}' | /usr/bin/sudo -E -S shutdown -P now"
@@ -126,7 +126,7 @@ build {
   }
   
   provisioner "file" {
-    source      = "filesystem/"
+    source      = "../common/filesystem/"
     destination = "/opt/packer"
   }
 
@@ -139,7 +139,7 @@ build {
       "BACKUP_PASSWORD=${local.backup_password}", 
     ]
     execute_command  = "echo '${local.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
-    script           = "packer-scripts/01-install.sh"
+    script           = "../common/packer-scripts/01-install.sh"
   }
 
 }
