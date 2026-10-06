@@ -31,14 +31,14 @@ Alternatively, you could use the 'simple' variant of these scripts, which puts a
 
 To disable vault lookups:
 
-* copy the `simple-vars.json.sample` to `simple-vars.json` in the `src/main/packer/esxi` folder
+* copy the `simple-esxi-vars.json.sample` to `simple-esxi-vars.json` in the `src/main/packer/esxi` folder
 * edit that file with the credentials you want to use. You'll probably want to change most of the entries in that json file. 
 * edit the environment variables at the top of `build.sh` to contain: 
 
 ```
 VARIANT=esxi
-PACKER_VARS=simple-vars.json
-PACKER_HCL=simple-ubuntu-kubernetes-node.pkr.hcl
+PACKER_VARS=simple-esxi-vars.json
+PACKER_HCL=simple-esxi-ubuntu-kubernetes-node.pkr.hcl
 WITH_VAULT=0
 ```
 
@@ -78,7 +78,7 @@ Then run the script.
 
 # Variables
 
-Variables are in [src/main/packer/esxi/vars.json](src/main/packer/esxi/vars.json)
+Variables are in [src/main/packer/esxi/esxi-vars.json](src/main/packer/esxi/esxi-vars.json)
 
 # Notes
 

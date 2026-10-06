@@ -5,8 +5,8 @@ set -e
 # set -o xtrace
 
 #VARIANT=esxi
-#PACKER_VARS=vars.json
-#PACKER_HCL=ubuntu-kubernetes-node.pkr.hcl
+#PACKER_VARS=esxi-vars.json
+#PACKER_HCL=esxi-ubuntu-kubernetes-node.pkr.hcl
 #WITH_VAULT=1
 
 VARIANT=proxmox
