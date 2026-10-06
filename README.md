@@ -10,6 +10,10 @@ Looking over my notes, this took about 4 weekends, spread over about 4 months (p
 
 And you know, when I inevitably kick the bucket, my immediate family, who have difficulty selecting a different HDMI input or operating a printer, might be able to salvage some of my life's work. Which they won't be able to appreciate or comprehend in any way. I guess they could admire the punctuation or something. I have a niece starting computer science this year though, so I guess hope springs eternal.
 
+**Update 2026-10-06:** OK so not only has my niece decided not to go ahead with that degree, but in the four years between starting this project and now, 
+LLMs have become the thing that everyone is talking about. So I've gone out and dumped an outrageous amount of cash on an 'LLM server', which I'll be using to put myself out of a job,
+if everything goes according to plan. The proxmox bits below are for that new server.
+
 # What's in the box ?
 
 Okay so what you've got is:
@@ -19,7 +23,8 @@ Okay so what you've got is:
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
    * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configuration for the things in this project
    * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS SCALE
-   * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.5
+   * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.5 ( for the first node )
+   * [SETUP-PROXMOX.md](setup/SETUP-PROXMOX.md) - setting up proxmox ( for the second node )
 * [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 24
    * This'll need to be the first virtual machine you create, as it will contain the vault server holding the secrets used in configuring kubernetes
    * [SETUP-VAULT.md](setup/SETUP-VAULT.md) - setting up vault
@@ -78,7 +83,7 @@ Anyway once everything's running, you should be able to connect to the following
 * 2025-10: added karakeep
 * 2025-08: added commafeed
 * 2026-08: added litellm, searxng
-
+* 2026-10: added bnellm01, proxmox, bnenod05
 
 ## License
 
