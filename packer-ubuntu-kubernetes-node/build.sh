@@ -4,14 +4,15 @@ set -e
 # uncomment to debug
 # set -o xtrace
 
+# set to 0 to get credentials from the simple-*.vars.json files
+# set to 1 to get credentials from vault 
+WITH_VAULT=1
+
 VARIANT="$1"
 if [[ "${VARIANT}" != "esxi" && "${VARIANT}" != "proxmox" ]]; then
     echo "Usage: $0 <esxi|proxmox>"
     exit 1
 fi
-
-# toggle to 1 to use the vault-backed hcl/vars instead of the simple-vars one
-WITH_VAULT=0
 
 if [[ "${WITH_VAULT}" -eq "1" ]]; then
     PACKER_VARS="${VARIANT}-vars.json"

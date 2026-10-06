@@ -1,5 +1,8 @@
 variable "proxmox_url" { type = string }
+// the Proxmox API node name (short form, e.g. "bnellm01") - used for the actual API calls
 variable "proxmox_node" { type = string }
+// the FQDN of the proxmox host (e.g. "bnellm01.dev.randomnoun") - used as the vault secret path
+variable "proxmox_host" { type = string }
 variable "proxmox_iso_storage_pool" { type = string }
 variable "proxmox_disk_storage_pool" { type = string }
 variable "proxmox_efi_storage_pool" { type = string }
@@ -22,8 +25,8 @@ variable "backup_path" { type = string }
 
 // vault secrets
 locals {
-  proxmox_username = vault("/secret/data/packer/proxmox/${var.proxmox_node}", "username")
-  proxmox_token    = vault("/secret/data/packer/proxmox/${var.proxmox_node}", "token")
+  proxmox_username = vault("/secret/data/packer/proxmox/${var.proxmox_host}", "username")
+  proxmox_token    = vault("/secret/data/packer/proxmox/${var.proxmox_host}", "token")
 
   cloud_init_username        = vault("/secret/data/packer/cloud-init", "username")
   cloud_init_fullname        = vault("/secret/data/packer/cloud-init", "fullname")

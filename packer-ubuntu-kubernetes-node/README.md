@@ -48,7 +48,7 @@ The first arguemnt to `build.sh` script must be either `esxi` or `proxmox`, whic
 
 * If 'esxi', will create a VM called 'bnenod04'
 * If 'proxmox', will create a VM template called 'tpl-ubuntu-kubernetes-node' ( VMID 9000 ), which will be used to create the 'bnenod05' VM
-   * This variant builds the VM as `q35`/UEFI/`cpu_type=host`, and bakes in NVIDIA drivers + CUDA (`packer-scripts/02-install-nvidia.sh`), for use as a GPU-passthrough-ready Kubernetes node. 
+   * This variant builds the VM as q35/UEFI/cpu_type=host, and bakes in NVIDIA drivers + CUDA (`packer-scripts/02-install-nvidia.sh`), for use as a GPU-passthrough-ready Kubernetes node. 
    * The physical GPUs are deliberately **not** attached during the packer build since passing them through while packer is provisioning would lock the cards. Attach them to the cloned VM afterwards via the Proxmox UI/CLI.  
 
 # Creating the VM 
@@ -56,7 +56,7 @@ The first arguemnt to `build.sh` script must be either `esxi` or `proxmox`, whic
 Then run the script.
 
 ```
-./build.sh
+./build.sh esxi
 ```
 
 # Joining the kubernetes cluster

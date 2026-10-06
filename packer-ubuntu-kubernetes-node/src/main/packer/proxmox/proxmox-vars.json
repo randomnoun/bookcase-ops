@@ -1,6 +1,7 @@
 {
-    "proxmox_url": "https://bnehyp06.dev.randomnoun:8006/api2/json",
-    "proxmox_node": "bnehyp06",
+    "proxmox_url": "https://bnellm01.dev.randomnoun:8006/api2/json",
+    "proxmox_node": "bnellm01",
+    "proxmox_host": "bnellm01.dev.randomnoun",
     "proxmox_iso_storage_pool": "local",
     "proxmox_disk_storage_pool": "local-lvm",
     "proxmox_efi_storage_pool": "local-lvm",
@@ -19,7 +20,7 @@
     "builder_disksize" : "100000",
 
     "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:02",
-    "builder_ethernet0_mac" : "00:02:20:2B:D4:C2",
+    "builder_ethernet0_mac" : "00:02:C6:B2:CA:9C",
 
     "backup_host": "bnenas05.dev.randomnoun",
     "backup_path": "/mnt/raidvolume/compressed/bookcase-ops/bnekub03"
