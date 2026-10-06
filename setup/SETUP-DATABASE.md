@@ -75,8 +75,21 @@ psql -h localhost -U postgres -c "CREATE USER litellm WITH PASSWORD 'super-secre
 psql -h localhost -U postgres -c "CREATE DATABASE litellm OWNER litellm;"
 ```
 
+## Creating the `openwebui` database and `openwebui` user
 
-## Adding credentials to vault 
+Open WebUI creates its own tables on first run - no schema setup needed beyond creating an empty database and user. (named `openwebui`, no hyphen, to match the single-word convention of the other database/role names here - the k8s/ansible side still uses the hyphenated `open-webui`)
+
+Steps to do that:
+
+Replace `super-secret-password` with some random mumbojumbo, different to the random mumbojumbo you used for the other users.
+
+```
+psql -h localhost -U postgres -c "CREATE USER openwebui WITH PASSWORD 'super-secret-password';"
+psql -h localhost -U postgres -c "CREATE DATABASE openwebui OWNER openwebui;"
+```
+
+
+## Adding database credentials to vault 
 
 Replace `super-secret-password` with the random mumbojumbo you used for each database/user above.
 
@@ -97,9 +110,12 @@ vault kv metadata put -mount=secret -custom-metadata=description="database crede
 echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/litellm" password=-
 vault kv metadata put -mount=secret -custom-metadata=description="database credentials for litellm user on bnesql02.dev.randomnoun" "db/bnesql02/litellm"
 
+echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/openwebui" password=-
+vault kv metadata put -mount=secret -custom-metadata=description="database credentials for openwebui user on bnesql02.dev.randomnoun" "db/bnesql02/openwebui"
+
 ```
 
-
+## Adding application credentials to vault
 
 And some salt for wakapi passwords
 
@@ -115,14 +131,16 @@ echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02
 
 echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02/litellm" salt_key=-
 
-# first first login
+# for first login
 vault kv get -mount=secret -field=master_key "db/bnesql02/litellm"
 ``` 
 
-and not really database related, but you'll need a secret key for searxng for it's CSRF/session signing:
+and a secret key for searxng for it's CSRF/session signing:
 
 ```
 echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-searxng/searxng-secret-key" key=-
 ```
+
+
 
 

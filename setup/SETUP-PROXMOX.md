@@ -4,21 +4,22 @@
 
 This project uses the version 9.2.21 of proxmox, which is the one you get on Debian 13 ( Trixie )
 
-I'm using proxmox as this is for the bnellm01 machine that has a couple of GPUs in it, and I'm a bit more confident of getting that working with proxmox than ESXi,
-and there was that whole drama around vmware pulling support for the free version of ESXi a couple of years ago.
+I'm using proxmox for the **bnellm01*** machine that has a couple of GPUs in it, so needs PCIe pass-through,
+which I'm a bit more confident of getting working with proxmox than ESXi, and there was that whole drama 
+around vmware pulling support for the free version of ESXi a couple of years ago.
  
 So a few tips and pointers:
 
-1. Don't try to use the proxmox ISO installer, that can't deal with dual GPUs and crashes during boot, even if you tell it to ignore the video cards
+1. Don't try to use the proxmox ISO installer. That installer can't deal with dual GPUs and crashes during boot, even if you tell it to ignore the video cards
 1. Instead, use the vanilla Debian network installer ISO.
 1. During the installation, don't include GNOME or a desktop, because we want to keep the cards free for LLMing.
 1. Enable the SSH server though
 1. After installing debian and proxmox, I ended up circling back and resizing the root OS partition so that I could stick a local-lvm partition on the OS drive.
    * apparently proxmox really prefers LVM volumes
    * I didn't write down the steps for that, but for future referene, on the boot drive, I've now got a 150GB partition for the OS, and the rest is allocated to an LVM-Thin volume called 'local-lvm'. 
-   * the second disk is taken up by an LVM-Thin volume called 'data'. 
-
-Once you've got a minimal Debian OS running, then run this:
+   * the second disk is taken up by an LVM-Thin volume called 'data'.
+    
+Once you've got a minimal Debian OS running, then run this to set a static IP, install proxmox, and then the `vmbr0` network bridge:
 
 ```
 knoxg@bnellm01:~$ ip link   # check the MAC addresses, will need for setting up static DHCP allocation
@@ -110,7 +111,7 @@ DNS server 2: 8.8.8.8
 
 ### Releasing the video card
 
-OK so we still want a console at boot, but we also want to release the GPUs when a virtual machine wants them. To do that:
+We still want a console at boot, but we also want to release the GPUs when a virtual machine wants them. To do that:
 
 ```
 vi /etc/default/grub
