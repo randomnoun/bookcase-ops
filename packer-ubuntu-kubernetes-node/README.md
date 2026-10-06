@@ -15,9 +15,11 @@ So yes, kubernetes has it's own networking layer, but you'll probably still want
 So you'll want to decide on a hostname for the server, and set up some DNS/DHCP rules to resolve it. 
 I also hard-coded a MAC address, which you can generate [from here](https://dnschecker.org/mac-address-generator.php).
 
-The hostname I'm using is `bnenod03` as it's in Brisbane ([BNE](https://www.iata.org/en/publications/directories/code-search/?airport.search=bne)) and this is the third time I've gone through this rigmarole.
+The hostname I'm using is `bnenod04` as it's in Brisbane ([BNE](https://www.iata.org/en/publications/directories/code-search/?airport.search=bne)) and this is the fourth time I've gone through this rigmarole.
 
-See [SETUP-DNS.md](../setup/SETUP-DNS.md) on setting that up.
+I've now also got a `bnenod05` which is going to be used for GPU-heavy LLM tasks.
+
+See [SETUP-DNS.md](../setup/SETUP-DNS.md) on setting those up.
 
 # Packer prerequisites
 
@@ -32,39 +34,22 @@ Alternatively, you could use the 'simple' variant of these scripts, which puts a
 To disable vault lookups:
 
 * copy the `simple-esxi-vars.json.sample` to `simple-esxi-vars.json` in the `src/main/packer/esxi` folder
-* edit that file with the credentials you want to use. You'll probably want to change most of the entries in that json file. 
-* edit the environment variables at the top of `build.sh` to contain: 
+* copy the `simple-proxmox-vars.json.sample` to `simple-proxmox-vars.json` in the `src/main/packer/proxmox` folder
+* edit those files with the credentials you want to use. You'll probably want to change most of the entries in that json file. 
+* edit `build.sh` and set the `WITH_VAULT` environment variables to `0`
 
-```
-VARIANT=esxi
-PACKER_VARS=simple-esxi-vars.json
-PACKER_HCL=simple-esxi-ubuntu-kubernetes-node.pkr.hcl
-WITH_VAULT=0
-```
+# ESXi vs proxmox
 
-# Proxmox
+The main kubernetes API server runs on ESXi, but the nodes can run on either ESXi or proxmox. 
 
-To build the image on a Proxmox host instead of ESXi, use the proxmox variant of the scripts. Like the esxi variant, there's a vault-backed version (`proxmox-ubuntu-kubernetes-node.pkr.hcl`) and a simple-vars version (`simple-proxmox-ubuntu-kubernetes-node.pkr.hcl`).
+I'm using proxmox for the node running with access to the GPUs, so the scripts are a bit more specialised to that use-case.  
 
-To disable vault lookups:
+The first arguemnt to `build.sh` script must be either `esxi` or `proxmox`, which will dictate which hypervisor we are deploying to.
 
-* copy `simple-proxmox-vars.json.sample` to `simple-proxmox-vars.json` in the `src/main/packer/proxmox` folder
-* edit that file with the credentials and host details for your proxmox server, in particular:
-  * `proxmox_url` - the API URL for your proxmox host, e.g. `https://<host>:8006/api2/json`
-  * `proxmox_username` / `proxmox_token` - an API token created under Datacenter > Permissions > API Tokens
-  * `proxmox_node`, `proxmox_iso_storage_pool` (needs the `iso` content type, e.g. `local`), `proxmox_disk_storage_pool` / `proxmox_efi_storage_pool` (an lvm-thin or zfs pool capable of storing VM disks - check `pvesm status` on the node for the available pool names, e.g. `local-lvm` or `data`), `proxmox_bridge` (e.g. `vmbr0`)
-* edit the environment variables at the top of `build.sh` to contain:
-
-```
-VARIANT=proxmox
-PACKER_VARS=simple-proxmox-vars.json
-PACKER_HCL=simple-proxmox-ubuntu-kubernetes-node.pkr.hcl
-WITH_VAULT=0
-```
-
-To use vault instead, copy `proxmox-vars.json.sample` to `proxmox-vars.json` and set `PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl` / `WITH_VAULT=1`. Credentials are read from vault at `/secret/data/packer/proxmox/<proxmox_node>` (`username` and `token` fields), following the same pattern as the esxi vault secrets.
-
-This variant builds the VM as `q35`/UEFI/`cpu_type=host`, and bakes in NVIDIA drivers + CUDA (`packer-scripts/02-install-nvidia.sh`), for use as a GPU-passthrough-ready Kubernetes node (e.g. for a host with RTX 3090s). The physical GPUs are deliberately **not** attached during the packer build — attach them to the cloned VM afterwards via the Proxmox UI/CLI, since passing them through while packer is provisioning would lock the cards.
+* If 'esxi', will create a VM called 'bnenod04'
+* If 'proxmox', will create a VM template called 'tpl-ubuntu-kubernetes-node' ( VMID 9000 ), which will be used to create the 'bnenod05' VM
+   * This variant builds the VM as `q35`/UEFI/`cpu_type=host`, and bakes in NVIDIA drivers + CUDA (`packer-scripts/02-install-nvidia.sh`), for use as a GPU-passthrough-ready Kubernetes node. 
+   * The physical GPUs are deliberately **not** attached during the packer build since passing them through while packer is provisioning would lock the cards. Attach them to the cloned VM afterwards via the Proxmox UI/CLI.  
 
 # Creating the VM 
 
@@ -74,11 +59,19 @@ Then run the script.
 ./build.sh
 ```
 
+# Joining the kubernetes cluster
+
+In both cases, the first thing you should do in the new VM once it's running is to rename the host ( if required ), then join the kubernetes cluster, by running
+
+```
+sudo /opt/backup/join-command/kubernetes-join-command.sh
+```
+
 # Layout
 
 * `src/main/packer/common/` - files shared between all variants (cloud-init template, base install script, filesystem overlay)
 * `src/main/packer/esxi/` - ESXi/vmware-iso builder, both vault-backed and simple-vars variants
-* `src/main/packer/proxmox/` - Proxmox/proxmox-iso builder (simple-vars only for now)
+* `src/main/packer/proxmox/` - Proxmox/proxmox-iso builder, both vault-backed and simple-vars variants
 
 # Variables
 
