@@ -1,0 +1,31 @@
+# see https://github.com/NVIDIA/k8s-device-plugin/blob/main/deployments/helm/nvidia-device-plugin/values.yaml
+#
+# the chart's default affinity.nodeAffinity requires a Node Feature
+# Discovery label (feature.node.kubernetes.io/pci-10de.present,
+# nvidia.com/gpu.present, etc) that only exists if NFD is also deployed.
+# We're not running NFD - our own gpu-vendor/gpu-model node labels (set by
+# the k8s-node-labels role) already do this targeting job, so clear the
+# chart's affinity entirely rather than stand up NFD just to satisfy it.
+# Without this override the DaemonSet silently matches zero nodes.
+#
+# NOTE: `affinity: {}` does NOT work here - helm merges values recursively,
+# so an empty map contributes nothing and leaves the chart's existing
+# affinity.nodeAffinity untouched. The nested key itself must be set to
+# null to actually clear it.
+affinity:
+  nodeAffinity: null
+
+nodeSelector:
+  {{ nvidia_device_plugin_node_selector_key }}: "{{ nvidia_device_plugin_node_selector_value }}"
+
+# without this the plugin container runs under plain runc (containerd's
+# default_runtime_name), which has no access to the host's NVIDIA driver
+# libraries - it needs libnvidia-ml.so (NVML) to even start, which only
+# gets mounted in via the nvidia container runtime
+runtimeClassName: "{{ nvidia_device_plugin_runtime_class_name }}"
+
+resources:
+  limits:
+    memory: 256Mi
+  requests:
+    memory: 256Mi

@@ -7,13 +7,6 @@ If running this from Windows, you will need to run from WSL ( Windows Subsystem 
 
 So you'll need to install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html), [helm](https://helm.sh/docs/intro/install/) and probably some [ansible galaxy](https://docs.ansible.com/ansible/latest/collections_guide/collections_installing.html) collections. I didn't come up with these names.
 
-One more complication is that some deployments must run on node with a GPU; I'll be labelling the bnenod05 node ( running on bnellm01 ) with a couple of labels to help with scheduling:
-
-* gpu-vendor=nvidia
-* gpu-model=rtx-3090
-
-with the intention of labelling other nodes with other vendors/models once this all becomes obsolete in a year or two.
-
 ## Certificates
 
 Since I use a non-standard `.randomnoun` top level domain on my dev machines, I have to create my own certificates using my own certificate authority (CA), rather
@@ -21,6 +14,28 @@ than using letsencrypt. If I find an easier way of doing this in future, I'll up
 
 Setting up the certificates and the various TLS certs are covered in [SETUP-CERTIFICATE.md](../setup/SETUP-CERTIFICATE.md)
 
+## Helm repositories
+
+We need a few helm repositories and plugins:
+
+```
+helm repo add democratic-csi https://democratic-csi.github.io/charts/
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
+helm repo update
+
+helm plugin install https://github.com/databus23/helm-diff
+```
+
+## Node labels
+
+One more complication is that some deployments must run on node with a GPU; I'll be labelling the bnenod05 node ( running on bnellm01 ) with a couple of labels to help with scheduling:
+
+* gpu-vendor=nvidia
+* gpu-model=rtx-3090
+
+with the intention of labelling other nodes with other vendors/models once this all becomes obsolete in a year or two.
 
 ## System components
 
@@ -39,6 +54,14 @@ The system components installed are:
    * there's also an 'alertmanager' component which presumably manages alerts.
 * **grafana**
    * gives you a nicer frontend to the metrics stored in prometheus
+* **k8s-node-labels**
+   * applies the GPU node labels described above (`gpu-vendor`, `gpu-model`) to whichever nodes need them. Generic/data-driven so new nodes/vendors just need an entry in `vars/k8s-node-labels/bnekub03.vars.yml`, not a new role.
+* **nvidia-device-plugin**
+   * advertises `nvidia.com/gpu` as a schedulable resource for any node labelled `gpu-vendor=nvidia`, and registers an `nvidia` RuntimeClass so pods (including the plugin itself) actually run under containerd's nvidia runtime rather than plain `runc`.
+   * the chart's own default node affinity expects Node Feature Discovery labels we don't run; it's overridden off (see the comments in `nvidia-device-plugin-helm-values.j2.yml`)
+* **local-path-provisioner**
+   * [Rancher's local-path-provisioner](https://github.com/rancher/local-path-provisioner), giving a `bnenod05-local-path` StorageClass backed by local disk on bnenod05 rather than NFS. 
+   * Used for things like ollama's model storage, which is pinned to a node with dedicated GPU and storage; a local disk avoids the latency of loading large model files over the network.
 
 Arguably `prometheus` and `grafana` should have been installed with the other applications below, but hey.
 
@@ -76,6 +99,8 @@ The initial set of applications are:
 * atuin
 * wakapi
 * litellm
+* ollama
+* searxng
 
 what I would suggest you do is to comment out all but one of those in k8s_apps_bnekub03.yml and deploy a single application, and then uncomment the rest as you get those up and running. 
 
@@ -84,6 +109,10 @@ Or alternatively restrict to a specific app using `-e app=xxxxx` , see below
 ### Why both nexus2 and nexu3 ?
 
 You could probably just get by with nexus3, as it can hold maven artifacts just fine, but I'm using nexus2 for the same reason that sonatype still use nexus2 for maven central. Which is that nexus3, whilst admirably reinventing quite a lot of wheels, doesn't seem to have reached feature parity with nexus2 for maven repositories just yet.
+
+### ollama is a bit different
+
+Unlike the other apps here, `ollama` is pinned to `bnenod05` (`nodeSelector: gpu-vendor=nvidia`) and requests both GPUs (`nvidia.com/gpu: 2`), needs the `nvidia-device-plugin` and `local-path-provisioner` system components to be installed first (see above), and has no Ingress/TLS - it's an internal API consumed by other in-cluster services like `litellm`, not a browser-facing UI, so a plain `LoadBalancer` Service on its native port (11434) is enough.
 
 ## Installation
 

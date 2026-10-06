@@ -1,0 +1,7 @@
+kube_context_k8s_node_labels: "bnekub03"
+
+k8s_node_labels:
+  - name: bnenod05
+    labels:
+      gpu-vendor: nvidia
+      gpu-model: rtx-3090

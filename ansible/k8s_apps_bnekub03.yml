@@ -30,6 +30,9 @@
         - name: litellm-bnekub03
           role: litellm
           var_files: [bnekub03]
+        - name: ollama-bnekub03
+          role: ollama
+          var_files: [bnekub03]
         - name: searxng-bnekub03
           role: searxng
           var_files: [bnekub03]

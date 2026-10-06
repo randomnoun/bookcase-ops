@@ -1,0 +1,4 @@
+kube_context_k8s_node_labels: ""
+
+# list of { name: <node name>, labels: { key: value, ... } }
+k8s_node_labels: []

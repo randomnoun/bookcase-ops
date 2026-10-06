@@ -1,0 +1,14 @@
+- name: "kubernetes namespace ollama"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_ollama }}"
+    wait: true
+    definition: "{{ lookup('template', 'ollama-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment ollama"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_ollama }}"
+    namespace: "{{ kube_namespace_ollama }}"
+    wait: true
+    definition: "{{ lookup('template', 'ollama.j2.yml')  }}"
