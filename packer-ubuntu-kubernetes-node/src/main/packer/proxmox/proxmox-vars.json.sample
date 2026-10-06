@@ -1,0 +1,23 @@
+{
+    "proxmox_url": "https://bnehyp06.dev.randomnoun:8006/api2/json",
+    "proxmox_node": "bnehyp06",
+    "proxmox_iso_storage_pool": "local",
+    "proxmox_disk_storage_pool": "local-lvm",
+    "proxmox_efi_storage_pool": "local-lvm",
+    "proxmox_bridge": "vmbr0",
+    "_comment4": "the IPv4 address of the real LAN NIC on the machine running packer - must be reachable from the proxmox VM. Needed because packer can autodetect a VPN/virtual adapter instead of the real one.",
+    "packer_http_bind_address": "192.168.0.117",
+    "proxmox_insecure_skip_tls_verify": true,
+
+    "builder_hostname" : "bnenod05",
+    "builder_numvpus" : "1",
+    "builder_numcores" : "24",
+    "builder_memsize" : "122880",
+    "builder_disksize" : "100000",
+
+    "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:02",
+    "builder_ethernet0_mac" : "00:02:20:2B:D4:C2",
+
+    "backup_host": "bnenas05.dev.randomnoun",
+    "backup_path": "/mnt/raidvolume/compressed/bookcase-ops/bnekub03"
+}

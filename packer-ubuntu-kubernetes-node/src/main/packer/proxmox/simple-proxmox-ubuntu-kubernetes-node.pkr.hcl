@@ -1,4 +1,6 @@
 variable "proxmox_url" { type = string }
+variable "proxmox_username" { type = string }
+variable "proxmox_token" { type = string }
 variable "proxmox_node" { type = string }
 variable "proxmox_iso_storage_pool" { type = string }
 variable "proxmox_disk_storage_pool" { type = string }
@@ -6,6 +8,12 @@ variable "proxmox_efi_storage_pool" { type = string }
 variable "proxmox_bridge" { type = string }
 variable "packer_http_bind_address" { type = string }
 variable "proxmox_insecure_skip_tls_verify" { type = bool }
+
+variable "cloud_init_username" { type = string }
+variable "cloud_init_fullname" { type = string }
+variable "cloud_init_password" { type = string }
+variable "cloud_init_password_hash" { type = string }
+variable "cloud_init_authorized_keys" { type = string }
 
 variable "builder_hostname" { type = string }
 variable "builder_numvpus" { type = string }
@@ -16,21 +24,8 @@ variable "builder_ethernet0_mac" { type = string }
 
 variable "backup_host" { type = string }
 variable "backup_path" { type = string }
-
-// vault secrets
-locals {
-  proxmox_username = vault("/secret/data/packer/proxmox/${var.proxmox_node}", "username")
-  proxmox_token    = vault("/secret/data/packer/proxmox/${var.proxmox_node}", "token")
-
-  cloud_init_username        = vault("/secret/data/packer/cloud-init", "username")
-  cloud_init_fullname        = vault("/secret/data/packer/cloud-init", "fullname")
-  cloud_init_password        = vault("/secret/data/packer/cloud-init", "password")
-  cloud_init_password_hash   = vault("/secret/data/packer/cloud-init", "password-hash")
-  cloud_init_authorized_keys = vault("/secret/data/packer/cloud-init", "authorized-keys")
-
-  backup_username = vault("/secret/data/packer/backup/${var.backup_host}", "username")
-  backup_password = vault("/secret/data/packer/backup/${var.backup_host}", "password")
-}
+variable "backup_username" { type = string }
+variable "backup_password" { type = string }
 
 packer {
   required_version = ">= 1.7.0"
@@ -45,8 +40,8 @@ packer {
 source "proxmox-iso" "kubernetes-node" {
 
   proxmox_url              = "${var.proxmox_url}"
-  username                 = "${local.proxmox_username}"
-  token                    = "${local.proxmox_token}"
+  username                 = "${var.proxmox_username}"
+  token                    = "${var.proxmox_token}"
   insecure_skip_tls_verify = "${var.proxmox_insecure_skip_tls_verify}"
   node                     = "${var.proxmox_node}"
 
@@ -109,8 +104,8 @@ source "proxmox-iso" "kubernetes-node" {
   // virtual NICs) packer can autodetect the wrong interface for {{.HTTPIP}},
   // handing the VM a seed URL it can never reach
   http_bind_address = "${var.packer_http_bind_address}"
-  ssh_username      = "${local.cloud_init_username}"
-  ssh_password      = "${local.cloud_init_password}"
+  ssh_username      = "${var.cloud_init_username}"
+  ssh_password      = "${var.cloud_init_password}"
 
   // proxmox's qemu/vnc key injection is slower and drops keystrokes more
   // easily than esxi's console did at these settings, so give it more time
@@ -141,7 +136,7 @@ build {
       "mkdir -p /opt/packer",
       "chmod 777 /opt/packer"
     ]
-    execute_command = "echo '${local.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
+    execute_command = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
   }
 
   provisioner "file" {
@@ -151,18 +146,18 @@ build {
 
   provisioner "shell" {
     environment_vars = [
-      "CLOUD_INIT_USERNAME=${local.cloud_init_username}",
+      "CLOUD_INIT_USERNAME=${var.cloud_init_username}",
       "BACKUP_HOST=${var.backup_host}",
       "BACKUP_PATH=${var.backup_path}",
-      "BACKUP_USERNAME=${local.backup_username}",
-      "BACKUP_PASSWORD=${local.backup_password}",
+      "BACKUP_USERNAME=${var.backup_username}",
+      "BACKUP_PASSWORD=${var.backup_password}",
     ]
-    execute_command = "echo '${local.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
+    execute_command = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
     script          = "../common/packer-scripts/01-install.sh"
   }
 
   provisioner "shell" {
-    execute_command = "echo '${local.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
+    execute_command = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
     script          = "packer-scripts/02-install-nvidia.sh"
   }
 

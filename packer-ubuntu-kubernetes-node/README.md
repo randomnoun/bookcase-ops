@@ -44,7 +44,9 @@ WITH_VAULT=0
 
 # Proxmox
 
-To build the image on a Proxmox host instead of ESXi, use the proxmox variant of the scripts (vault is not yet wired up for this one, so it's simple-vars-only):
+To build the image on a Proxmox host instead of ESXi, use the proxmox variant of the scripts. Like the esxi variant, there's a vault-backed version (`proxmox-ubuntu-kubernetes-node.pkr.hcl`) and a simple-vars version (`simple-proxmox-ubuntu-kubernetes-node.pkr.hcl`).
+
+To disable vault lookups:
 
 * copy `simple-proxmox-vars.json.sample` to `simple-proxmox-vars.json` in the `src/main/packer/proxmox` folder
 * edit that file with the credentials and host details for your proxmox server, in particular:
@@ -56,9 +58,11 @@ To build the image on a Proxmox host instead of ESXi, use the proxmox variant of
 ```
 VARIANT=proxmox
 PACKER_VARS=simple-proxmox-vars.json
-PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl
+PACKER_HCL=simple-proxmox-ubuntu-kubernetes-node.pkr.hcl
 WITH_VAULT=0
 ```
+
+To use vault instead, copy `proxmox-vars.json.sample` to `proxmox-vars.json` and set `PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl` / `WITH_VAULT=1`. Credentials are read from vault at `/secret/data/packer/proxmox/<proxmox_node>` (`username` and `token` fields), following the same pattern as the esxi vault secrets.
 
 This variant builds the VM as `q35`/UEFI/`cpu_type=host`, and bakes in NVIDIA drivers + CUDA (`packer-scripts/02-install-nvidia.sh`), for use as a GPU-passthrough-ready Kubernetes node (e.g. for a host with RTX 3090s). The physical GPUs are deliberately **not** attached during the packer build — attach them to the cloned VM afterwards via the Proxmox UI/CLI, since passing them through while packer is provisioning would lock the cards.
 
