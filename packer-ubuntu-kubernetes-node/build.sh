@@ -4,20 +4,22 @@ set -e
 # uncomment to debug
 # set -o xtrace
 
-#VARIANT=esxi
-#PACKER_VARS=esxi-vars.json
-#PACKER_HCL=esxi-ubuntu-kubernetes-node.pkr.hcl
-#WITH_VAULT=1
+VARIANT="$1"
+if [[ "${VARIANT}" != "esxi" && "${VARIANT}" != "proxmox" ]]; then
+    echo "Usage: $0 <esxi|proxmox>"
+    exit 1
+fi
 
-#VARIANT=proxmox
-#PACKER_VARS=proxmox-vars.json
-#PACKER_HCL=proxmox-ubuntu-kubernetes-node.pkr.hcl
-#WITH_VAULT=1
-
-VARIANT=proxmox
-PACKER_VARS=simple-proxmox-vars.json
-PACKER_HCL=simple-proxmox-ubuntu-kubernetes-node.pkr.hcl
+# toggle to 1 to use the vault-backed hcl/vars instead of the simple-vars one
 WITH_VAULT=0
+
+if [[ "${WITH_VAULT}" -eq "1" ]]; then
+    PACKER_VARS="${VARIANT}-vars.json"
+    PACKER_HCL="${VARIANT}-ubuntu-kubernetes-node.pkr.hcl"
+else
+    PACKER_VARS="simple-${VARIANT}-vars.json"
+    PACKER_HCL="simple-${VARIANT}-ubuntu-kubernetes-node.pkr.hcl"
+fi
 
 SRC_PACKER=src/main/packer
 TARGET_PACKER=target/packer

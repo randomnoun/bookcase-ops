@@ -15,6 +15,9 @@ variable "cloud_init_password" { type = string }
 variable "cloud_init_password_hash" { type = string }
 variable "cloud_init_authorized_keys" { type = string }
 
+variable "template_name" { type = string }
+variable "template_vmid" { type = number }
+
 variable "builder_hostname" { type = string }
 variable "builder_numvpus" { type = string }
 variable "builder_numcores" { type = string }
@@ -49,8 +52,16 @@ source "proxmox-iso" "kubernetes-node" {
   // via iso_download_pve
   task_timeout = "15m"
 
-  vm_name = "${var.builder_hostname}"
-  os      = "l26"
+  // vm_name is only used while packer is building (shown in the proxmox UI,
+  // and used as the ssh hostname via cloud-init); template_name is what the
+  // finished template is actually renamed to once conversion completes, and
+  // vm_id pins it to a predictable, high (easy to spot) id rather than
+  // whatever the next free one happens to be. Deliberately decoupled from
+  // builder_hostname so clones can be renamed independently of the template.
+  vm_name       = "${var.builder_hostname}"
+  template_name = "${var.template_name}"
+  vm_id         = "${var.template_vmid}"
+  os            = "l26"
 
   // q35 + UEFI gives a modern PCIe bus, needed to pass through the RTX 3090s
   // after cloning this template (never during the packer build itself - see

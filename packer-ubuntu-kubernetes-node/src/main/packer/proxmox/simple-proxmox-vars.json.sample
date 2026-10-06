@@ -17,6 +17,9 @@
     "cloud_init_password_hash": "*** the hash for that password ***",
     "cloud_init_authorized_keys": "ssh-rsa AAAA*** the public key to preinstall *** knoxg@eximer",
 
+    "template_name": "tpl-ubuntu-kubernetes-node",
+    "template_vmid": 9000,
+
     "builder_hostname" : "bnenod05",
     "builder_numvpus" : "1",
     "builder_numcores" : "24",

@@ -9,6 +9,9 @@
     "packer_http_bind_address": "192.168.0.117",
     "proxmox_insecure_skip_tls_verify": true,
 
+    "template_name": "tpl-ubuntu-kubernetes-node",
+    "template_vmid": 9000,
+
     "builder_hostname" : "bnenod05",
     "builder_numvpus" : "1",
     "builder_numcores" : "24",
