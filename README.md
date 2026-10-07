@@ -48,12 +48,16 @@ Okay so what you've got is:
    * wakapi - developer time tracker
    * litellm - an LLM proxy
    * searxng - a search proxy ( for LLMs mostly )
-
-The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but could be used to deploy into other hosting environments easily enough.
+* [SETUP-LLM.md](setup/SETUP-LLM.md) After I got the second node
+   * added a proxmox variant of `packer-ubuntu-kubernetes-node`
+   * ollama - an LLM engine
+   * open-webui - a simple frontend to that ( connects to litellm ) 
+   
+The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but the k8s node can now be either ESXi or proxmox.
 
 Everything is hosted as subdomains of `.dev.randomnoun`, which isn't a real TLD. So if you're copying any of this you may want to search and replace that to something else.
 
-I'm configuring the DNS and certificates manually ( see the SETUP docs above ). I guess I could virtualise that up as well if I'm feeling up to it. 
+I'm configuring the DNS and certificates manually ( see the SETUP docs above ). 
 
 # Links to the things running in the cluster
 
@@ -74,16 +78,17 @@ Anyway once everything's running, you should be able to connect to the following
 * [https://wakapi.dev.randomnoun](https://wakapi.dev.randomnoun)
 * [https://litellm.dev.randomnoun](https://litellm.dev.randomnoun)
 * [https://searxng.dev.randomnoun](https://searxng.dev.randomnoun)
+* [https://open-webui.dev.randomnoun](https://open-webui.dev.randomnoun)
 
 ## Updates
 
-* 2026-03: added wakapi
-* 2026-02: added atuin
-* 2026-01: upgraded to k8s 1.35, ubuntu 24, calico 3.31. New k8s API server is bnekub03
-* 2025-10: added karakeep
 * 2025-08: added commafeed
+* 2025-10: added karakeep
+* 2026-01: upgraded to k8s 1.35, ubuntu 24, calico 3.31. New k8s API server is bnekub03
+* 2026-02: added atuin
+* 2026-03: added wakapi
 * 2026-08: added litellm, searxng
-* 2026-10: added bnellm01, proxmox, bnenod05
+* 2026-10: added bnellm01, proxmox, bnenod05, ollama, open-webui
 
 ## License
 

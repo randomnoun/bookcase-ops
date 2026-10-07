@@ -77,8 +77,6 @@ psql -h localhost -U postgres -c "CREATE DATABASE litellm OWNER litellm;"
 
 ## Creating the `openwebui` database and `openwebui` user
 
-Open WebUI creates its own tables on first run - no schema setup needed beyond creating an empty database and user. (named `openwebui`, no hyphen, to match the single-word convention of the other database/role names here - the k8s/ansible side still uses the hyphenated `open-webui`)
-
 Steps to do that:
 
 Replace `super-secret-password` with some random mumbojumbo, different to the random mumbojumbo you used for the other users.
@@ -117,14 +115,14 @@ vault kv metadata put -mount=secret -custom-metadata=description="database crede
 
 ## Adding application credentials to vault
 
-And some salt for wakapi passwords
+And some salt for **wakapi** passwords
 
 ```
 # note 'patch' verb, not 'put'
 echo -n super-secret-password  | vault kv patch  -mount=secret "db/bnesql02/wakapi" salt=-
 ```
 
-and a master key + salt key for litellm ( these need to start with "sk-" )
+and a master key + salt key for **litellm** ( these need to start with "sk-" )
 
 ```
 echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02/litellm" master_key=-
@@ -135,10 +133,30 @@ echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02
 vault kv get -mount=secret -field=master_key "db/bnesql02/litellm"
 ``` 
 
-and a secret key for searxng for it's CSRF/session signing:
+and a secret key for **searxng** for it's CSRF/session signing:
 
 ```
 echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-searxng/searxng-secret-key" key=-
+```
+
+and for **open-webui**, a secret key to sign login JWTs, and the litellm virtual key.
+
+Create the key in the litellm UI via
+
+* Internal Users -> Invite User
+   * User email: open-webui-service
+   * Global Proxy Role: Internal User ( Create/Delete/View )
+   * Team: randomnoun
+* Virtual Keys -> Create new key
+   * Owned by: Another user 
+   * User ID: open-webui-service
+   * Team: randomnoun
+   * Key name: open-webui
+   * Key type: AI APIs
+
+```
+echo -n "$(openssl rand -base64 32)" | vault kv put   -mount=secret "k8s/bnekub03/secret/dev-open-webui/open-webui" webui_secret_key=-
+echo -n "put-the-litellm-virtual-key-here"  | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-open-webui/open-webui" litellm_virtual_key=-
 ```
 
 

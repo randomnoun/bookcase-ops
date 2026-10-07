@@ -100,19 +100,20 @@ The initial set of applications are:
 * wakapi
 * litellm
 * ollama
+* open-webui
 * searxng
 
-what I would suggest you do is to comment out all but one of those in k8s_apps_bnekub03.yml and deploy a single application, and then uncomment the rest as you get those up and running. 
-
-Or alternatively restrict to a specific app using `-e app=xxxxx` , see below
+what I would suggest you do is to restrict to a specific app using `-e app=xxxxx` (see cmdline below), and deploy a single application at a time, 
+fixing up the startup failures as you go.
 
 ### Why both nexus2 and nexu3 ?
 
 You could probably just get by with nexus3, as it can hold maven artifacts just fine, but I'm using nexus2 for the same reason that sonatype still use nexus2 for maven central. Which is that nexus3, whilst admirably reinventing quite a lot of wheels, doesn't seem to have reached feature parity with nexus2 for maven repositories just yet.
 
-### ollama is a bit different
+### Here be dragons 
 
-Unlike the other apps here, `ollama` is pinned to `bnenod05` (`nodeSelector: gpu-vendor=nvidia`) and requests both GPUs (`nvidia.com/gpu: 2`), needs the `nvidia-device-plugin` and `local-path-provisioner` system components to be installed first (see above), and has no Ingress/TLS - it's an internal API consumed by other in-cluster services like `litellm`, not a browser-facing UI, so a plain `LoadBalancer` Service on its native port (11434) is enough.
+Once you get down to the LLM-looking containers, head over to [SETUP-LLM.md](../setup/SETUP-LLM.md) because it's all a bit fiddly and things need to be created
+and configured in the right order.  
 
 ## Installation
 
