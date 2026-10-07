@@ -1,0 +1,149 @@
+# k8s yaml based on the official image at https://github.com/open-webui/open-webui
+#
+# talks to litellm's OpenAI-compatible endpoint rather than ollama directly -
+# litellm is already the single place models/budgets/logging are managed for
+# this project, and ollama's models are individually registered there (see
+# ansible/README.md). The bundled ollama integration is disabled so it
+# doesn't show up as an empty/unreachable backend in the model picker.
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: open-webui-secrets
+type: Opaque
+stringData:
+  WEBUI_SECRET_KEY: "{{ open_webui_secret_key }}"
+  OPENAI_API_KEY: "{{ open_webui_openai_api_key }}"
+  # connect_timeout: same DNS-resolution flakiness toward bnesql02 we hit with litellm - give it more time to connect rather than fail outright
+  DATABASE_URL: "postgresql://{{ open_webui_db_username }}:{{ open_webui_db_password }}@{{ open_webui_db_host }}:5432/{{ open_webui_db_schema }}?connect_timeout=30"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_open_webui }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open-webui-web
+  template:
+    metadata:
+      labels:
+        app: open-webui-web
+    spec:
+      # ClusterFirst (the real k8s default) so this can resolve BOTH
+      # in-cluster service names (litellm's web.dev-litellm.svc.cluster.local)
+      # and bnesql02.dev.randomnoun for postgres - see the dnsPolicy note on
+      # litellm's role for why "Default" alone isn't the answer here
+      dnsPolicy: ClusterFirst
+      containers:
+        - name: open-webui
+          image: ghcr.io/open-webui/open-webui:main
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-secrets
+                  key: WEBUI_SECRET_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-secrets
+                  key: DATABASE_URL
+            - name: ENABLE_OLLAMA_API
+              value: "false"
+            - name: OPENAI_API_BASE_URL
+              value: "{{ open_webui_openai_api_base_url }}"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-secrets
+                  key: OPENAI_API_KEY
+          resources:
+            limits:
+              cpu: "1"
+              memory: 2Gi
+            requests:
+              cpu: "250m"
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /app/backend/data
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: open-webui-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: open-webui-web
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: open-webui-tls-secret
+data:
+  tls.crt: "{{ open_webui_tls_secret_cert }}"
+  tls.key: "{{ open_webui_tls_secret_key }}"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-webui-web-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/client-max-body-size: "0"
+    nginx.org/proxy-read-timeout: "600s"
+    nginx.org/proxy-send-timeout: "600s"
+    # without this, nginx treats the Socket.IO WebSocket upgrade as a plain
+    # HTTP request and returns 400 - the chat response generates fine on
+    # the backend, but open-webui's frontend has no live channel to stream
+    # it back over, so the UI just sits there looking frozen
+    nginx.org/websocket-services: "web"
+spec:
+  tls:
+    - hosts:
+        - {{ open_webui_ingress_host }}
+      secretName: open-webui-tls-secret
+  rules:
+  - host: {{ open_webui_ingress_host }}
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: "web"
+            port:
+              number: 8080

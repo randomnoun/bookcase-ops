@@ -1,4 +1,5 @@
 /.project
 /target/
 /vault-login.sh
-/src/main/packer/simple-vars.json
+/src/main/packer/esxi/simple-esxi-vars.json
+/src/main/packer/proxmox/simple-proxmox-vars.json

@@ -1,0 +1,8 @@
+kube_context_local_path_provisioner: "bnekub03"
+local_path_provisioner_storageclass_name: "bnenod05-local-path"
+
+# bnenod05 has a dedicated 1TB disk mounted at /mnt/models for model storage
+# (see setup/SETUP-PROXMOX.md) - everything else falls back to the default path
+local_path_provisioner_node_paths:
+  - node: bnenod05
+    path: /mnt/models

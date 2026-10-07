@@ -75,8 +75,19 @@ psql -h localhost -U postgres -c "CREATE USER litellm WITH PASSWORD 'super-secre
 psql -h localhost -U postgres -c "CREATE DATABASE litellm OWNER litellm;"
 ```
 
+## Creating the `openwebui` database and `openwebui` user
 
-## Adding credentials to vault 
+Steps to do that:
+
+Replace `super-secret-password` with some random mumbojumbo, different to the random mumbojumbo you used for the other users.
+
+```
+psql -h localhost -U postgres -c "CREATE USER openwebui WITH PASSWORD 'super-secret-password';"
+psql -h localhost -U postgres -c "CREATE DATABASE openwebui OWNER openwebui;"
+```
+
+
+## Adding database credentials to vault 
 
 Replace `super-secret-password` with the random mumbojumbo you used for each database/user above.
 
@@ -97,32 +108,57 @@ vault kv metadata put -mount=secret -custom-metadata=description="database crede
 echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/litellm" password=-
 vault kv metadata put -mount=secret -custom-metadata=description="database credentials for litellm user on bnesql02.dev.randomnoun" "db/bnesql02/litellm"
 
+echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/openwebui" password=-
+vault kv metadata put -mount=secret -custom-metadata=description="database credentials for openwebui user on bnesql02.dev.randomnoun" "db/bnesql02/openwebui"
+
 ```
 
+## Adding application credentials to vault
 
-
-And some salt for wakapi passwords
+And some salt for **wakapi** passwords
 
 ```
 # note 'patch' verb, not 'put'
 echo -n super-secret-password  | vault kv patch  -mount=secret "db/bnesql02/wakapi" salt=-
 ```
 
-and a master key + salt key for litellm ( these need to start with "sk-" )
+and a master key + salt key for **litellm** ( these need to start with "sk-" )
 
 ```
 echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02/litellm" master_key=-
 
 echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02/litellm" salt_key=-
 
-# first first login
+# for first login
 vault kv get -mount=secret -field=master_key "db/bnesql02/litellm"
 ``` 
 
-and not really database related, but you'll need a secret key for searxng for it's CSRF/session signing:
+and a secret key for **searxng** for it's CSRF/session signing:
 
 ```
 echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-searxng/searxng-secret-key" key=-
 ```
+
+and for **open-webui**, a secret key to sign login JWTs, and the litellm virtual key.
+
+Create the key in the litellm UI via
+
+* Internal Users -> Invite User
+   * User email: open-webui-service
+   * Global Proxy Role: Internal User ( Create/Delete/View )
+   * Team: randomnoun
+* Virtual Keys -> Create new key
+   * Owned by: Another user 
+   * User ID: open-webui-service
+   * Team: randomnoun
+   * Key name: open-webui
+   * Key type: AI APIs
+
+```
+echo -n "$(openssl rand -base64 32)" | vault kv put   -mount=secret "k8s/bnekub03/secret/dev-open-webui/open-webui" webui_secret_key=-
+echo -n "put-the-litellm-virtual-key-here"  | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-open-webui/open-webui" litellm_virtual_key=-
+```
+
+
 
 

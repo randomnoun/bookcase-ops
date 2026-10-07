@@ -1,0 +1,22 @@
+kube_context_open_webui: "bnekub03"
+kube_storageclass_open_webui: "bnenas05-nfs-csi"
+
+open_webui_ingress_host: "open-webui.dev.randomnoun"
+
+open_webui_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-open-webui/open-webui-tls-secret:tls.crt')}}"
+open_webui_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-open-webui/open-webui-tls-secret:tls.key')}}"
+
+# litellm's in-cluster service - same host every ollama model entry in
+# litellm uses, see ansible/README.md
+open_webui_openai_api_base_url: "http://web.dev-litellm.svc.cluster.local:4000/v1"
+# a litellm *virtual* key (Keys tab in the litellm Admin UI), not the master key
+open_webui_openai_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-open-webui/open-webui:litellm_virtual_key')}}"
+
+open_webui_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-open-webui/open-webui:webui_secret_key')}}"
+
+# postgres - note the db/role name is 'openwebui' (no hyphen), see
+# setup/SETUP-DATABASE.md
+open_webui_db_host: "bnesql02.dev.randomnoun"
+open_webui_db_schema: "openwebui"
+open_webui_db_username: "openwebui"
+open_webui_db_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/openwebui:password')}}"

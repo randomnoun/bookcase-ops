@@ -1,0 +1,6 @@
+- name: "kubernetes node labels"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_k8s_node_labels }}"
+    wait: true
+    definition: "{{ lookup('template', 'node-labels.j2.yml')  }}"

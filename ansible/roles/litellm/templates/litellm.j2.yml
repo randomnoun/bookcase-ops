@@ -15,18 +15,41 @@ spec:
       labels:
         app: litellm-web
     spec:
-      # needed to resolve bnesql02 from within the container. Note that 'Default' isn't the default, 'ClusterFirst' is
-      dnsPolicy: Default
+      # ClusterFirst (the real k8s default) tries CoreDNS first for
+      # everything - needed to resolve in-cluster service names like
+      # web.dev-ollama.svc.cluster.local. CoreDNS's own Corefile forwards
+      # anything outside cluster.local to the node's resolv.conf, so this
+      # still resolves bnesql02.dev.randomnoun correctly too. A prior
+      # dnsPolicy: Default (node's resolv.conf only, bypassing CoreDNS
+      # entirely) fixed bnesql02 resolution but broke resolution of
+      # in-cluster service names - this fixes both via one consistent path.
+      dnsPolicy: ClusterFirst
       containers:
         - name: litellm
-          image: ghcr.io/berriai/litellm-database:main-stable
-          imagePullPolicy: Always
-          dnsPolicy: Default
+          # pinned (was main-stable, a moving tag) - a pod restart pulling a
+          # newer image than the DB schema was migrated for is what caused
+          # the "column does not exist" errors we hit. Bump deliberately,
+          # and re-run the migration/push step when you do.
+          image: ghcr.io/berriai/litellm-database:v1.104.0
+          imagePullPolicy: IfNotPresent
+          # the default 'prisma migrate' schema-sync path doesn't seem to
+          # actually apply pending changes on this image (confirmed: it only
+          # ever ran the read-only diff check, even though should_update_
+          # prisma_schema() defaults to true) - force prisma db push instead,
+          # which is safe here since litellm's own schema changes are
+          # consistently additive (ADD COLUMN/CREATE TABLE/CREATE INDEX)
+          args:
+            - "--use_prisma_db_push"
           ports:
             - containerPort: 4000
           env:
             - name: DATABASE_URL
-              value: "postgresql://{{litellm_db_username}}:{{litellm_db_password}}@{{litellm_db_host}}:5432/{{litellm_db_schema}}"
+              # connect_timeout: DNS resolution for bnesql02 from inside this
+              # pod is occasionally slow (not broken, just slow - a plain
+              # python getaddrinfo() always succeeds, but prisma's own
+              # resolver sometimes hits its default timeout first). Give it
+              # more time to connect rather than fail with P1001.
+              value: "postgresql://{{litellm_db_username}}:{{litellm_db_password}}@{{litellm_db_host}}:5432/{{litellm_db_schema}}?connect_timeout=30"
             - name: LITELLM_MASTER_KEY
               value: "{{litellm_master_key}}"
             - name: LITELLM_SALT_KEY
@@ -34,6 +57,11 @@ spec:
             # lets providers/models be managed from the Admin UI instead of a config.yaml
             - name: STORE_MODEL_IN_DB
               value: "True"
+            # single replica, no redis - the per-worker rate-limit/budget
+            # coordination redis provides doesn't apply here, so suppress
+            # the startup warning about it
+            - name: LITELLM_DISABLE_NO_REDIS_WARNING
+              value: "true"
           resources:
             limits:
               memory: 2Gi

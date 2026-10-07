@@ -1,0 +1,87 @@
+# k8s yaml based on the official image at https://hub.docker.com/r/ollama/ollama
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_ollama }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ ollama_volume_size_gb }}Gi"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+spec:
+  replicas: 1
+  # default RollingUpdate tries to bring up the new pod before tearing down
+  # the old one - with nvidia.com/gpu: 2 requested and only 2 GPUs on the
+  # node, the new pod can never schedule while the old one still holds them.
+  # Recreate kills the old pod first instead.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ollama-web
+  template:
+    metadata:
+      labels:
+        app: ollama-web
+    spec:
+      nodeSelector:
+        {{ ollama_gpu_node_selector_key }}: "{{ ollama_gpu_node_selector_value }}"
+      runtimeClassName: "{{ ollama_gpu_runtime_class_name }}"
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 11434
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+            # ollama auto-selects a context window based on available VRAM
+            # (48GB+ -> up to 256K tokens by default), which for a 70b model
+            # that already needs ~40GB for weights pushes total VRAM well
+            # past 48GB and forces partial CPU offload - cratering generation
+            # speed (observed: 0.43 tok/s with ~46% of the model on CPU,
+            # vs the expected single-digit-to-low-double-digit tok/s for a
+            # cross-GPU split with no NVLink). Cap it explicitly instead.
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "{{ ollama_context_length }}"
+          resources:
+            limits:
+              cpu: "{{ ollama_cpu_limit }}"
+              memory: "{{ ollama_memory_limit }}"
+              nvidia.com/gpu: "{{ ollama_gpu_count }}"
+            requests:
+              cpu: "{{ ollama_cpu_request }}"
+              memory: "{{ ollama_memory_request }}"
+              nvidia.com/gpu: "{{ ollama_gpu_count }}"
+          volumeMounts:
+            - mountPath: /root/.ollama
+              name: models
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: ollama-web
+  ports:
+    - protocol: TCP
+      port: 11434
+      targetPort: 11434
+  type: LoadBalancer

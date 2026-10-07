@@ -12,6 +12,18 @@
           role: kubernetes-nginx-ingress
           var_files: [bnekub03]
 
+        - name: k8s-node-labels
+          role: k8s-node-labels
+          var_files: [bnekub03]
+
+        - name: nvidia-device-plugin
+          role: nvidia-device-plugin
+          var_files: [bnekub03]
+
+        - name: local-path-provisioner
+          role: local-path-provisioner
+          var_files: [bnekub03]
+
         - name: prometheus
           role: prometheus
           var_files: [bnekub03]
@@ -29,5 +41,6 @@
       loop: "{{ k8s_system_bnekub03.deployments | product(deployments.split(',')) | list }}"
       loop_control: { loop_var: _k8s_system_bnekub03_deployment }
       when:
-        - deployments is not defined or true      
+        - deployments is not defined or true
+        - app is not defined or _k8s_system_bnekub03_deployment.0.role == app or _k8s_system_bnekub03_deployment.0.name == app
 

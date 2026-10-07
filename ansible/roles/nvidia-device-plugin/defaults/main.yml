@@ -1,0 +1,10 @@
+kube_context_nvidia_device_plugin: ""
+kube_namespace_nvidia_device_plugin: "nvidia-device-plugin"
+
+nvidia_device_plugin_node_selector_key: "gpu-vendor"
+nvidia_device_plugin_node_selector_value: "nvidia"
+
+# must match the containerd runtime name configured via
+# `nvidia-ctk runtime configure --runtime=containerd` on the node
+# (see setup/SETUP-PROXMOX.md)
+nvidia_device_plugin_runtime_class_name: "nvidia"

@@ -1,0 +1,26 @@
+# requires the helm repo to already be added locally:
+#   helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
+#   helm repo update
+
+- name: "kubernetes namespace nvidia-device-plugin"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nvidia_device_plugin }}"
+    wait: true
+    definition: "{{ lookup('template', 'nvidia-device-plugin-namespace.j2.yml')  }}"
+
+- name: "kubernetes nvidia-device-plugin runtimeclass"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_nvidia_device_plugin }}"
+    wait: true
+    definition: "{{ lookup('template', 'nvidia-device-plugin-runtimeclass.j2.yml')  }}"
+
+- name: "kubernetes nvidia-device-plugin"
+  kubernetes.core.helm:
+    context: "{{ kube_context_nvidia_device_plugin }}"
+    release_namespace: "{{ kube_namespace_nvidia_device_plugin }}"
+    release_name: "nvidia-device-plugin"
+    wait: true
+    chart_ref: "nvdp/nvidia-device-plugin"
+    values: "{{ lookup('template', 'nvidia-device-plugin-helm-values.j2.yml') | from_yaml }}"

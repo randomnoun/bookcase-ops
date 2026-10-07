@@ -1,0 +1,10 @@
+kube_context_local_path_provisioner: ""
+kube_namespace_local_path_provisioner: "local-path-storage"
+
+local_path_provisioner_storageclass_name: ""
+
+# default path used for any node not listed in local_path_provisioner_node_paths
+local_path_provisioner_default_path: "/opt/local-path-provisioner"
+
+# per-node path overrides. list of { node: <node name>, path: <host path> }
+local_path_provisioner_node_paths: []

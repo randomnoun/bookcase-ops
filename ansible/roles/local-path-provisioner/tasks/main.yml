@@ -1,0 +1,13 @@
+- name: "kubernetes namespace local-path-provisioner"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_local_path_provisioner }}"
+    wait: true
+    definition: "{{ lookup('template', 'local-path-provisioner-namespace.j2.yml')  }}"
+
+- name: "kubernetes local-path-provisioner"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_local_path_provisioner }}"
+    wait: true
+    definition: "{{ lookup('template', 'local-path-provisioner.j2.yml')  }}"

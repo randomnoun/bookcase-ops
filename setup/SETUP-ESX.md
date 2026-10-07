@@ -4,6 +4,10 @@
 [pay them for ESX](https://www.theregister.com/2024/02/13/broadcom_ends_free_esxi_vsphere/) , 
 which I'm obviously not going to do, so if I was doing this again I'd probably use [proxmox](https://www.proxmox.com/en/) instead.
 
+**Edit 2025-04-14:** So it looks like vmware (now broadcom) have  
+[reversed that decision](https://www.theregister.com/software/2025/04/14/vmware-revives-its-free-esxi-hypervisor/860812) , 
+but I'm still going to use proxmox because who needs the hassle.
+
 ---
 
 This project uses the free version of [ESXi 6.0](https://www.vmware.com/au/products/esxi-and-esx.html) 

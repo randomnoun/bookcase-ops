@@ -1,0 +1,25 @@
+kube_context_ollama: ""
+kube_namespace_ollama: "dev-ollama"
+kube_storageclass_ollama: ""
+
+ollama_volume_size_gb: 1000
+
+ollama_gpu_node_selector_key: "gpu-vendor"
+ollama_gpu_node_selector_value: "nvidia"
+ollama_gpu_count: 2
+# must match the RuntimeClass name registered by the nvidia-device-plugin
+# role (which in turn must match the containerd runtime name configured via
+# `nvidia-ctk runtime configure --runtime=containerd` on the node)
+ollama_gpu_runtime_class_name: "nvidia"
+
+ollama_cpu_request: "4"
+ollama_cpu_limit: "8"
+ollama_memory_request: "32Gi"
+ollama_memory_limit: "64Gi"
+
+# server-wide default - ollama otherwise auto-scales this based on available
+# VRAM (48GB+ -> up to 256K tokens), which is too large for a 70b model to
+# fit alongside its own weights without spilling onto CPU. This is just a
+# default - individual requests (e.g. a per-model num_ctx from litellm) can
+# still ask for more or less; tune per-model later once there's a real need.
+ollama_context_length: "8192"

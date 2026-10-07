@@ -30,7 +30,7 @@ spec:
       dnsPolicy: Default
       containers:
         - name: xwiki
-          image: xwiki:14.3
+          image: xwiki:17.10.11-mysql-tomcat
           resources:
             # memory minimum and maximum. they couldn't call it that though. oh no. requests and limits it is.
             # in k8s, G = power of 10, Gi = power of 2. rather than using 'GB' like everyone else.
@@ -44,7 +44,7 @@ spec:
               ephemeral-storage: "4Gi"
           env:
             - name: XWIKI_VERSION
-              value: "14.3"
+              value: "17.10.11"
             - name: DB_HOST
               value: "{{ xwiki_db_host }}"
             - name: DB_DATABASE
@@ -112,6 +112,7 @@ metadata:
     nginx.org/client-max-body-size: "0"
     nginx.org/proxy-read-timeout: "600s"
     nginx.org/proxy-send-timeout: "600s"
+    nginx.org/websocket-services: "xwiki-service"
     
 spec:
   tls:

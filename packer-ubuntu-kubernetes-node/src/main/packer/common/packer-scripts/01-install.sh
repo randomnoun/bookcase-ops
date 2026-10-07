@@ -95,15 +95,21 @@ apt update
 apt install -y kubeadm kubelet kubectl
 apt-mark hold kubelet kubeadm kubectl
 
-echo '>>>> Initialising kubernetes'
+echo '>>>> Fetching kubernetes join command'
 
-# join the cluster
+# Deliberately NOT run here - this script may be baked into a template that
+# gets cloned under a different hostname before joining the cluster (the
+# hostname becomes the kubernetes node name, so it needs to be set correctly
+# first). Fetch the join command now (while the backup credentials are
+# available) and leave it on disk for the operator to run manually, after any
+# rename, whenever they're ready to join.
 
 mkdir -p /opt/backup/join-command
 sshpass -p ${BACKUP_PASSWORD}  scp -o 'StrictHostKeyChecking no' ${BACKUP_USERNAME}@${BACKUP_HOST}:${BACKUP_PATH}/join-command/kubernetes-join-command.sh /opt/backup/join-command/kubernetes-join-command.sh
 
 chmod a+x /opt/backup/join-command/kubernetes-join-command.sh
-/opt/backup/join-command/kubernetes-join-command.sh
+
+echo '>>>> After first startup, run /opt/backup/join-command/kubernetes-join-command.sh to join the cluster'
 
 
 echo '>>>> ip addr show'

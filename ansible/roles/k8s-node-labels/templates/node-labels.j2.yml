@@ -1,0 +1,14 @@
+# applies labels to existing kubernetes Node objects via a strategic-merge
+# patch (k8s: state=present without force), so other node fields (taints,
+# status, kubernetes.io/arch, etc) are left untouched - safe to re-run.
+{% for node in k8s_node_labels %}
+---
+apiVersion: v1
+kind: Node
+metadata:
+  name: "{{ node.name }}"
+  labels:
+{% for key, value in node.labels.items() %}
+    {{ key }}: "{{ value }}"
+{% endfor %}
+{% endfor %}

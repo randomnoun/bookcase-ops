@@ -1,6 +1,13 @@
 csiDriver:
   # should be globally unique for a given cluster
   name: "org.democratic-csi.nfs"
+  # NFS has no block-device attach step, and this CSIDriver object has
+  # always run with attachRequired=false (confirmed: `kubectl get
+  # volumeattachments` returns none). The chart's own default for this
+  # changed to `true` at some point, which breaks `helm upgrade` because
+  # CSIDriver.spec.attachRequired is immutable - pin it explicitly so the
+  # upgrade patches to the same value rather than a different one.
+  attachRequired: false
 
 # add note here about volume expansion requirements
 storageClasses:
