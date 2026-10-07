@@ -289,3 +289,5 @@ root@bnellm01:~# lspci -nnk -s 0b:00.1
         Kernel driver in use: vfio-pci
         Kernel modules: snd_hda_intel
 ```
+
+Now proxmox is more or less working, go to [SETUP-LLM.md](SETUP-LLM.md) to get a kubernetes node in there, and some containers running on the node.
