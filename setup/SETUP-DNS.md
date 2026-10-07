@@ -204,6 +204,8 @@ wakapi        IN CNAME bnenod04
 litellm       IN CNAME bnenod04
 searxng       IN CNAME bnenod04
 open-webui    IN CNAME bnenod04
+opencode      IN CNAME bnenod04
+openhands     IN CNAME bnenod04
 ```
 
 * Create the file  `/etc/bind/db.192` containing:

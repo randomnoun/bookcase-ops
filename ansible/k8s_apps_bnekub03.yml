@@ -36,6 +36,15 @@
         - name: open-webui-bnekub03
           role: open-webui
           var_files: [bnekub03]
+        - name: pi-bnekub03
+          role: pi
+          var_files: [bnekub03]
+        - name: opencode-bnekub03
+          role: opencode
+          var_files: [bnekub03]
+        - name: openhands-bnekub03
+          role: openhands
+          var_files: [bnekub03]
         - name: searxng-bnekub03
           role: searxng
           var_files: [bnekub03]

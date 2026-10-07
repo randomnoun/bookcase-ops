@@ -1,0 +1,14 @@
+kube_context_opencode: "bnekub03"
+kube_storageclass_opencode: "bnenas05-nfs-csi"
+
+opencode_ingress_host: "opencode.dev.randomnoun"
+
+opencode_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-opencode/opencode-tls-secret:tls.crt')}}"
+opencode_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-opencode/opencode-tls-secret:tls.key')}}"
+
+opencode_litellm_base_url: "http://web.dev-litellm.svc.cluster.local:4000/v1"
+opencode_litellm_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-opencode/opencode:litellm_virtual_key')}}"
+opencode_server_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-opencode/opencode:server_password')}}"
+
+# must be a model registered in litellm (see setup/SETUP-LLM.md)
+opencode_default_model: "qwen3-coder:30b"

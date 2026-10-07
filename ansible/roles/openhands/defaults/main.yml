@@ -1,0 +1,29 @@
+kube_context_openhands: ""
+kube_namespace_openhands: "dev-openhands"
+kube_storageclass_openhands: "freenas-nfs"
+
+openhands_ingress_host: ""
+openhands_tls_secret_cert: ""
+openhands_tls_secret_key: ""
+
+# the all-in-one image (UI + agent server + automation backend), see
+# https://github.com/OpenHands/OpenHands/tree/main/helm/agent-canvas
+openhands_image: "ghcr.io/openhands/agent-canvas:1.25.0"
+
+# holds ~/.openhands (settings, encrypted secrets, conversation history) and
+# ~/workspace (the repos the agent works on). The storage class allows volume
+# expansion, so this can be grown later by editing it and re-running
+# (volumes can't be shrunk).
+openhands_volume_size_gb: 100
+
+# password for the UI/API ('X-Session-API-Key'); you'll be asked for it on first visit.
+# The agent can run shell commands, so never leave this blank.
+openhands_session_api_key: ""
+
+# postgres for the automation backend. (Conversations and settings are files
+# on the PVC regardless - postgres is only an option for the automations
+# database, which otherwise defaults to sqlite.)
+openhands_db_host: ""
+openhands_db_schema: ""
+openhands_db_username: ""
+openhands_db_password: ""

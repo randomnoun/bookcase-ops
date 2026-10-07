@@ -86,6 +86,16 @@ psql -h localhost -U postgres -c "CREATE USER openwebui WITH PASSWORD 'super-sec
 psql -h localhost -U postgres -c "CREATE DATABASE openwebui OWNER openwebui;"
 ```
 
+## Creating the `openhands` database and `openhands` user
+
+This is only used by the OpenHands automation backend ( conversations and settings are files on its PVC ).
+
+Replace `super-secret-password` with some random mumbojumbo, different to the random mumbojumbo you used for the other users.
+
+```
+psql -h localhost -U postgres -c "CREATE USER openhands WITH PASSWORD 'super-secret-password';"
+psql -h localhost -U postgres -c "CREATE DATABASE openhands OWNER openhands;"
+```
 
 ## Adding database credentials to vault 
 
@@ -110,6 +120,9 @@ vault kv metadata put -mount=secret -custom-metadata=description="database crede
 
 echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/openwebui" password=-
 vault kv metadata put -mount=secret -custom-metadata=description="database credentials for openwebui user on bnesql02.dev.randomnoun" "db/bnesql02/openwebui"
+
+echo -n super-secret-password  | vault kv put   -mount=secret "db/bnesql02/openhands" password=-
+vault kv metadata put -mount=secret -custom-metadata=description="database credentials for openhands user on bnesql02.dev.randomnoun" "db/bnesql02/openhands"
 
 ```
 
@@ -157,6 +170,27 @@ Create the key in the litellm UI via
 ```
 echo -n "$(openssl rand -base64 32)" | vault kv put   -mount=secret "k8s/bnekub03/secret/dev-open-webui/open-webui" webui_secret_key=-
 echo -n "put-the-litellm-virtual-key-here"  | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-open-webui/open-webui" litellm_virtual_key=-
+```
+
+and for **pi**, **opencode** and **openhands**, a litellm virtual key each ( create them the same way as the open-webui one, 
+using `pi-service` / `opencode-service` / `openhands-service` as the user and `pi` / `opencode` / `openhands` as the key name ).
+pi and opencode read theirs from vault, and both list whatever models that key can see in litellm. 
+opencode also gets a password protecting its HTTP API ( it can run shell commands, so don't leave it open ):
+
+```
+echo -n "put-the-pi-litellm-virtual-key-here"       | vault kv put   -mount=secret "k8s/bnekub03/secret/dev-pi/pi" litellm_virtual_key=-
+
+echo -n "put-the-opencode-litellm-virtual-key-here" | vault kv put   -mount=secret "k8s/bnekub03/secret/dev-opencode/opencode" litellm_virtual_key=-
+echo -n "$(openssl rand -hex 24)"                   | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-opencode/opencode" server_password=-
+```
+
+**openhands** doesn't read its litellm key from vault; you paste it into the OpenHands settings UI instead ( see [SETUP-LLM.md](SETUP-LLM.md) ). 
+Vault only needs the key you'll be asked for when you first open the UI:
+
+```
+echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-openhands/openhands" session_api_key=-
+# for first login
+vault kv get -mount=secret -field=session_api_key "k8s/bnekub03/secret/dev-openhands/openhands"
 ```
 
 

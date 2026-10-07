@@ -79,6 +79,8 @@ Anyway once everything's running, you should be able to connect to the following
 * [https://litellm.dev.randomnoun](https://litellm.dev.randomnoun)
 * [https://searxng.dev.randomnoun](https://searxng.dev.randomnoun)
 * [https://open-webui.dev.randomnoun](https://open-webui.dev.randomnoun)
+* [https://opencode.dev.randomnoun](https://opencode.dev.randomnoun)
+* [https://openhands.dev.randomnoun](https://openhands.dev.randomnoun)
 
 ## Updates
 
@@ -88,7 +90,8 @@ Anyway once everything's running, you should be able to connect to the following
 * 2026-02: added atuin
 * 2026-03: added wakapi
 * 2026-08: added litellm, searxng
-* 2026-10: added bnellm01, proxmox, bnenod05, ollama, open-webui
+* 2026-10: added bnellm01, proxmox, bnenod05, ollama, open-webui, pi, opencode, openhands
+   * Have gone a bit LLM-mad, will probably remove some of those as I find out what works and what doesn't
 
 ## License
 
