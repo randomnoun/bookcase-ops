@@ -1,6 +1,6 @@
 # bookcase-ops LLM setup
 
-A maze of twisty components, all of which are alike:
+A maze of twisty little components, all alike:
 
 ```mermaid
 flowchart TB
