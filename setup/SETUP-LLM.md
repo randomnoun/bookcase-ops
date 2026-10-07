@@ -93,20 +93,20 @@ Via the Proxmox UI:
 1. Shut down bnenod05 first (hardware changes require the VM to be off).
 2. Select bnenod05 → Hardware tab → Add → PCI Device.
 3. Choose Raw Device, select 0a:00 from the dropdown (it'll show as the RTX 3090).
-4. Tick All Functions — this passes through both the VGA (0a:00.0) and audio (0a:00.1) parts together as one unit, which is what you want (they're logically one card).
+4. Tick All Functions — this passes through both the VGA (0a:00.0) and audio (0a:00.1) parts together as one unit
 5. Tick PCI-Express — needed since we built the template on q35, which uses the PCIe bus (not legacy PCI).
 6. Leave Primary GPU unticked — that's for cases where the VM needs the card for its own console/display; bnenod05 is headless and uses the regular Proxmox serial/VNC console, so the 3090s are purely compute devices here.
 7. Click Add, then repeat the same for 0b:00 (the second card) as a second PCI Device entry.
 8. Boot bnenod05.
 
-Equivalent via CLI, if you'd rather:
-qm set <vmid> --hostpci0 0a:00,pcie=1
-qm set <vmid> --hostpci1 0b:00,pcie=1
-
 After boot, inside the guest:
+
+```
 lspci -nnk | grep -i nvidia
 nvidia-smi
-lspci should show both cards now bound to the nvidia driver (the one we baked into the template earlier), and nvidia-smi should list both RTX 3090s with their VRAM.
+```
+
+`lspci` should show both cards now bound to the nvidia driver, and `nvidia-smi` should list both RTX 3090s with their VRAM.
 
 ### Attach a model storage disk to bnenod05
 

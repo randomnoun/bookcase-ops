@@ -2,10 +2,10 @@
 
 ---
 
-This project uses the version 9.2.21 of proxmox, which is the one you get on Debian 13 ( Trixie )
+This project uses version 9.2.21 of proxmox, which is the one you get on Debian 13 ( Trixie )
 
-I'm using proxmox for the **bnellm01** machine that has a couple of GPUs in it, so needs PCIe pass-through,
-which I'm a bit more confident of getting working with proxmox than ESXi, and there was that whole drama 
+I'm using proxmox on the **bnellm01** machine with a couple of GPUs in it, so needs PCIe pass-through,
+which I'm a bit more confident of getting working with proxmox than ESXi. And there was that whole drama 
 around vmware pulling support for the free version of ESXi a couple of years ago.
  
 So a few tips and pointers:
@@ -21,7 +21,7 @@ So a few tips and pointers:
 1. Enable the SSH server though
 1. After installing debian and proxmox, I ended up circling back and resizing the root OS partition so that I could stick a local-lvm partition on the OS drive.
    * apparently proxmox really prefers LVM volumes
-   * The steps are below in the 'Proxmox storage' section, but probably better to set it up properly the first time.
+   * The steps to do that are in the 'Proxmox storage' section below, but probably better to set it up properly the first time.
    * For future referene, on the boot SSD, I've now got a 150GB partition for the OS, and the rest is allocated to an LVM-Thin volume called 'local-lvm'. 
    * the second SSD is taken up by an LVM-Thin volume called 'data'.
     
@@ -193,7 +193,9 @@ In the web UI ( bnellm1 -> Disks -> LVM-Thin ) , set up an 'LVM-Thin' volume cal
 
 After a bit of faffing about with the boot partition using an Ubuntu live USB, I also set up another 'LVM-Thin' volume called 'local-lvm' on the boot SSD.
 
-Hang on, found the steps. From an Ubuntu live terminal: 
+Hang on, found the steps. 
+
+From an Ubuntu live terminal: 
 
 ```
 vgscan
