@@ -51,7 +51,10 @@ Okay so what you've got is:
 * [SETUP-LLM.md](setup/SETUP-LLM.md) After I got the second node
    * added a proxmox variant of `packer-ubuntu-kubernetes-node`
    * ollama - an LLM engine
-   * open-webui - a simple frontend to that ( connects to litellm ) 
+   * open-webui - a simple frontend to that ( connects to litellm )
+   * pi - minimalistic terminal coding harness 
+   * opencode - an "AI terminal" for interactive coding sessions
+   * openhands - a "platform and control layer for repeatable coding agent workflows"
    
 The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but the k8s node can now be either ESXi or proxmox.
 
