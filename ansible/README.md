@@ -101,6 +101,9 @@ The initial set of applications are:
 * litellm
 * ollama
 * open-webui
+* pi
+* opencode
+* openhands
 * searxng
 
 what I would suggest you do is to restrict to a specific app using `-e app=xxxxx` (see cmdline below), and deploy a single application at a time, 

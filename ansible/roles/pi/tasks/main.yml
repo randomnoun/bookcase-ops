@@ -1,0 +1,14 @@
+- name: "kubernetes namespace pi"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_pi }}"
+    wait: true
+    definition: "{{ lookup('template', 'pi-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment pi"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_pi }}"
+    namespace: "{{ kube_namespace_pi }}"
+    wait: true
+    definition: "{{ lookup('template', 'pi.j2.yml')  }}"

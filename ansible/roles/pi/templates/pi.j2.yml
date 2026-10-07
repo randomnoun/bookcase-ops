@@ -1,0 +1,161 @@
+# pi (https://pi.dev) is an interactive terminal coding agent, not a server,
+# so there's no Service or Ingress here. This is just a long-lived pod to
+# exec into, keeping the agent (and anything it decides to rm -rf) off the laptop:
+#
+#   kubectl -n dev-pi exec -it deploy/pi -- pi
+#
+# Follows the Dockerfile at https://pi.dev/docs/latest/containerization, but
+# installs on pod startup into the stock node image rather than needing a
+# registry to push a custom image to. pi has no database option - sessions
+# are files under /root/.pi/agent - so state lives on a PVC rather than postgres.
+#
+# Models: pi needs each model listed in models.json, so sync-models.mjs builds
+# that list from litellm's /models endpoint (i.e. whatever is registered in
+# litellm right now) at pod start, and on demand via:
+#
+#   kubectl -n dev-pi exec deploy/pi -- pi-sync-models
+#
+# pi re-reads models.json whenever /model is opened, so no restart is needed.
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pi-secrets
+type: Opaque
+stringData:
+  LITELLM_API_KEY: "{{ pi_litellm_api_key }}"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pi-config
+data:
+  # only copied in if absent, so changes made from inside pi (e.g. Ctrl+S on /model) survive restarts
+  settings.json: |
+    {
+      "defaultProvider": "litellm",
+      "defaultModel": "{{ pi_default_model }}"
+    }
+  sync-models.mjs: |
+    import { writeFileSync, renameSync, mkdirSync } from 'node:fs';
+    const base = process.env.LITELLM_BASE_URL.replace(/\/+$/, '');
+    const res = await fetch(base + '/models', {
+      headers: { Authorization: 'Bearer ' + process.env.LITELLM_API_KEY },
+    });
+    if (!res.ok) throw new Error('litellm /models returned HTTP ' + res.status);
+    const ids = (await res.json()).data.map((m) => m.id).sort();
+    if (ids.length === 0) throw new Error('litellm returned no models for this key');
+    const cfg = {
+      providers: {
+        litellm: {
+          baseUrl: base,
+          api: 'openai-completions',
+          apiKey: '${LITELLM_API_KEY}',
+          // pi sends the OpenAI 'store' param by default; litellm rejects it for ollama models (HTTP 400 UnsupportedParamsError)
+          compat: { supportsStore: false },
+          models: ids.map((id) => ({ id: id })),
+        },
+      },
+    };
+    const dir = '/root/.pi/agent';
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(dir + '/models.json.tmp', JSON.stringify(cfg, null, 2));
+    renameSync(dir + '/models.json.tmp', dir + '/models.json');
+    console.log('models.json: ' + ids.length + ' models: ' + ids.join(', '));
+  start.sh: |
+    #!/bin/bash
+    set -e
+    if ! command -v pi >/dev/null; then
+      apt-get update
+      apt-get install -y --no-install-recommends bash ca-certificates git ripgrep
+      npm install -g --ignore-scripts @earendil-works/pi-coding-agent{{ ('@' ~ pi_version) if pi_version else '' }}
+    fi
+    mkdir -p /root/.pi/agent
+    [ -f /root/.pi/agent/settings.json ] || cp /etc/pi/settings.json /root/.pi/agent/settings.json
+    printf '#!/bin/sh\nexec node /etc/pi/sync-models.mjs\n' > /usr/local/bin/pi-sync-models
+    chmod +x /usr/local/bin/pi-sync-models
+    # litellm may still be starting; keep whatever models.json is already on the PVC if it never answers
+    synced=0
+    for i in $(seq 1 12); do
+      if node /etc/pi/sync-models.mjs; then synced=1; break; fi
+      echo "litellm not ready (attempt $i), retrying in 5s"
+      sleep 5
+    done
+    [ "$synced" = 1 ] || echo "WARNING: could not fetch models from litellm; run pi-sync-models once it is up"
+    echo "pi ready: kubectl exec -it deploy/pi -- pi"
+    trap 'exit 0' TERM INT
+    sleep infinity &
+    wait
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pi-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_pi }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ pi_volume_size_gb }}Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pi
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pi
+  template:
+    metadata:
+      labels:
+        app: pi
+    spec:
+      dnsPolicy: ClusterFirst
+      # the agent runs arbitrary shell commands; don't hand it a kubernetes API token too
+      automountServiceAccountToken: false
+      containers:
+        - name: pi
+          image: "{{ pi_base_image }}"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/etc/pi/start.sh"]
+          workingDir: /workspace
+          env:
+            - name: LITELLM_BASE_URL
+              value: "{{ pi_litellm_base_url }}"
+            - name: LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pi-secrets
+                  key: LITELLM_API_KEY
+          resources:
+            limits:
+              cpu: "4"
+              memory: 8Gi
+            requests:
+              cpu: "250m"
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /workspace
+              name: data
+              subPath: workspace
+            - mountPath: /root/.pi/agent
+              name: data
+              subPath: agent
+            - mountPath: /etc/pi
+              name: config
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pi-pvc
+        - name: config
+          configMap:
+            name: pi-config

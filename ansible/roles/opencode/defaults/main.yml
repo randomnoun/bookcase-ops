@@ -1,0 +1,30 @@
+kube_context_opencode: ""
+kube_namespace_opencode: "dev-opencode"
+kube_storageclass_opencode: "freenas-nfs"
+
+opencode_ingress_host: ""
+opencode_tls_secret_cert: ""
+opencode_tls_secret_key: ""
+
+# the project moved from github.com/sst/opencode to anomalyco/opencode; the
+# old ghcr.io/sst/opencode path is not pullable
+opencode_image: "ghcr.io/anomalyco/opencode:1.18.35"
+
+# holds /data/workspace (the repos opencode works on - clones, node_modules,
+# build output) as well as its sessions and auth. The storage class allows
+# volume expansion, so this can be grown later by editing it and re-running
+# (volumes can't be shrunk).
+opencode_volume_size_gb: 100
+
+# litellm's OpenAI-compatible endpoint - opencode's only provider. The list
+# of models is fetched from its /models endpoint at pod start, not configured here.
+opencode_litellm_base_url: ""
+# a litellm *virtual* key, not the master key
+opencode_litellm_api_key: ""
+
+# must be one of the models litellm serves to the key above
+opencode_default_model: ""
+
+# protects the HTTP API (HTTP basic auth, user 'opencode') - opencode serve
+# can run shell commands, so never run it without this
+opencode_server_password: ""

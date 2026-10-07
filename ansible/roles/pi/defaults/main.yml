@@ -1,0 +1,24 @@
+kube_context_pi: ""
+kube_namespace_pi: "dev-pi"
+kube_storageclass_pi: "freenas-nfs"
+
+# pi has no published image; this is the base from the Dockerfile in
+# https://pi.dev/docs/latest/containerization - the pod installs pi into it on startup
+pi_base_image: "node:24-bookworm-slim"
+
+# npm version of @earendil-works/pi-coding-agent, e.g. "1.0.4". Empty = latest at pod start.
+pi_version: ""
+
+# holds /workspace (the projects pi works on - repos, node_modules, build
+# output) and /root/.pi/agent (sessions, auth). The storage class allows
+# volume expansion, so this can be grown later by editing it and re-running.
+pi_volume_size_gb: 100
+
+# litellm's OpenAI-compatible endpoint - pi's only provider. The list of
+# models is fetched from its /models endpoint, not configured here.
+pi_litellm_base_url: ""
+# a litellm *virtual* key, not the master key
+pi_litellm_api_key: ""
+
+# must be one of the models litellm serves to the key above
+pi_default_model: ""

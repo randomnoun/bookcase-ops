@@ -1,0 +1,14 @@
+- name: "kubernetes namespace opencode"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_opencode }}"
+    wait: true
+    definition: "{{ lookup('template', 'opencode-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment opencode"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_opencode }}"
+    namespace: "{{ kube_namespace_opencode }}"
+    wait: true
+    definition: "{{ lookup('template', 'opencode.j2.yml')  }}"

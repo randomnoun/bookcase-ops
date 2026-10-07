@@ -1,0 +1,14 @@
+- name: "kubernetes namespace openhands"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_openhands }}"
+    wait: true
+    definition: "{{ lookup('template', 'openhands-namespace.j2.yml')  }}"
+
+- name: "kubernetes deployment openhands"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_openhands }}"
+    namespace: "{{ kube_namespace_openhands }}"
+    wait: true
+    definition: "{{ lookup('template', 'openhands.j2.yml')  }}"

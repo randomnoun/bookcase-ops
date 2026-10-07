@@ -1,0 +1,163 @@
+# k8s yaml for OpenHands, based on the (experimental) upstream helm chart at
+# https://github.com/OpenHands/OpenHands/tree/main/helm/agent-canvas
+#
+# OpenHands is now one all-in-one image: web UI + agent server + automation
+# backend. Agents run inside this pod, sharing its filesystem - there are no
+# separate per-conversation sandbox containers (upstream only offers those via
+# a docker runtime or OpenHands Enterprise).
+#
+# The LLM is NOT configured here: OpenHands keeps it in its settings (stored
+# encrypted on the PVC). Set it once in the UI - see setup/SETUP-LLM.md.
+#
+# UI is at https://<host>/canvas (that prefix is baked into the image).
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openhands-secrets
+type: Opaque
+stringData:
+  LOCAL_BACKEND_API_KEY: "{{ openhands_session_api_key }}"
+  # only the automation backend can use postgres; conversations stay on the PVC
+  AUTOMATION_DB_URL: "postgresql+asyncpg://{{ openhands_db_username }}:{{ openhands_db_password }}@{{ openhands_db_host }}:5432/{{ openhands_db_schema }}"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openhands-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_openhands }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ openhands_volume_size_gb }}Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openhands
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: openhands-web
+  template:
+    metadata:
+      labels:
+        app: openhands-web
+    spec:
+      dnsPolicy: ClusterFirst
+      # the agent runs arbitrary shell commands; don't hand it a kubernetes API token too
+      # (upstream's chart leaves this on, for its optional in-cluster RBAC feature)
+      automountServiceAccountToken: false
+      # the image runs as the 'openhands' user (uid 10001)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: openhands
+          image: "{{ openhands_image }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: LOCAL_BACKEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openhands-secrets
+                  key: LOCAL_BACKEND_API_KEY
+            - name: AUTOMATION_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: openhands-secrets
+                  key: AUTOMATION_DB_URL
+          startupProbe:
+            httpGet:
+              path: /alive
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /alive
+              port: 8000
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: "4"
+              memory: 8Gi
+            requests:
+              cpu: "500m"
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /home/openhands/.openhands
+              name: data
+              subPath: openhands
+            - mountPath: /home/openhands/workspace
+              name: data
+              subPath: workspace
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: openhands-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: openhands-web
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: openhands-tls-secret
+data:
+  tls.crt: "{{ openhands_tls_secret_cert }}"
+  tls.key: "{{ openhands_tls_secret_key }}"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openhands-web-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.org/client-max-body-size: "0"
+    nginx.org/proxy-read-timeout: "3600s"
+    nginx.org/proxy-send-timeout: "3600s"
+    # the agent server streams over WebSockets on /sockets
+    nginx.org/websocket-services: "web"
+spec:
+  tls:
+    - hosts:
+        - {{ openhands_ingress_host }}
+      secretName: openhands-tls-secret
+  rules:
+  - host: {{ openhands_ingress_host }}
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: "web"
+            port:
+              number: 8000

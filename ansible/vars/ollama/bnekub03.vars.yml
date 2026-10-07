@@ -2,3 +2,9 @@ kube_context_ollama: "bnekub03"
 kube_storageclass_ollama: "bnenod05-local-path"
 
 ollama_volume_size_gb: 1000
+
+# agents like openhands send a 15K+ token prompt (system prompt + tool
+# definitions) on the first turn; at 8192 ollama truncates it to the last few
+# thousand tokens and the model never sees its instructions. Costs little VRAM
+# for qwen3-coder, but pushes llama3.3:70b further onto the CPU.
+ollama_context_length: "32768"
