@@ -85,15 +85,16 @@ Prices below are approximate as I didn't get an itemised bill.
 What it's got:
 
 * CPU: Ryzen 9-5900X CPU ( 12C/16T - 4.80Ghz Boost ), ~ $500
-* GPU: 2 x MSI RTX 3090 Aero ( 48GB G6X ), ~ $4000. They're "blower" style GPUs which is what you want in a multi-GPU box as they vent air outside the chassis instead of directly into the other card.
+* GPU: 2 x MSI RTX 3090 Aero ( 48GB G6X total ), ~ $4000. 
+   * They're "blower" style GPUs which is what you want in a multi-GPU box as they vent air outside the chassis instead of directly into the other card.
 * Mobo: Asus Pro WS X570-ACE , which has enough very-distantly-spaced PCIe slots that I can jam another 3090 card in here later on perhaps, ~ $400
 * Power supply: Corsair HX1500i 1500W, which can also power that if necessary, ~ $390
 * RAM: 128GB DDR4 ; 4x32GB, ~ $1400
-* Main OS storage: 1TB NVMe Gen 3 M.2 SSD , ~ $230
-* Data storage: 2TB NVMe Gen 4 M.2 SSD , ~ $290
-* Putting it together , ~ $1000
+* Main OS storage: 1TB NVMe Gen 3 M.2 SSD, ~ $230
+* Data storage: 2TB NVMe Gen 4 M.2 SSD, ~ $290
+* Putting it together, maybe ~ $500 ?
 
-Total: about 8 and a half grand.
+Total: about 8 grand.
 
 The cost of everything in this box is outrageous, because anthropic et al are purchasing GPUs, RAM and SSDs like you wouldn't believe. 
 Due to the kind of inverse Moore's Law that we're living in in 2026, this would have cost about half as much if I'd got it last year.
