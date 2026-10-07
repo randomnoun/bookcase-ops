@@ -55,6 +55,10 @@ spec:
             # cross-GPU split with no NVLink). Cap it explicitly instead.
             - name: OLLAMA_CONTEXT_LENGTH
               value: "{{ ollama_context_length }}"
+            - name: OLLAMA_FLASH_ATTENTION
+              value: "{{ ollama_flash_attention }}"
+            - name: OLLAMA_KEEP_ALIVE
+              value: "{{ ollama_keep_alive }}"
           resources:
             limits:
               cpu: "{{ ollama_cpu_limit }}"

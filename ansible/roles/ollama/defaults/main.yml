@@ -23,3 +23,13 @@ ollama_memory_limit: "64Gi"
 # default - individual requests (e.g. a per-model num_ctx from litellm) can
 # still ask for more or less; tune per-model later once there's a real need.
 ollama_context_length: "8192"
+
+# computes attention in a memory-efficient way: faster long prompts, less
+# memory as the context grows. Off by default in ollama, and the precondition
+# for quantizing the KV cache. "1" = on, "0" = off.
+ollama_flash_attention: "1"
+
+# how long a model stays loaded in VRAM after its last request. Ollama's own
+# default is 5m; after that the next request pays the full weight-loading cost.
+# A duration ("30m", "24h"), seconds as a number, or "-1" to never unload.
+ollama_keep_alive: "30m"

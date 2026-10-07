@@ -7,4 +7,4 @@ pi_litellm_base_url: "http://web.dev-litellm.svc.cluster.local:4000/v1"
 pi_litellm_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-pi/pi:litellm_virtual_key')}}"
 
 # must be a model registered in litellm (see setup/SETUP-LLM.md)
-pi_default_model: "qwen3-coder:30b"
+pi_default_model: "local-qwen3-coder:30b"
