@@ -4,7 +4,7 @@
 
 This project uses the version 9.2.21 of proxmox, which is the one you get on Debian 13 ( Trixie )
 
-I'm using proxmox for the **bnellm01*** machine that has a couple of GPUs in it, so needs PCIe pass-through,
+I'm using proxmox for the **bnellm01** machine that has a couple of GPUs in it, so needs PCIe pass-through,
 which I'm a bit more confident of getting working with proxmox than ESXi, and there was that whole drama 
 around vmware pulling support for the free version of ESXi a couple of years ago.
  
@@ -16,8 +16,9 @@ So a few tips and pointers:
 1. Enable the SSH server though
 1. After installing debian and proxmox, I ended up circling back and resizing the root OS partition so that I could stick a local-lvm partition on the OS drive.
    * apparently proxmox really prefers LVM volumes
-   * I didn't write down the steps for that, but for future referene, on the boot drive, I've now got a 150GB partition for the OS, and the rest is allocated to an LVM-Thin volume called 'local-lvm'. 
-   * the second disk is taken up by an LVM-Thin volume called 'data'.
+   * The steps are below in the 'Proxmox storage' section, but probably better to set it up properly the first time.
+   * For future referene, on the boot SSD, I've now got a 150GB partition for the OS, and the rest is allocated to an LVM-Thin volume called 'local-lvm'. 
+   * the second SSD is taken up by an LVM-Thin volume called 'data'.
     
 Once you've got a minimal Debian OS running, then run this to set a static IP, install proxmox, and then the `vmbr0` network bridge:
 
@@ -220,7 +221,7 @@ Once Proxmox is back up, register the new storage under Datacenter â†’ Storage â
 Then connect the GPUs ... this is all specific to my setup, but I'll run through it anyway.
 
 ```
-root@bnellm01:~# dmesg | grep -i -e DMAR -e IOMMU # confirm IOMMI is active
+root@bnellm01:~# <b>dmesg | grep -i -e DMAR -e IOMMU</b> # confirm IOMMI is active
 [...]
 [    0.564739] iommu: Default domain type: Passthrough (set via kernel command line)
 [...]
