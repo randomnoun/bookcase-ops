@@ -106,6 +106,9 @@ The Asus website tells me that's possibly due to incorrectly seated RAM, but I'v
 
 So let's see how that all pans out.
 
+OK, Gemini has given me some BIOS settings to try; have updated [SETUP-PROXMOX.md](SETUP-PROXMOX.md) with the details. Seems OK so far ...  
+
+
 # That's it ?
 
 Yep. Well, there's a network switch, and a KVM attached to an old monitor/keyboard, and some other miscellaneous crap, but the boxes listed above is what this particular project is configuring. 

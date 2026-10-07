@@ -15,6 +15,9 @@ So a few tips and pointers:
    * Under Advanced > AMD CBS
       * IOMMU Enable
       * ACS Enable      
+   * Under AI Tweaker 
+       * Set 'Cmd2T' from 'Auto' to '2T'. 
+       * This will hopefully fix the flaky boot process where the mobo shows an amber light every third boot instead of booting properly. 
 1. Don't try to use the proxmox ISO installer. That installer can't deal with dual GPUs and crashes during boot, even if you tell it to ignore the video cards
 1. Instead, use the vanilla Debian network installer ISO.
 1. During the installation, don't include GNOME or a desktop, because we want to keep the cards free for LLMing.
