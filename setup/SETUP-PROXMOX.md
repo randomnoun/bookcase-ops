@@ -221,7 +221,7 @@ Once Proxmox is back up, register the new storage under Datacenter â†’ Storage â
 Then connect the GPUs ... this is all specific to my setup, but I'll run through it anyway.
 
 ```
-root@bnellm01:~# <b>dmesg | grep -i -e DMAR -e IOMMU</b> # confirm IOMMI is active
+root@bnellm01:~# dmesg | grep -i -e DMAR -e IOMMU # confirm IOMMI is active
 [...]
 [    0.564739] iommu: Default domain type: Passthrough (set via kernel command line)
 [...]
