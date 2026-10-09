@@ -1,5 +1,15 @@
 # Variables defined here should be considered "global" vars.
 # They will be available to all playbooks.
 
-
-
+# ollama's server-wide default context window. Ollama uses it for any model
+# without its own num_ctx in litellm, and pi and opencode assume the same value
+# for those models when they build their model lists, so it has to live here
+# rather than in any one role. agents like openhands send a 15K+ token prompt on
+# the first turn; at 8192 ollama truncates it and the model never sees its
+# instructions. Costs little VRAM for qwen3-coder, but pushes llama3.3:70b
+# further onto the CPU.
+#
+# NB: don't also define this in a role's defaults/ or vars/ file - those are
+# loaded with include_vars (see apply_role.yml), which outranks host_vars, so
+# a stray copy would silently override this one.
+ollama_context_length: "32768"

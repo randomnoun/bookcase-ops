@@ -17,12 +17,13 @@ ollama_cpu_limit: "8"
 ollama_memory_request: "32Gi"
 ollama_memory_limit: "64Gi"
 
-# server-wide default - ollama otherwise auto-scales this based on available
-# VRAM (48GB+ -> up to 256K tokens), which is too large for a 70b model to
-# fit alongside its own weights without spilling onto CPU. This is just a
-# default - individual requests (e.g. a per-model num_ctx from litellm) can
-# still ask for more or less; tune per-model later once there's a real need.
-ollama_context_length: "8192"
+# ollama_context_length (server-wide default context window) is deliberately
+# NOT defined here: it's a global var in host_vars/localhost.yml, shared with
+# the pi and opencode roles. A copy here would override it (see apply_role.yml).
+# Ollama otherwise auto-scales it from available VRAM (48GB+ -> up to 256K
+# tokens), which is too large for a 70b model to fit alongside its weights.
+# Individual requests (e.g. a per-model num_ctx from litellm) can still ask
+# for more or less.
 
 # computes attention in a memory-efficient way: faster long prompts, less
 # memory as the context grows. Off by default in ollama, and the precondition

@@ -253,7 +253,7 @@ Configure the models these in litellm via:
 * Repeat for all models
 * Once you've created them, you can specify per-model context windows
    * I'm just trying this in `local-qwen3:30b` for now; selet that and click 'Edit Settings'
-   * In the 'LiteLLM Params' at the bottom of the page, add `"num_ctx": 32768` to the JSON
+   * In the 'LiteLLM Params' at the bottom of the page, add `"num_ctx": 65536` to the JSON
    * 'Save changes' 
 
 **A note on naming:** Model name is what litellm clients ask for, and LiteLLM model name is what's installed in ollama.
@@ -261,12 +261,16 @@ I'm using `local-*` to differentiate local models from paid models, when I add t
 
 Use the `local-*` names in `pi_default_model` and `opencode_default_model` in the vars files.
 
-**A note on context window size:** The context window ( `ollama_context_length` in `ansible/vars/ollama/bnekub03.vars.yml` ) is set to 32768. 
+**A note on context window size:** The context window ( `ollama_context_length` in `ansible/host_vars/localhost.yml` ) is set to 32768. 
 
 pi and opencode have small prompts and can work with a 8192 length, but openhands sends a 15K+ token prompt. A bigger window costs VRAM for the KV cache. 
 
 `ollama ps` shows the `CONTEXT` and the `PROCESSOR` split for whatever is loaded, if the context window is
 too large then the model spills from GPU to the CPU (and is much slower).
+
+`ollama_context_length` sets the server-wide default, litellm values override this. 
+
+The KV cache for the whole window is reserved when the model loads, not as it fills, so a big window costs VRAM straight away, even for a short prompt.
 
 Some defaults have been changed:
 

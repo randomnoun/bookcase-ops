@@ -25,6 +25,10 @@ opencode_litellm_api_key: ""
 # must be one of the models litellm serves to the key above
 opencode_default_model: ""
 
+# each model's context window is read from its num_ctx in litellm. Ollama
+# models with no num_ctx there get the global ollama_context_length from
+# host_vars/localhost.yml (not defined here - it would override it).
+
 # protects the HTTP API (HTTP basic auth, user 'opencode') - opencode serve
 # can run shell commands, so never run it without this
 opencode_server_password: ""

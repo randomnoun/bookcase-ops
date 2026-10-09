@@ -47,6 +47,24 @@ data:
     if (!res.ok) throw new Error('litellm /models returned HTTP ' + res.status);
     const ids = (await res.json()).data.map((m) => m.id).sort();
     if (ids.length === 0) throw new Error('litellm returned no models for this key');
+    // pi compacts its context at (contextWindow - reserve), so it needs the real window or ollama truncates first.
+    // litellm's /models has no such field; /model/info (at the proxy root, not /v1) has num_ctx in litellm_params.
+    // Ollama models without a num_ctx get the ollama server default; other providers are left unset.
+    const ctx = {};
+    try {
+      const ir = await fetch(base.replace(/\/v1$/, '') + '/model/info', {
+        headers: { Authorization: 'Bearer ' + process.env.LITELLM_API_KEY },
+      });
+      if (!ir.ok) throw new Error('HTTP ' + ir.status);
+      for (const e of (await ir.json()).data) {
+        const p = e.litellm_params || {};
+        let n = Number(p.num_ctx);
+        if (!(n > 0) && String(p.custom_llm_provider || '').startsWith('ollama')) n = {{ ollama_context_length }};
+        if (n > 0 && ctx[e.model_name] === undefined) ctx[e.model_name] = n;
+      }
+    } catch (err) {
+      console.log('WARNING: could not read context windows from litellm /model/info (' + err.message + '); leaving them unset');
+    }
     const cfg = {
       providers: {
         litellm: {
@@ -55,7 +73,7 @@ data:
           apiKey: '${LITELLM_API_KEY}',
           // pi sends the OpenAI 'store' param by default; litellm rejects it for ollama models (HTTP 400 UnsupportedParamsError)
           compat: { supportsStore: false },
-          models: ids.map((id) => ({ id: id })),
+          models: ids.map((id) => (ctx[id] ? { id: id, contextWindow: ctx[id] } : { id: id })),
         },
       },
     };
@@ -63,7 +81,7 @@ data:
     mkdirSync(dir, { recursive: true });
     writeFileSync(dir + '/models.json.tmp', JSON.stringify(cfg, null, 2));
     renameSync(dir + '/models.json.tmp', dir + '/models.json');
-    console.log('models.json: ' + ids.length + ' models: ' + ids.join(', '));
+    console.log('models.json: ' + ids.length + ' models: ' + ids.map((id) => id + (ctx[id] ? ' (' + ctx[id] + ')' : '')).join(', '));
   start.sh: |
     #!/bin/bash
     set -e

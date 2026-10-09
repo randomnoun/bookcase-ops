@@ -37,18 +37,26 @@ data:
     synced=0
     for i in $(seq 1 12); do
       if ids=$(curl -sf -H "Authorization: Bearer $LITELLM_API_KEY" "$LITELLM_BASE_URL/models" | jq -ec '[.data[].id] | sort') && [ "$ids" != "[]" ]; then
-        jq -n --argjson ids "$ids" --arg base "$LITELLM_BASE_URL" --arg model "$DEFAULT_MODEL" '{
+        # opencode compacts against the model's limit.context, so it needs the real window or ollama truncates first.
+        # litellm's /models has no such field; /model/info (at the proxy root, not /v1) has num_ctx in litellm_params.
+        # Ollama models without a num_ctx get the ollama server default; other providers are left unset.
+        ctx=$(curl -sf -H "Authorization: Bearer $LITELLM_API_KEY" "${LITELLM_BASE_URL%/v1}/model/info" | jq -ec --argjson dflt {{ ollama_context_length }} '
+          [ .data[] | { key: .model_name, value: ((.litellm_params.num_ctx // (if ((.litellm_params.custom_llm_provider // "") | startswith("ollama")) then $dflt else null end)) | if . == null then null else tonumber end) }
+            | select(.value != null) ] | from_entries') || ctx='{}'
+        [ "$ctx" = '{}' ] && echo "WARNING: no context windows read from litellm /model/info; leaving them unset"
+        jq -n --argjson ids "$ids" --argjson ctx "$ctx" --arg base "$LITELLM_BASE_URL" --arg model "$DEFAULT_MODEL" '{
           "$schema": "https://opencode.ai/config.json",
           "model": ("litellm/" + $model),
           "provider": { "litellm": {
             "npm": "@ai-sdk/openai-compatible",
             "name": "litellm",
             "options": { "baseURL": $base, "apiKey": "{env:LITELLM_API_KEY}" },
-            "models": ($ids | map({ key: ., value: { name: . } }) | from_entries)
+            "models": ($ids | map({ key: ., value: ({ name: . } + (if $ctx[.] then { limit: { context: $ctx[.], output: ([$ctx[.] / 8, 8192] | min | floor) } } else {} end)) }) | from_entries)
           } }
         }' > "$cfg.tmp"
         mv "$cfg.tmp" "$cfg"
         echo "opencode.json: $ids"
+        echo "context windows: $ctx"
         synced=1
         break
       fi
