@@ -1,0 +1,13 @@
+kube_context_kubernetes_coredns: ""
+
+# the local DNS zone your own DNS server is authoritative for (e.g. dev.randomnoun).
+# Lookups in this zone go ONLY to kubernetes_coredns_local_dns - never to the
+# public upstreams, which would answer a confident (and cached) NXDOMAIN.
+kubernetes_coredns_local_zone: ""
+kubernetes_coredns_local_dns: []
+
+# everything else (not cluster.local, not the local zone), tried in this order.
+# The first is the normal path; later ones are used only if the earlier ones
+# don't answer at all (timeout / unreachable). A public server never gets
+# asked about names the first one said don't exist.
+kubernetes_coredns_upstream_dns: []

@@ -1,0 +1,8 @@
+kube_context_kubernetes_coredns: "bnekub03"
+
+kubernetes_coredns_local_zone: "dev.randomnoun"
+kubernetes_coredns_local_dns: ["192.168.0.24"]
+
+# home DNS (bnehyp02), then the ISP's (TPG), then google's, used only if the
+# earlier ones don't answer. See setup/SETUP-DNS.md
+kubernetes_coredns_upstream_dns: ["192.168.0.24", "203.12.160.35", "8.8.8.8"]

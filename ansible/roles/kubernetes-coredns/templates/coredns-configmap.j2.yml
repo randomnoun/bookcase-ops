@@ -1,0 +1,47 @@
+# Replaces the Corefile in the ConfigMap that kubeadm created for CoreDNS.
+# The only changes from kubeadm's default are in the two forward blocks:
+#
+#   kubeadm default:  forward . /etc/resolv.conf   (random choice among whatever
+#                     the NODE's resolver happened to list when the pod started)
+#   here:             an explicit, ordered list, policy sequential
+#
+# CoreDNS's reload plugin picks this up within about a minute with no restart,
+# and keeps running the old config if the new one is invalid.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        forward . {{ kubernetes_coredns_upstream_dns | join(' ') }} {
+           policy sequential
+           max_concurrent 1000
+        }
+        cache 30 {
+           disable success cluster.local
+           disable denial cluster.local
+        }
+        loop
+        reload
+        loadbalance
+    }
+    {{ kubernetes_coredns_local_zone }}:53 {
+        errors
+        cache 30
+        forward . {{ kubernetes_coredns_local_dns | join(' ') }} {
+           policy sequential
+        }
+    }

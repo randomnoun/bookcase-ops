@@ -12,6 +12,10 @@
           role: kubernetes-nginx-ingress
           var_files: [bnekub03]
 
+        - name: kubernetes-coredns
+          role: kubernetes-coredns
+          var_files: [bnekub03]
+
         - name: k8s-node-labels
           role: k8s-node-labels
           var_files: [bnekub03]

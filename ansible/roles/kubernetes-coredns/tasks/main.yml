@@ -1,0 +1,5 @@
+- name: "kubernetes-coredns Corefile"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_kubernetes_coredns }}"
+    definition: "{{ lookup('template', 'coredns-configmap.j2.yml')  }}"

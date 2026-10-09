@@ -307,3 +307,42 @@ Instructions copied [from here](https://linuxconfig.org/how-to-enable-disable-wa
 
 It's this sort of malarky which may explain why I still prefer using Windows as my main OS. Anyway. Onwards.
 
+
+## Fixing flaky lookups of `dev.randomnoun` names from inside kubernetes
+
+This is jumping the gun a bit, but once k8s is running, lookups can be flaky to local domains. e.g. `git clone` from `gitlab.dev.randomnoun` fails with `Could not resolve host`, but then works if you repeat it.
+
+Every lookup from a pod goes: pod -> CoreDNS ( the `kube-dns` service, `10.96.0.10` ) -> upstream DNS. CoreDNS answers `cluster.local` names itself and forwards everything else.
+
+kubeadm's default is `forward . /etc/resolv.conf`, which means "whatever the node's resolver lists, picked at random". Here that list had ended up containing both
+bnehyp02 ( `192.168.0.24` ) and the ISP's server ( `203.12.160.35` ). The ISP's server has never heard of `dev.randomnoun`, so it answers `NXDOMAIN` for it, and CoreDNS caches that for 30 seconds.
+About half the lookups went to the ISP, which is why roughly half of them failed: 22 of 40 in a test loop from a pod.
+
+Can't put the home DNS server first in each pod's `resolv.conf`, that breaks in-cluster names: a resolver only moves on to its next server on a timeout, and
+`NXDOMAIN` from bnehyp02 for a `*.svc.cluster.local` name is a final answer. CoreDNS has to be the single resolver the pods use, and be told where to send things.
+
+The `kubernetes-coredns` ansible role ( see [../ansible/README.md](../ansible/README.md) ) replaces the Corefile with an explicit, ordered list:
+
+| Lookup | Goes to |
+|---|---|
+| `*.cluster.local` | answered by CoreDNS itself |
+| `*.dev.randomnoun` | `192.168.0.24` only. Never a public server, because a wrong `NXDOMAIN` there would be final |
+| everything else | `192.168.0.24`, then `203.12.160.35` ( my ISP's primary ), then `8.8.8.8` ( google public resolver) |
+
+`policy sequential` makes it try them in that order; a later server is only used if the earlier ones don't answer at all ( timeout / unreachable ), not if they answer `NXDOMAIN`.
+The ISP also lists secondary and tertiary servers ( `203.12.160.36`, `.37` ), which aren't used.
+
+After applying, CoreDNS picks the change up in about a minute without a restart ( the `reload` plugin; it keeps the old config if the new one is invalid ).
+To check it, a lookup loop from a pod should now never fail:
+
+```
+kubectl -n dev-pi exec deploy/pi -- sh -c 'ok=0; for i in $(seq 1 40); do getent hosts gitlab.dev.randomnoun >/dev/null && ok=$((ok+1)); done; echo ok=$ok/40'
+```
+
+and the ISP's server should stop receiving queries. Run this twice, a minute apart, and its counts shouldn't grow:
+
+```
+kubectl get --raw "/api/v1/namespaces/kube-system/pods/<a coredns pod>:9153/proxy/metrics" | grep 'proxy_request_duration_seconds_count'
+```
+
+`<a coredns pod>` comes from `kubectl -n kube-system get pods -l k8s-app=kube-dns`. The line to watch is the one ending `to="203.12.160.35:53"`.

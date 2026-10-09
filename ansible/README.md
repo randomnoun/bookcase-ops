@@ -62,6 +62,10 @@ The system components installed are:
 * **local-path-provisioner**
    * [Rancher's local-path-provisioner](https://github.com/rancher/local-path-provisioner), giving a `bnenod05-local-path` StorageClass backed by local disk on bnenod05 rather than NFS. 
    * Used for things like ollama's model storage, which is pinned to a node with dedicated GPU and storage; a local disk avoids the latency of loading large model files over the network.
+* **kubernetes-coredns**
+   * replaces CoreDNS's Corefile so non-cluster lookups go to my home DNS server first, then the ISP's, then google's, in that order, instead of a random pick from the node's resolver.
+   * `*.dev.randomnoun` is sent to my home DNS server only
+   * CoreDNS will reload the ConfigMap within a minute with no restart. The addresses are in `vars/kubernetes-coredns/bnekub03.vars.yml`; see [SETUP-DNS.md](../setup/SETUP-DNS.md) for why.
 
 Arguably `prometheus` and `grafana` should have been installed with the other applications below, but hey.
 
