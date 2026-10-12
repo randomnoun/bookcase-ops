@@ -1,0 +1,138 @@
+# k8s yaml based on the docker image at https://hub.docker.com/r/alpindale/aphrodite-openai (Sonar is the new name for Aphrodite Engine; the image and CLI still use the old one)
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonar-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_sonar }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ sonar_volume_size_gb }}Gi"
+
+{% if sonar_registry_username | length > 0 %}
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/dockerconfigjson
+metadata:
+  name: sonar-registry-secret
+data:
+  .dockerconfigjson: "{{ {'auths': {sonar_registry_host: {'username': sonar_registry_username, 'password': sonar_registry_password, 'auth': (sonar_registry_username ~ ':' ~ sonar_registry_password) | b64encode}}} | to_json | b64encode }}"
+{% endif %}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonar
+spec:
+  replicas: {{ sonar_replicas }}
+  # with every GPU on the node requested, a RollingUpdate's new pod could never
+  # schedule while the old one still holds them (same reasoning as ollama)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sonar-web
+  template:
+    metadata:
+      labels:
+        app: sonar-web
+    spec:
+      nodeSelector:
+        {{ sonar_gpu_node_selector_key }}: "{{ sonar_gpu_node_selector_value }}"
+      runtimeClassName: "{{ sonar_gpu_runtime_class_name }}"
+{% if sonar_registry_username | length > 0 %}
+      imagePullSecrets:
+        - name: sonar-registry-secret
+{% endif %}
+      containers:
+        - name: sonar
+          image: "{{ sonar_image }}"
+          imagePullPolicy: IfNotPresent
+          # the image's ENTRYPOINT is `aphrodite run`, so these are its arguments
+          args:
+            - "{{ sonar_model }}"
+            - "--host=0.0.0.0"
+            - "--port=2242"
+            - "--served-model-name={{ sonar_served_model_name }}"
+            - "--max-model-len={{ sonar_max_model_len }}"
+            - "--gpu-memory-utilization={{ sonar_gpu_memory_utilization }}"
+            - "--tensor-parallel-size={{ sonar_tensor_parallel_size }}"
+{% if sonar_quantization | length > 0 %}
+            - "--quantization={{ sonar_quantization }}"
+{% endif %}
+{% if sonar_model_revision | length > 0 %}
+            - "--revision={{ sonar_model_revision }}"
+{% endif %}
+{% if sonar_tokenizer | length > 0 %}
+            - "--tokenizer={{ sonar_tokenizer }}"
+{% endif %}
+{% for arg in sonar_extra_args %}
+            - "{{ arg }}"
+{% endfor %}
+          ports:
+            - containerPort: 2242
+          env:
+            # the image runs as root; this keeps downloaded weights on the PVC
+            - name: HF_HOME
+              value: /root/.cache/huggingface
+{% if sonar_hf_token | length > 0 %}
+            - name: HF_TOKEN
+              value: "{{ sonar_hf_token }}"
+{% endif %}
+          # loading a 70b model (and downloading it first, the first time) takes
+          # many minutes; /health returns 503 until the model is loaded. This
+          # allows 60 x 30s = 30 minutes before kubernetes gives up.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 2242
+            periodSeconds: 30
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 2242
+            periodSeconds: 15
+          resources:
+            limits:
+              cpu: "{{ sonar_cpu_limit }}"
+              memory: "{{ sonar_memory_limit }}"
+              nvidia.com/gpu: "{{ sonar_gpu_count }}"
+            requests:
+              cpu: "{{ sonar_cpu_request }}"
+              memory: "{{ sonar_memory_request }}"
+              nvidia.com/gpu: "{{ sonar_gpu_count }}"
+          volumeMounts:
+            - mountPath: /root/.cache
+              name: models
+            - mountPath: /dev/shm
+              name: shm
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: sonar-pvc
+        # the default 64Mi /dev/shm is far too small for tensor-parallel workers
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "{{ sonar_shm_size }}"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: sonar-web
+  ports:
+    - protocol: TCP
+      port: 2242
+      targetPort: 2242
+  type: LoadBalancer

@@ -33,6 +33,12 @@
         - name: ollama-bnekub03
           role: ollama
           var_files: [bnekub03]
+        - name: sonar-bnekub03
+          role: sonar
+          var_files: [bnekub03]
+        - name: tabbyapi-bnekub03
+          role: tabbyapi
+          var_files: [bnekub03]
         - name: open-webui-bnekub03
           role: open-webui
           var_files: [bnekub03]

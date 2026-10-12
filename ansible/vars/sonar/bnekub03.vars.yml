@@ -1,0 +1,16 @@
+kube_context_sonar: "bnekub03"
+kube_storageclass_sonar: "bnenod05-local-path"
+
+sonar_volume_size_gb: 300
+
+# One model per deployment. Fill this in once you've picked an EXL2 quant
+# (and see setup/SETUP-LLM.md for the ollama-vs-sonar GPU swap)
+sonar_model: ""
+sonar_model_revision: ""
+sonar_quantization: "exl2"
+sonar_served_model_name: "local-sonar"
+
+# To run an image you've built and pushed to your own nexus3. Push to docker-releases,
+# pull from docker-combined (a read-only group of releases + snapshots that allows
+# anonymous access, so no pull secret / registry_* vars are needed):
+# sonar_image: "docker-combined.nexus3.dev.randomnoun/sonar:0.24.1"

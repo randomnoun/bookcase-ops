@@ -1,0 +1,150 @@
+# k8s yaml based on the official image at https://github.com/theroyallab/tabbyAPI (docker/docker-compose.yml)
+
+{% set tabby_model = {
+  'model_dir': '/app/models',
+  'max_seq_len': tabbyapi_max_seq_len | int,
+  'cache_mode': tabbyapi_cache_mode,
+  'tensor_parallel': tabbyapi_tensor_parallel | bool,
+} %}
+{% if tabbyapi_model_name | length > 0 %}
+{% set _ = tabby_model.update({'model_name': tabbyapi_model_name}) %}
+{% endif %}
+{% set tabby_config = {
+  'network': {
+    'host': '0.0.0.0',
+    'port': 5000,
+    'disable_auth': false,
+    'allowed_origins': [],
+  },
+  'model': tabby_model,
+} %}
+{% set tabby_tokens = {
+  'api_key': [tabbyapi_api_key],
+  'admin_key': tabbyapi_admin_key,
+} %}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tabbyapi-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_tabbyapi }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ tabbyapi_volume_size_gb }}Gi"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tabbyapi-config
+data:
+  config.yml: |
+    {{ tabby_config | to_nice_yaml | indent(4) }}
+
+---
+# not in the ConfigMap because it holds the API keys
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tabbyapi-tokens
+data:
+  api_tokens.yml: "{{ tabby_tokens | to_nice_yaml | b64encode }}"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tabbyapi
+spec:
+  replicas: {{ tabbyapi_replicas }}
+  # same reasoning as ollama: a RollingUpdate's new pod could never get the GPUs
+  # while the old one still holds them
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tabbyapi-web
+  template:
+    metadata:
+      labels:
+        app: tabbyapi-web
+      annotations:
+        # the config is only read at startup, so restart the pod when it changes
+        checksum/config: "{{ (tabby_config | to_json ~ tabby_tokens | to_json) | hash('sha256') }}"
+    spec:
+      nodeSelector:
+        {{ tabbyapi_gpu_node_selector_key }}: "{{ tabbyapi_gpu_node_selector_value }}"
+      runtimeClassName: "{{ tabbyapi_gpu_runtime_class_name }}"
+      containers:
+        - name: tabbyapi
+          image: "{{ tabbyapi_image }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          # plain TCP checks, not /health: /health returns 503 when the service is
+          # "unhealthy", and I haven't verified it stays 200 with no model loaded -
+          # which would leave the pod unready and the role waiting forever.
+          # The port only opens once startup (including any model load) is done.
+          startupProbe:
+            tcpSocket:
+              port: 5000
+            periodSeconds: 15
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            periodSeconds: 15
+          resources:
+            limits:
+              cpu: "{{ tabbyapi_cpu_limit }}"
+              memory: "{{ tabbyapi_memory_limit }}"
+              nvidia.com/gpu: "{{ tabbyapi_gpu_count }}"
+            requests:
+              cpu: "{{ tabbyapi_cpu_request }}"
+              memory: "{{ tabbyapi_memory_request }}"
+              nvidia.com/gpu: "{{ tabbyapi_gpu_count }}"
+          volumeMounts:
+            - mountPath: /app/models
+              name: models
+            - mountPath: /app/config.yml
+              subPath: config.yml
+              name: config
+              readOnly: true
+            - mountPath: /app/api_tokens.yml
+              subPath: api_tokens.yml
+              name: tokens
+              readOnly: true
+            - mountPath: /dev/shm
+              name: shm
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: tabbyapi-pvc
+        - name: config
+          configMap:
+            name: tabbyapi-config
+        - name: tokens
+          secret:
+            secretName: tabbyapi-tokens
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "{{ tabbyapi_shm_size }}"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: tabbyapi-web
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: LoadBalancer
