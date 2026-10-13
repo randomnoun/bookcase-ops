@@ -1,19 +1,18 @@
 # Setting up the database
 
 Most of the applications in bookcase-ops use their own persistence mechanisms to store data on the volumes attached by kubernetes, 
-but xwiki, commafeed and atuin use an external database, so those needs to be created and configured.
+but some containers use an external database, so those needs to be created and configured.
 
 I'm hosting the databases on `bnesql02`.
 
-For xwiki, the schema is `xwiki`, and the application connects with the username `xwiki`.
 
-For commafeed, the schema is `commafeed`, and the application connects with the username `commafeed`.
+   * mysql: xwiki, commafeed, wakapi
+      * When you're creating these, you'll need to use the `root` mysql user. The `root` password for mysql is the one you set in `vars.json` ( from [vars.json.sample](../packer-ubuntu-mysql/src/main/packer/vars.json.sample) )
+   * postgres: atuin, litellm, openwebui, openhands
+      * When creating these, use the `postgres` user ( password also in `vars.json` ).  
 
-When you're creating these, you'll need to use the `root` mysql user. The `root` password for mysql is the one you set in `vars.json` ( from [vars.json.sample](../packer-ubuntu-mysql/src/main/packer/vars.json.sample) )
+Each application has a schema and username the same name as the application (e.g. for xwiki, the schema is `xwiki`, and the application connects with the username `xwiki` ).
 
-For atuin, the schema is `atuin`, and the application connects with the username `atuin`. ( Note atuin uses postgres, not mysql )
-
-When creating this, use the `postgres` user ( password also in `vars.json` ).
 
 ## Creating the `xwiki` database and `xwiki` user
 
@@ -128,14 +127,14 @@ vault kv metadata put -mount=secret -custom-metadata=description="database crede
 
 ## Adding application credentials to vault
 
-And some salt for **wakapi** passwords
+**wakapi** requires some salt for passwords
 
 ```
 # note 'patch' verb, not 'put'
 echo -n super-secret-password  | vault kv patch  -mount=secret "db/bnesql02/wakapi" salt=-
 ```
 
-and a master key + salt key for **litellm** ( these need to start with "sk-" )
+**litellm** needs a master key, and a salt key ( these need to start with "sk-" )
 
 ```
 echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02/litellm" master_key=-
@@ -146,13 +145,21 @@ echo -n "sk-$(openssl rand -hex 24)" | vault kv patch -mount=secret "db/bnesql02
 vault kv get -mount=secret -field=master_key "db/bnesql02/litellm"
 ``` 
 
-and a secret key for **searxng** for it's CSRF/session signing:
+**searxng** needs a secret key for CSRF/session signing:
 
 ```
 echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-searxng/searxng-secret-key" key=-
 ```
 
-and for **open-webui**, a secret key to sign login JWTs, and the litellm virtual key.
+**tabbyapi** requires an api_key ( for litellm ), and an admin_key ( for loading and downloading)
+
+```
+echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-tabbyapi/tabbyapi" api_key=-
+
+echo -n "$(openssl rand -hex 24)" | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-tabbyapi/tabbyapi" admin_key=-
+```
+
+**open-webui** needs a secret key to sign login JWTs, and a litellm virtual key.
 
 Create the key in the litellm UI via
 

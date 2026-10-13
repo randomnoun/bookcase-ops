@@ -25,7 +25,7 @@ flowchart TB
             subgraph backends ["backends (only one runs at a time)"]
                 ollama["ollama<br/>:11434<br/>GGUF"]
                 sonar["sonar<br/>:2242<br/>starts at 0 replicas"]
-                tabbyapi["tabbyapi<br/>:5000<br/>EXL3, starts at 0 replicas"]
+                tabbyapi["tabbyapi<br/>:5000<br/>EXL3<br/>starts at 0 replicas"]
             end
             gpus[/"2 x RTX 3090<br/>(PCI passthrough)"/]
             models[("/mnt/models<br/>local-path storage<br/>one PVC per backend")]
@@ -78,35 +78,6 @@ Then:
 * Clone that to create the `bnenod05` kubernetes node; it'll join the `bnekub03` cluster
 * Attach the GPUs to `bnenod05`
 * Start installing the containers 
-
-### Kubernetes deployments
-
-And then jump over to [ansible/README.md](ansible/README.md) and get some containers running on the node.
-
-I've created them in this order:
-
-* litellm
-   * and create a user in the web UI
-* searxng
-   * then configure searxng in litellm
-* ollama
-   * then install a few models in ollama
-   * then configure those models in litellm
-* sonar *( optional )*
-   * needs an image you build yourself, and starts scaled to 0
-* tabbyapi *( optional )*
-   * needs two keys in vault, and starts scaled to 0
-   * then download an EXL3 model and configure it in litellm
-* open-webui
-   * will connect to litellm (not ollama directly), create a litellm key first
-* pi
-   * will connect to litellm (not ollama directly), create a litellm key first
-* opencode
-   * will connect to litellm (not ollama directly), create a litellm key first
-* openhands   
-   * will connect to litellm (not ollama directly), create a litellm key first
-
-Only one of `ollama`, `sonar` and `tabbyapi` can use the GPUs at a time, see [Switching between engines](#switching-between-engines).
 
 ## The node
 
@@ -213,6 +184,35 @@ knoxg@bnenod05:~$ df -h /mnt/models
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/sdb1      1007G   28K  956G   1% /mnt/models
 ```
+
+## Kubernetes deployments
+
+Jump over to [ansible/README.md](ansible/README.md) and get some containers running on the node.
+
+I've created them in this order, you may need to do some configuration in each container to connect them up as you go.
+
+* litellm
+   * and create a user in the web UI
+* searxng
+   * then configure searxng in litellm
+* ollama
+   * then install a few models in ollama
+   * then configure those models in litellm
+* sonar *( optional )*
+   * needs an image you build yourself, and starts scaled to 0
+* tabbyapi *( optional )*
+   * needs two keys in vault, and starts scaled to 0
+   * then download an EXL3 model and configure it in litellm
+* open-webui
+   * will connect to litellm (not ollama directly), create a litellm key first
+* pi
+   * will connect to litellm (not ollama directly), create a litellm key first
+* opencode
+   * will connect to litellm (not ollama directly), create a litellm key first
+* openhands   
+   * will connect to litellm (not ollama directly), create a litellm key first
+
+Only one of `ollama`, `sonar` and `tabbyapi` can use the GPUs at a time, see [Switching between engines](#switching-between-engines).
 
 ## Litellm
 
@@ -436,18 +436,8 @@ Configure the model in litellm as an OpenAI-compatible provider ( not Ollama Cha
 image ( `ghcr.io/theroyallab/tabbyapi` ), so there's nothing to build. Like ollama it's pinned to `bnenod05`, requests the GPUs, has no Ingress/TLS and is consumed via `litellm`.
 Its own README describes it as a hobby project, which is ok for bookcase-ops.
 
-Things to know:
+Before you create, will need a litellm key stored in vault, see SETUP-DATABASE.md for details.
 
-* **It competes with ollama and sonar for the GPUs**, and starts scaled to 0. See [Switching between engines](#switching-between-engines).
-* **Each engine has its own PVC**, so a model downloaded for one isn't visible to another. On `bnenod05` they're all directories under `/mnt/models`,
-  named `pvc-<uid>_<namespace>_<claim>`, so you can see them all with `sudo ls /mnt/models`.
-* **One loaded model at a time.** Loading another through the API unloads the first. Models are plain directories under `/app/models`.
-* **Needs two keys in vault**, an `api_key` ( for litellm ) and an `admin_key` ( for loading and downloading ):
-
-```
-echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-tabbyapi/tabbyapi" api_key=-
-echo -n "$(openssl rand -hex 24)" | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-tabbyapi/tabbyapi" admin_key=-
-```
 
 Deploy it first with `tabbyapi_model_name` empty ( it comes up at 0 replicas; see [Switching between engines](#switching-between-engines) ), then download an EXL3 model into the PVC. The `/v1/download` endpoint pulls from HuggingFace ( `revision` picks the
 bits-per-weight branch, which EXL3 repos usually publish as separate branches ):
