@@ -181,8 +181,10 @@ echo -n "put-the-litellm-virtual-key-here"  | vault kv patch -mount=secret "k8s/
 
 and for **pi**, **opencode** and **openhands**, a litellm virtual key each ( create them the same way as the open-webui one, 
 using `pi-service` / `opencode-service` / `openhands-service` as the user and `pi` / `opencode` / `openhands` as the key name ).
+
 pi and opencode read theirs from vault, and both list whatever models that key can see in litellm. 
-opencode also gets a password protecting its HTTP API ( it can run shell commands, so don't leave it open ):
+
+opencode also gets a password protecting its HTTP API:
 
 ```
 echo -n "put-the-pi-litellm-virtual-key-here"       | vault kv put   -mount=secret "k8s/bnekub03/secret/dev-pi/pi" litellm_virtual_key=-
@@ -196,6 +198,7 @@ Vault only needs the key you'll be asked for when you first open the UI:
 
 ```
 echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-openhands/openhands" session_api_key=-
+
 # for first login
 vault kv get -mount=secret -field=session_api_key "k8s/bnekub03/secret/dev-openhands/openhands"
 ```
