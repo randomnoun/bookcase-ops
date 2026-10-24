@@ -17,6 +17,7 @@ variable "builder_ethernet0_mac" { type = string }
 
 variable "nas_host" { type = string }
 variable "nas_backup_path" { type = string }
+variable "nas_ca_path" { type = string }
 variable "nas_username" { type = string }
 variable "nas_password" { type = string }
 
@@ -111,7 +112,7 @@ build {
       "CLOUD_INIT_USERNAME=${var.cloud_init_username}",
       "NAS_HOST=${var.nas_host}", 
       "NAS_BACKUP_PATH=${var.nas_backup_path}", 
-      "NAS_CA_PATH=${local.nas_ca_path}",
+      "NAS_CA_PATH=${var.nas_ca_path}",
       "NAS_USERNAME=${var.nas_username}", 
       "NAS_PASSWORD=${var.nas_password}", 
     ]
@@ -121,9 +122,4 @@ build {
   
   
 
-}
-
-// the CA certificate is in a 'ca' folder next to the backup folder on the NAS
-locals {
-  nas_ca_path = regex_replace(var.nas_backup_path, "/[^/]+/?$", "/ca")
 }

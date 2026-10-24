@@ -21,6 +21,7 @@
     
     "nas_host": "bnenas05.dev.randomnoun",
     "nas_backup_path": "/mnt/raidvolume/compressed/bookcase-ops/bnekub03",
+    "nas_ca_path": "/mnt/raidvolume/compressed/bookcase-ops/ca",
     "nas_username": "knoxg",
     "nas_password": "*** the ssh password for that username ***"
     
