@@ -27,8 +27,8 @@ locals {
     cloud_init_password_hash = vault("/secret/data/packer/cloud-init", "password-hash")
     cloud_init_authorized_keys = vault("/secret/data/packer/cloud-init", "authorized-keys")
 
-    nas_username = vault("/secret/data/packer/backup/${var.nas_host}", "username")
-    nas_password = vault("/secret/data/packer/backup/${var.nas_host}", "password")
+    nas_username = vault("/secret/data/packer/nas/${var.nas_host}", "username")
+    nas_password = vault("/secret/data/packer/nas/${var.nas_host}", "password")
 }
 
 packer {
