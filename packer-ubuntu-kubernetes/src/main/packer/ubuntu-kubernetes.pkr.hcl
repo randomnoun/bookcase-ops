@@ -12,8 +12,8 @@ variable "kubernetes_fqdn" { type = string }
 variable "kubernetes_clustername" { type = string }
 variable "kubernetes_token" { type = string }
 
-variable "backup_host" { type = string }
-variable "backup_path" { type = string }
+variable "nas_host" { type = string }
+variable "nas_backup_path" { type = string }
 
 // vault secrets
 locals {
@@ -26,8 +26,8 @@ locals {
     cloud_init_password_hash = vault("/secret/data/packer/cloud-init", "password-hash")
     cloud_init_authorized_keys = vault("/secret/data/packer/cloud-init", "authorized-keys")
 
-    backup_username = vault("/secret/data/packer/backup/${var.backup_host}", "username")
-    backup_password = vault("/secret/data/packer/backup/${var.backup_host}", "password")
+    nas_username = vault("/secret/data/packer/backup/${var.nas_host}", "username")
+    nas_password = vault("/secret/data/packer/backup/${var.nas_host}", "password")
 }
 
 packer {
@@ -141,13 +141,19 @@ build {
       "KUBERNETES_FQDN=${var.kubernetes_fqdn}",
       "KUBERNETES_CLUSTERNAME=${var.kubernetes_clustername}",
       "KUBERNETES_TOKEN=${var.kubernetes_token}",
-      "BACKUP_HOST=${var.backup_host}",
-      "BACKUP_PATH=${var.backup_path}", 
-      "BACKUP_USERNAME=${local.backup_username}", 
-      "BACKUP_PASSWORD=${local.backup_password}", 
+      "NAS_HOST=${var.nas_host}",
+      "NAS_BACKUP_PATH=${var.nas_backup_path}", 
+      "NAS_CA_PATH=${local.nas_ca_path}",
+      "NAS_USERNAME=${local.nas_username}", 
+      "NAS_PASSWORD=${local.nas_password}", 
     ]
     execute_command  = "echo '${local.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
     script           = "packer-scripts/01-install.sh"
   }
 
+}
+
+// the CA certificate is in a 'ca' folder next to the backup folder on the NAS
+locals {
+  nas_ca_path = regex_replace(var.nas_backup_path, "/[^/]+/?$", "/ca")
 }

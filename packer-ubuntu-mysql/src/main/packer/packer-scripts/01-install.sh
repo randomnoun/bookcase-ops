@@ -28,10 +28,10 @@ echo '>>>> Creating /root/backup-variables.sh'
 
 cat << EOF > /root/backup-variables.sh
 #! /bin/bash
-BACKUP_HOST=${BACKUP_HOST}
-BACKUP_PATH=${BACKUP_PATH}
-BACKUP_USERNAME=${BACKUP_USERNAME}
-BACKUP_PASSWORD=${BACKUP_PASSWORD}
+NAS_HOST=${NAS_HOST}
+NAS_BACKUP_PATH=${NAS_BACKUP_PATH}
+NAS_USERNAME=${NAS_USERNAME}
+NAS_PASSWORD=${NAS_PASSWORD}
 EOF
 
 echo '>>>> Backing up'
@@ -39,7 +39,7 @@ echo '>>>> Backing up'
 
 mkdir -p /opt/backup
 
-sshpass -p ${BACKUP_PASSWORD}  scp -o 'StrictHostKeyChecking no' -r /opt/backup ${BACKUP_USERNAME}@${BACKUP_HOST}:${BACKUP_PATH}
+sshpass -p ${NAS_PASSWORD}  scp -o 'StrictHostKeyChecking no' -r /opt/backup ${NAS_USERNAME}@${NAS_HOST}:${NAS_BACKUP_PATH}
 
 echo '>>>> Copying files from /tmp/packer to filesystem'
  
