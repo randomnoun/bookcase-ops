@@ -74,6 +74,11 @@ spec:
               value: "{{litellm_langfuse_public_key}}"
             - name: LANGFUSE_SECRET_KEY
               value: "{{litellm_langfuse_secret_key}}"
+{% if litellm_langfuse_capture_message_content %}
+            # without this litellm sends langfuse the tokens, cost and timing of each request but not the prompts and responses
+            - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+              value: "{{litellm_langfuse_capture_message_content}}"
+{% endif %}
 {% endif %}
           resources:
             limits:

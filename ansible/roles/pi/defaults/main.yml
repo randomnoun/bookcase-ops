@@ -26,3 +26,8 @@ pi_default_model: ""
 # each model's context window is read from its num_ctx in litellm. Ollama
 # models with no num_ctx there get the global ollama_context_length from
 # host_vars/localhost.yml (not defined here - it would override it).
+
+# Per-model output token limits ( pi's own default is 16384 ). A rule applies to every litellm model
+# whose api_base contains api_base_contains; models matching no rule keep pi's default. Example:
+#   - { api_base_contains: "web.dev-tabbyapi", max_tokens: 32768 }
+pi_max_tokens_rules: []

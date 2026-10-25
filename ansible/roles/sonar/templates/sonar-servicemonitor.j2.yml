@@ -1,0 +1,18 @@
+# needs the prometheus operator's ServiceMonitor CRD, so the prometheus role has to have been applied first.
+# prometheus only picks this up because of the 'prometheus: default' label here and the 'prometheusEnabled'
+# label on the namespace, see roles/prometheus/templates/03-prometheus-values.j2.yml
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sonar
+  labels:
+    prometheus: default
+spec:
+  selector:
+    matchLabels:
+      app: sonar-web
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

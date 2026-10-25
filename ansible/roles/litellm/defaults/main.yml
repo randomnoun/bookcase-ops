@@ -18,3 +18,9 @@ litellm_salt_key: ""
 litellm_langfuse_host: ""
 litellm_langfuse_public_key: ""
 litellm_langfuse_secret_key: ""
+
+# Whether the prompts and responses are sent to langfuse, as well as the tokens, cost and timing. Empty = litellm's
+# default, which is not to ( "no_content" ), so langfuse's Sessions and Tracing pages show no messages.
+# "span_only" puts them on the trace, which is what langfuse reads. Other values litellm accepts are "event_only"
+# and "span_and_event", but I don't think langfuse reads those. This stores every prompt and response in langfuse.
+litellm_langfuse_capture_message_content: ""

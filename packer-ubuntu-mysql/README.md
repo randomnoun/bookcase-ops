@@ -32,6 +32,13 @@ file.
 Copy the [src/main/packer/vars.json.sample](src/main/packer/vars.json.sample) file to `src/main/packer/vars.json` and set your passwords there
 before running the build script.
 
+The passwords are:
+
+* `mysql_root_password` - the mysql `root` user
+* `postgres_password` - the postgres `postgres` user
+* `clickhouse_password` - the clickhouse `default` user. It's stored on the VM as a SHA-256 hash, not as plain text.
+* `nas_host`, `nas_backup_path`, `nas_username` and `nas_password` - the NAS the build copies an ( empty ) backup folder to over ssh
+
 # Creating the VM 
 
 ```
@@ -48,4 +55,6 @@ I'm also using the mysql virtual machine to run the vault server, so hop on over
 * Logs are written to /opt/packer/packer-install.log within the VM
 * The mysql root password is updated as per the version file and downgraded to a `mysql_native_password` password to allow old clients to connect
 * The mysql server is bound to all interfaces (0.0.0.0)
+* clickhouse is installed from the clickhouse apt repository ( for langfuse ), and is also bound to all interfaces. It listens on 8123 ( HTTP ) and 9000 ( native ). 
+  The `default` user has the password above; create a separate database and user for each application, see [SETUP-DATABASE.md](../setup/SETUP-DATABASE.md)
 

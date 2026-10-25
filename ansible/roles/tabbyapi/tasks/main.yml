@@ -3,7 +3,7 @@
     that:
       - tabbyapi_api_key | length > 0
       - tabbyapi_admin_key | length > 0
-    fail_msg: "set tabbyapi_api_key and tabbyapi_admin_key (see setup/SETUP-LLM.md)"
+    fail_msg: "set tabbyapi_api_key and tabbyapi_admin_key (see setup/SETUP-LLM-BACKEND.md)"
 
 - name: "kubernetes namespace tabbyapi"
   k8s:

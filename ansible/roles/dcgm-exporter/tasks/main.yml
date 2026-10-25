@@ -1,0 +1,23 @@
+# requires the helm repo to already be added locally:
+#   helm repo add gpu-helm-charts https://nvidia.github.io/dcgm-exporter/helm-charts
+#   helm repo update
+#
+# also needs the prometheus role to have been applied first, because the chart
+# creates a ServiceMonitor, which needs the prometheus operator's CRD to exist.
+
+- name: "kubernetes namespace dcgm-exporter"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_dcgm_exporter }}"
+    wait: true
+    definition: "{{ lookup('template', 'dcgm-exporter-namespace.j2.yml')  }}"
+
+- name: "kubernetes dcgm-exporter"
+  kubernetes.core.helm:
+    context: "{{ kube_context_dcgm_exporter }}"
+    release_namespace: "{{ kube_namespace_dcgm_exporter }}"
+    release_name: "dcgm-exporter"
+    wait: true
+    chart_ref: "gpu-helm-charts/dcgm-exporter"
+    chart_version: "{{ dcgm_exporter_chart_version }}"
+    values: "{{ lookup('template', 'dcgm-exporter-helm-values.j2.yml') | from_yaml }}"

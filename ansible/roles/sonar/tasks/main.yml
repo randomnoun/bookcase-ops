@@ -38,3 +38,11 @@
     wait_timeout: 1800
     definition: "{{ lookup('template', 'sonar.j2.yml')  }}"
   when: sonar_model | length > 0
+
+- name: "kubernetes servicemonitor sonar"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_sonar }}"
+    namespace: "{{ kube_namespace_sonar }}"
+    definition: "{{ lookup('template', 'sonar-servicemonitor.j2.yml')  }}"
+  when: sonar_model | length > 0

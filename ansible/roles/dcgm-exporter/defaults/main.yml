@@ -1,0 +1,11 @@
+kube_context_dcgm_exporter: ""
+kube_namespace_dcgm_exporter: "dcgm-exporter"
+
+dcgm_exporter_node_selector_key: "gpu-vendor"
+dcgm_exporter_node_selector_value: "nvidia"
+
+# must match the RuntimeClass name registered by the nvidia-device-plugin role
+dcgm_exporter_runtime_class_name: "nvidia"
+
+# pinned chart version, see `helm search repo gpu-helm-charts/dcgm-exporter --versions`
+dcgm_exporter_chart_version: "4.8.4"

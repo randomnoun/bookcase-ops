@@ -9,6 +9,8 @@ The is the node bit.
 
 It obtains the credentials to join the cluster from bnenas05 via ssh ( the credentials are copied there as part of the API server installation, but I'll probably move those to vault instead soon ). 
 
+It also copies the CA certificate from bnenas05 and installs it in the VM's trust store, before containerd is installed, so containerd trusts the internal certificates ( for example nexus3's docker registries ) from its first start.
+
 # Layout
 
 * `src/main/packer/common/` - files shared between all variants (cloud-init template, base install script, filesystem overlay)

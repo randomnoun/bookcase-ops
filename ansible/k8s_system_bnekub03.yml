@@ -32,6 +32,11 @@
           role: prometheus
           var_files: [bnekub03]
 
+        # after prometheus: its chart creates a ServiceMonitor, which needs prometheus' CRDs
+        - name: dcgm-exporter
+          role: dcgm-exporter
+          var_files: [bnekub03]
+
         - name: grafana
           role: grafana
           var_files: [bnekub03]

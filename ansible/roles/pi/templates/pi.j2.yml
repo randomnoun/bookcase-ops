@@ -51,6 +51,9 @@ data:
     // litellm's /models has no such field; /model/info (at the proxy root, not /v1) has num_ctx in litellm_params.
     // Ollama models without a num_ctx get the ollama server default; other providers are left unset.
     const ctx = {};
+    // per-model output token limits, matched on the model's api_base ( see pi_max_tokens_rules ); pi's default is 16384
+    const maxOut = {};
+    const rules = {{ pi_max_tokens_rules | to_json }};
     try {
       const ir = await fetch(base.replace(/\/v1$/, '') + '/model/info', {
         headers: { Authorization: 'Bearer ' + process.env.LITELLM_API_KEY },
@@ -61,6 +64,8 @@ data:
         let n = Number(p.num_ctx);
         if (!(n > 0) && String(p.custom_llm_provider || '').startsWith('ollama')) n = {{ ollama_context_length }};
         if (n > 0 && ctx[e.model_name] === undefined) ctx[e.model_name] = n;
+        const rule = rules.find((r) => String(p.api_base || '').includes(r.api_base_contains));
+        if (rule && maxOut[e.model_name] === undefined) maxOut[e.model_name] = rule.max_tokens;
       }
     } catch (err) {
       console.log('WARNING: could not read context windows from litellm /model/info (' + err.message + '); leaving them unset');
@@ -72,8 +77,16 @@ data:
           api: 'openai-completions',
           apiKey: '${LITELLM_API_KEY}',
           // pi sends the OpenAI 'store' param by default; litellm rejects it for ollama models (HTTP 400 UnsupportedParamsError)
-          compat: { supportsStore: false },
-          models: ids.map((id) => (ctx[id] ? { id: id, contextWindow: ctx[id] } : { id: id })),
+          // The 'openrouter' session affinity format sends pi's session id as an x-session-id header, which litellm
+          // reads and passes on to langfuse, so each pi session shows up under Sessions there. ( The 'openai' format
+          // sends session_id, which litellm only honours from codex clients. )
+          compat: { supportsStore: false, sendSessionAffinityHeaders: true, sessionAffinityFormat: 'openrouter' },
+          models: ids.map((id) => {
+            const m = { id: id };
+            if (ctx[id]) m.contextWindow = ctx[id];
+            if (maxOut[id]) m.maxTokens = maxOut[id];
+            return m;
+          }),
         },
       },
     };
@@ -81,7 +94,7 @@ data:
     mkdirSync(dir, { recursive: true });
     writeFileSync(dir + '/models.json.tmp', JSON.stringify(cfg, null, 2));
     renameSync(dir + '/models.json.tmp', dir + '/models.json');
-    console.log('models.json: ' + ids.length + ' models: ' + ids.map((id) => id + (ctx[id] ? ' (' + ctx[id] + ')' : '')).join(', '));
+    console.log('models.json: ' + ids.length + ' models: ' + ids.map((id) => id + (ctx[id] || maxOut[id] ? ' (' + [ctx[id] ? 'ctx ' + ctx[id] : '', maxOut[id] ? 'max out ' + maxOut[id] : ''].filter(Boolean).join(', ') + ')' : '')).join(', '));
   start.sh: |
     #!/bin/bash
     set -e
