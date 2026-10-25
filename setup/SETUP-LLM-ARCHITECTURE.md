@@ -70,7 +70,7 @@ flowchart TB
     agents -.->|"PVCs<br/>(sessions, repos)"| nfs
 ```
 
-So the plan is that whilst I"m still working out how this is supposed to work, I'll have a few different frontends / UIs, and a few different backends.
+So the plan is that whilst I'm still working out how this is supposed to work, I'll have a few different frontends / UIs, and a few different backends.
 
 Everything will get funnelled through litellm, which will act as a proxy for the frontends to talk to the backends.  
 This should keep most of the LLM config is centralised somewhere, and should make it easier to connect to remote LLMs later. 

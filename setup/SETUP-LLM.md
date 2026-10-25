@@ -1,6 +1,6 @@
 # bookcase-ops LLM setup
 
-A maze of twisty little components, all alike. This page is the index; the details are in these files:
+This page is the index; details are in these files:
 
 | File | What's in it |
 |---|---|

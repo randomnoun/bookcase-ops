@@ -35,8 +35,8 @@ sonar_registry_password: ""
 #   GGUF:  a path to a .gguf file, e.g. /root/.cache/gguf/Qwen3-Coder-30B-A3B-Q4_K_M.gguf
 sonar_model: ""
 
-# the name sonar serves the model under, and what goes in litellm's "LiteLLM Model Name".
-# It doesn't need to change with the model: the model-specific name is litellm's "Model Name".
+# the name sonar serves the model under, and what goes in litellm's "LiteLLM Model Name(s)" ( as a Custom Model Name ).
+# It doesn't need to change with the model: the model-specific name is litellm's "Public Model Name".
 sonar_served_model_name: "local-sonar"
 
 # HF branch/tag. EXL3 repos publish each bits-per-weight as its own

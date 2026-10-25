@@ -51,8 +51,8 @@ Configure the models these in litellm via:
 
 * Models → Add New Model
    * Provider: **Ollama Chat** ( not plain `Ollama` )
-   * Model Name: local-qwen3-coder:30b
-   * LiteLLM Model Name: qwen3-coder:30b
+   * LiteLLM Model Name(s): select **Custom Model Name**, then enter `qwen3-coder:30b` ( the name it has in ollama )
+   * Model Mappings - Public Model Name: `local-qwen3-coder:30b` ( what litellm clients ask for )
    * API Base: http://web.dev-ollama.svc.cluster.local:11434
    * Try 'test connection' and then save
 * Repeat for all models
@@ -61,7 +61,7 @@ Configure the models these in litellm via:
    * In the 'LiteLLM Params' at the bottom of the page, add `"num_ctx": 65536` to the JSON
    * 'Save changes' 
 
-**A note on naming:** Model name is what litellm clients ask for, and LiteLLM model name is what's installed in ollama.
+**A note on naming:** The public model name is what litellm clients ask for, and the LiteLLM model name is what's installed in ollama.
 I'm using `local-*` to differentiate local models from paid models, when I add those I'll add service-provider prefixes. 
 
 Use the `local-*` names in `pi_default_model` and `opencode_default_model` in the vars files.
@@ -251,8 +251,8 @@ Add it as an OpenAI-compatible provider ( not Ollama Chat ):
 
 * Models → Add New Model
    * Provider: **OpenAI-Compatible Endpoints**
-   * Model Name: `local-sonar-<something>`, e.g. `local-sonar-qwen3.8:27b-5bpw`
-   * LiteLLM Model Name: `local-sonar` ( sonar serves every model under this name; it's `sonar_served_model_name` in the role defaults )
+   * LiteLLM Model Name(s): select **Custom Model Name**, then enter `local-sonar` ( sonar serves every model under this name; it's `sonar_served_model_name` in the role defaults )
+   * Model Mappings - Public Model Name: `local-sonar-<something>`, e.g. `local-sonar-qwen3.8:27b-5bpw` ( what litellm clients ask for )
    * API Base: `http://web.dev-sonar.svc.cluster.local:2242/v1`
    * API Key: any non-empty string
    * Try 'test connection' and then save
@@ -260,7 +260,7 @@ Add it as an OpenAI-compatible provider ( not Ollama Chat ):
   They have to go here, because sonar has no server-wide default for them:
    * `"num_ctx": 262144` - the context window, equal to `sonar_max_model_len`. It's only used so pi and opencode know the window ( sonar itself ignores it ); 
      without it pi falls back to its default. Run `pi-sync-models` afterwards ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#pi) ), and restart opencode.
-   * `"reasoning_effort": "medium"` - written into the prompt, so the model knows to keep its thinking short. 
+   * `"reasoning_effort": "xhigh"` - written into the prompt, so the model knows to keep its thinking short. 
      The model's chat template accepts `low`, `medium` and `xhigh` ( the default ); `high` and `max` are rejected with a 400.
    * `"extra_body": {"thinking_token_budget": 8192}` - a hard limit on thinking tokens. When it's reached, sonar forces the thinking to end and the model goes on to its answer, so the answer isn't lost ( the thinking is cut off mid-sentence ). 
      I tested it at 50 tokens: the answer still came back, with about 100 characters of thinking. 8192 is a guess based on the longest legitimate turn seen so far ( about 5,300 tokens ); adjust it once you've seen more.
@@ -362,15 +362,15 @@ Add it as an OpenAI-compatible provider:
 
 * Models → Add New Model
    * Provider: **OpenAI-Compatible Endpoints**
-   * Model Name: `local-tabbyapi-<something>`, e.g. `local-tabbyapi-qwen3.8:27b-5bpw`
-   * LiteLLM Model Name: the folder name of the loaded model, e.g. `Qwen3.8-27B-exl3-5.00bpw`
+   * LiteLLM Model Name(s): select **Custom Model Name**, then enter the folder name of the loaded model, e.g. `Qwen3.8-27B-exl3-5.00bpw`
+   * Model Mappings - Public Model Name: `local-tabbyapi-<something>`, e.g. `local-tabbyapi-qwen3.8:27b-5bpw` ( what litellm clients ask for )
    * API Base: `http://web.dev-tabbyapi.svc.cluster.local:5000/v1`
-   * API Key: the `api_key` from vault
+   * API Key: the `api_key` from vault, via `vault kv get -mount=secret -field=api_key k8s/bnekub03/secret/dev-tabbyapi/tabbyapi` ( run `vault login` first )
    * Try 'test connection' and then save
 * Then select the model, click 'Edit Settings', and add these to the 'LiteLLM Params' at the bottom of the page, and 'Save changes':
    * `"num_ctx": 262144` - the context window, equal to `tabbyapi_max_seq_len`. It's only used so pi and opencode know the window ( tabbyapi itself ignores it ); 
      without it pi falls back to its default. Run `pi-sync-models` afterwards ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#pi) ), and restart opencode.
-   * `"reasoning_effort": "medium"` - written into the prompt, so the model knows to keep its thinking short. tabbyapi's config says it passes this top-level field to the chat template. 
+   * `"reasoning_effort": "xhigh"` - written into the prompt, so the model knows to keep its thinking short. tabbyapi's config says it passes this top-level field to the chat template. 
      The model's template accepts `low`, `medium` and `xhigh` ( the default ); `high` and `max` are rejected.
    * `"extra_body": {"thinking_token_budget": 8192}` - a hard limit on thinking tokens, so a long thought can't use up the whole output limit and leave no answer ( clients report that as "Response was truncated" ). 
      tabbyapi's config lists `thinking_token_budget` as an alias of its `reasoning_budget_tokens` request field, so the same setting as sonar should work, but I haven't tested it on tabbyapi. 
