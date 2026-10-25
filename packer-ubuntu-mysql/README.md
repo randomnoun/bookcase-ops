@@ -1,9 +1,11 @@
 
 # packer-ubuntu-mysql
 
-**packer-ubuntu-mysql**  creates a MySQL server VM on ESX 6.0 using packer  
+**packer-ubuntu-mysql**  creates a database VM on ESX 6.0 using packer. It started out just holding mysql, but it now holds vault, postgresql and clickhouse. 
 
-I'm running mysql on a VM rather than a k8s container because in my experience, k8s containers have half-lives that can be measured in days,
+vault is installed manually, but the others are provisioned via packer.  
+
+I'm running my databases on a VM rather than a k8s container because in my experience, k8s containers have half-lives that can be measured in days,
 and I like my databases to not have the rug pulled out from underneath them every so often to really test their resilience to 
 data corruption.
 
