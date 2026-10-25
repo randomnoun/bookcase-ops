@@ -16,9 +16,9 @@ First create the dataset
 
 1. Open TrueNAS webapp at http://bnenas05.dev.randomnoun/
 2. Navigate to Datasets.
-3. Select the exiseting 'compressed' dataset, and create a sub-dataset called 'datasets'
-4. Accept the defaults and click Save
-4. Select the 'datasets' dataset, and create a sub-dataset called 'restfs'. Change the Dataset Preset to Apps.
+3. Select the existing `compressed` dataset, and create a sub-dataset called `datasets`
+4. Accept defaults and click Save
+4. Select the `datasets` dataset, and create a sub-dataset called `restfs`. Change the Dataset Preset to Apps.
 6. Click Save.
 
 ## The app
@@ -29,8 +29,7 @@ First create the dataset
 
 | Section | Setting | Value |
 |--|--|--|
-| Application Name | Name | Leave default (rustfs) |
-| RustFS Configuration | Deployment Mode Single disk node (SNSD) (Default for single servers) |
+| RustFS Configuration | Deployment Mode | Single disk node (SNSD) (Default for single servers) |
 | | Access Key | `knoxg` |
 | | Secret Key | `super-secret-password` |
 | Storage Configuration | Type | Select Host Path |
