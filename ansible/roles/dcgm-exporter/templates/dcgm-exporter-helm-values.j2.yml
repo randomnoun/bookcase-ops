@@ -1,0 +1,27 @@
+# see https://github.com/NVIDIA/dcgm-exporter/blob/main/deployment/values.yaml
+#
+# Deliberately does NOT request nvidia.com/gpu. Requesting a GPU reserves it for
+# the pod, and ollama / sonar / tabbyapi each need both GPUs on the node, so an
+# exporter holding one would stop the backends scheduling ( or be stuck Pending
+# itself ). Reading telemetry through NVML only needs the nvidia runtime to mount
+# the driver libraries and device nodes, which is what the runtimeClassName and
+# NVIDIA_VISIBLE_DEVICES below do - the same way the nvidia-device-plugin pod
+# can run nvidia-smi without owning a GPU.
+
+nodeSelector:
+  {{ dcgm_exporter_node_selector_key }}: "{{ dcgm_exporter_node_selector_value }}"
+
+runtimeClassName: "{{ dcgm_exporter_runtime_class_name }}"
+
+extraEnv:
+  - name: NVIDIA_VISIBLE_DEVICES
+    value: "all"
+  - name: NVIDIA_DRIVER_CAPABILITIES
+    value: "compute,utility"
+
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    # this label is required in order to match the serviceMonitorSelector in
+    # roles/prometheus/templates/03-prometheus-values.j2.yml
+    prometheus: default

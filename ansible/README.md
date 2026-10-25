@@ -23,6 +23,7 @@ helm repo add democratic-csi https://democratic-csi.github.io/charts/
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo add nvdp https://nvidia.github.io/k8s-device-plugin
+helm repo add gpu-helm-charts https://nvidia.github.io/dcgm-exporter/helm-charts
 helm repo update
 
 helm plugin install https://github.com/databus23/helm-diff
@@ -59,6 +60,9 @@ The system components installed are:
 * **nvidia-device-plugin**
    * advertises `nvidia.com/gpu` as a schedulable resource for any node labelled `gpu-vendor=nvidia`, and registers an `nvidia` RuntimeClass so pods (including the plugin itself) actually run under containerd's nvidia runtime rather than plain `runc`.
    * the chart's own default node affinity expects Node Feature Discovery labels we don't run; it's overridden off (see the comments in `nvidia-device-plugin-helm-values.j2.yml`)
+* **dcgm-exporter**
+   * [NVIDIA's DCGM exporter](https://github.com/NVIDIA/dcgm-exporter), publishing GPU utilisation, VRAM, power, temperature and clocks to prometheus. Needs the `prometheus` role applied first, because its chart creates a `ServiceMonitor`.
+   * it deliberately doesn't request `nvidia.com/gpu`, so it can read the GPUs while ollama / sonar / tabbyapi hold them; see the comments in `dcgm-exporter-helm-values.j2.yml`.
 * **local-path-provisioner**
    * [Rancher's local-path-provisioner](https://github.com/rancher/local-path-provisioner), giving a `bnenod05-local-path` StorageClass backed by local disk on bnenod05 rather than NFS. 
    * Used for things like ollama's model storage, which is pinned to a node with dedicated GPU and storage; a local disk avoids the latency of loading large model files over the network.
