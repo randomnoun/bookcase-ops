@@ -4,7 +4,9 @@ This project uses the free version of [TrueNAS SCALE](https://www.truenas.com/do
 
 TrueNAS is the successor to FreeNAS, and 'TrueNAS SCALE' is the version of TrueNAS that runs on Linux, as opposed to FreeBSD. Which is the one you are definitely going to prefer the first time you try to run something on there that you need to install yourself. 
 
-The TrueNAS server in this project is called `bnenas05.dev.randomnoun`, so if you want to call it something different then do a search & replace on that.
+The TrueNAS server in this project is called `bnenas05.dev.randomnoun`, so if you want to call it something different then do a search & replace on that. 
+
+The screenshots below still show bnenas04, but it's the same sort of thing.
 
 # Installation
 

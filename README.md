@@ -23,6 +23,7 @@ Okay so what you've got is:
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
    * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configuration for the things in this project
    * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS SCALE
+   * [SETUP-RUSTFS.md](setup/SETUP-RUSTFS.md) - setting up rustfs (s3-like storage provider), also on the NAS
    * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.5; used this for the initial set of VMs, including the k8s API server and node
    * [SETUP-PROXMOX.md](setup/SETUP-PROXMOX.md) - setting up the free version of proxmox; used this for the k8s node that runs the LLM stuff
 * [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run vault, MySQL, postgres and clickhouse , on ubuntu 24
