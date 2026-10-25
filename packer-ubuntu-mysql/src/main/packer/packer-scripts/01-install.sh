@@ -80,6 +80,42 @@ fi
 # sudo ufw allow 5432/tcp
 systemctl restart postgresql
 
+# for langfuse
+echo '>>>> Installing clickhouse'
+apt-get install -y apt-transport-https ca-certificates curl gnupg jq
+curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg
+ARCH=$(dpkg --print-architecture)
+echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=${ARCH}] https://packages.clickhouse.com/deb stable main" | tee /etc/apt/sources.list.d/clickhouse.list
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y clickhouse-server clickhouse-client
+
+echo '>>>> Configuring clickhouse default user password'
+# stored as a sha256 hash, which also avoids having to xml-escape the password
+CLICKHOUSE_PASSWORD_SHA256=$(echo -n "${CLICKHOUSE_PASSWORD}" | sha256sum | cut -d' ' -f1)
+tee /etc/clickhouse-server/users.d/default-password.xml <<EOF
+<clickhouse>
+    <users>
+        <default>
+            <password remove="1"/>
+            <password_sha256_hex>${CLICKHOUSE_PASSWORD_SHA256}</password_sha256_hex>
+        </default>
+    </users>
+</clickhouse>
+EOF
+chown clickhouse:clickhouse /etc/clickhouse-server/users.d/default-password.xml
+chmod 600 /etc/clickhouse-server/users.d/default-password.xml
+
+echo '>>>> Binding clickhouse to 0.0.0.0 (all interfaces)'
+tee /etc/clickhouse-server/config.d/listen.xml <<EOF
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+</clickhouse>
+EOF
+chown clickhouse:clickhouse /etc/clickhouse-server/config.d/listen.xml
+
+systemctl enable clickhouse-server
+systemctl start clickhouse-server
+
 echo '>>>> ip addr show'
 ip addr show
 

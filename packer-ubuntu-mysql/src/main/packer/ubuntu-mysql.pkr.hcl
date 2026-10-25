@@ -16,6 +16,8 @@ variable "builder_disksize" { type = string }
 variable "builder_ethernet0_mac" { type = string }
 
 variable "mysql_root_password" { type = string }
+variable "postgres_password" { type = string }
+variable "clickhouse_password" { type = string }
 
 variable "nas_host" { type = string }
 variable "nas_backup_path" { type = string }
@@ -111,7 +113,8 @@ build {
       "NAS_USERNAME=${var.nas_username}", 
       "NAS_PASSWORD=${var.nas_password}", 
       "MYSQL_ROOT_PASSWORD=${var.mysql_root_password}",
-      "POSTGRES_PASSWORD=${var.postgres_password}"
+      "POSTGRES_PASSWORD=${var.postgres_password}",
+      "CLICKHOUSE_PASSWORD=${var.clickhouse_password}"
     ]
     execute_command  = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
     script           = "packer-scripts/01-install.sh"
