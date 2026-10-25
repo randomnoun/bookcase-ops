@@ -48,17 +48,17 @@ Okay so what you've got is:
    * atuin - shell history server
    * wakapi - developer time tracker
 * [SETUP-LLM.md](setup/SETUP-LLM.md) - the large language model server, node and containers. This is the index to the pages below
-   * [SETUP-LLM-ARCHITECTURE.md](setup/SETUP-LLM-ARCHITECTURE.md) has a diagram of how it all fits together
-   * added a proxmox variant of `packer-ubuntu-kubernetes-node`; creating the GPU node from it is in [SETUP-LLM-KUBERNETES.md](setup/SETUP-LLM-KUBERNETES.md)
-   * Some middleware ( [SETUP-LLM-MIDDLEWARE.md](setup/SETUP-LLM-MIDDLEWARE.md) )
+   * [SETUP-LLM-ARCHITECTURE.md](setup/SETUP-LLM-ARCHITECTURE.md) - a diagram of how it all fits together
+   * [SETUP-LLM-KUBERNETES.md](setup/SETUP-LLM-KUBERNETES.md) - added a proxmox variant of `packer-ubuntu-kubernetes-node` with access to the GPUs 
+   * [SETUP-LLM-MIDDLEWARE.md](setup/SETUP-LLM-MIDDLEWARE.md) - some middleware
       * litellm - an LLM proxy
       * searxng - a search proxy for LLMs
       * langfuse - a log/observation thing for LLMs
-   * Some backends ( [SETUP-LLM-BACKEND.md](setup/SETUP-LLM-BACKEND.md) )
+   * [SETUP-LLM-BACKEND.md](setup/SETUP-LLM-BACKEND.md) - some backends
       * ollama - an LLM engine
       * sonar - another one of those
       * tabbyapi - another one of those
-   * Some frontends ( [SETUP-LLM-FRONTEND.md](setup/SETUP-LLM-FRONTEND.md) )
+   * [SETUP-LLM-FRONTEND.md](setup/SETUP-LLM-FRONTEND.md) - some frontends
       * open-webui - a simple frontend to that ( connects to litellm )
       * pi - minimalistic terminal coding harness 
       * opencode - an "AI terminal" for interactive coding sessions
