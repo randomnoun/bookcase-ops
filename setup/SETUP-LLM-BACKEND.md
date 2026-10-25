@@ -57,7 +57,7 @@ Configure the models these in litellm via:
    * Try 'test connection' and then save
 * Repeat for all models
 * Once you've created them, you can specify per-model context windows
-   * I'm just trying this in `local-qwen3:30b` for now; selet that and click 'Edit Settings'
+   * I'm just trying this in `local-qwen3:30b` for now; select that and click 'Edit Settings'
    * In the 'LiteLLM Params' at the bottom of the page, add `"num_ctx": 65536` to the JSON
    * 'Save changes' 
 
@@ -133,27 +133,9 @@ Like ollama it's pinned to `bnenod05`, requests the GPUs, has no Ingress/TLS and
 
 * **It competes with ollama and tabbyapi for the GPUs**, and starts scaled to 0. See [Switching between engines](#switching-between-engines).
   ( Alternatively set two of them to 1 GPU ( and `sonar_tensor_parallel_size: 1` ) and run a small model in each. )
-* **One model per deployment.** Sonar loads a single model at startup and keeps it resident; there's no `pull`. Set `sonar_model` in
-  `vars/sonar/bnekub03.vars.yml` and re-run the role to change it ( until it's set, the role does nothing ).
-  Weights are downloaded from HuggingFace on first start into the PVC, so the first start takes a while; `kubectl -n dev-sonar logs -f deploy/sonar`.
-* **EXL3:** set `sonar_model` to the repo and `sonar_model_revision` to the bits-per-weight branch ( e.g. `5.00bpw` ). Leave `sonar_quantization` empty;
-  sonar works out EXL3 from the model files ( `"exl2"`, the role default, is wrong for an EXL3 repo ).
-* **GGUF:** set `sonar_model` to a path to a `.gguf` file on the PVC, and `sonar_tokenizer` to the HF repo of the original model.  Copy the file in via `kubectl -n dev-sonar cp`.
-* **The VRAM budget is different to ollama's.** Sonar reserves `sonar_gpu_memory_utilization` ( 0.92 in the vars file ) of each GPU and
-  pre-allocates the KV cache at startup. If the model doesn't fit it fails to start rather than spilling onto the CPU.
-  Two 24GB 3090s give around 41GB usable at 0.92, so a 70b at 4.0bpw is tight and needs a shorter `sonar_max_model_len`.
-  `sonar_max_model_len` only sets the longest single request; the size of the KV cache pool comes from whatever VRAM is left after the weights.
-* **A HuggingFace token** ( `sonar_hf_token`, read from vault ) isn't needed for public repos, but unauthenticated downloads are slower and rate limited.
-  Store a read-only token with the command in [SETUP-DATABASE.md](SETUP-DATABASE.md).
-* **The first download is slow, and sonar's startup probe allows a long time for it** ( 2 hours ). Watch progress by listing the `.incomplete` files in the model cache,
-  not with `du` on the model folder, which doesn't count finished files:
+* **One model per deployment.** Sonar loads a single model at startup and keeps it resident; there's no `pull`. The role does nothing until `sonar_model` is set.
 
-  ```
-  kubectl -n dev-sonar exec deploy/sonar -- sh -c 'ls -l /root/.cache/huggingface/hub/models--*/blobs/ | grep incomplete'
-  kubectl -n dev-sonar exec deploy/sonar -- du -sh /root/.cache/huggingface/hub
-  ```
-
-  If a download was interrupted, the abandoned `.incomplete` files stay on the PVC. Once nothing has them open and the finished shards are the right size, they can be deleted by hand.
+### Build the image
 
 There's no prebuilt image of current Sonar on Docker Hub or ghcr.io, so to use it you build one yourself from
 [dphnAI/sonar](https://github.com/dphnAI/sonar) and push it to nexus3
@@ -188,46 +170,104 @@ docker save -o sonar.tar docker-releases.nexus3.dev.randomnoun/sonar:0.24.1
 skopeo copy --dest-creds USER:PASS docker-archive:sonar.tar docker://docker-releases.nexus3.dev.randomnoun/sonar:0.24.1
 ```
 
-`bnenod05` has to trust the CA that signed the nexus3 certificate ( see [SETUP-LLM-KUBERNETES.md](SETUP-LLM-KUBERNETES.md) ), and containerd has to be restarted after installing it.
 Try this from `bnenod05` to check that worked
 
 ```
 sudo ctr -n k8s.io images pull docker-combined.nexus3.dev.randomnoun/sonar:0.24.1
 ```
 
-Configure the model in litellm as an OpenAI-compatible provider ( not Ollama Chat ):
+### Install the model
+
+Everything specific to the model is in `vars/sonar/bnekub03.vars.yml` ( with comments ). To change model, edit it and re-run the role.
+
+Prerequisite: the sonar secret in vault, see [SETUP-DATABASE.md](SETUP-DATABASE.md). That's a HuggingFace token, read as `sonar_hf_token`; it isn't needed for public repos, 
+but unauthenticated downloads are slower and rate limited.
+
+1. Choose the model:
+
+   ```
+   sonar_model: "turboderp/Qwen3.8-27B-exl3"
+   sonar_model_revision: "5.00bpw"
+   ```
+
+   EXL3 repos publish each bits-per-weight as its own branch, which `sonar_model_revision` selects. Leave `sonar_quantization` empty; sonar works out EXL3 from the model files.
+   For a GGUF model, set `sonar_model` to the path of a `.gguf` file on the PVC ( copy it in via `kubectl -n dev-sonar cp` ), and `sonar_tokenizer` to the HF repo of the original model.
+
+2. Set the context length and memory:
+
+   ```
+   sonar_max_model_len: "262144"
+   sonar_gpu_memory_utilization: "0.92"
+   ```
+
+   Unlike ollama, sonar reserves `sonar_gpu_memory_utilization` of each GPU up front. If the model doesn't fit it fails to start, rather than spilling onto the CPU.
+   Two 24GB 3090s give around 41GB usable at 0.92, so a 70b at 4.0bpw is tight and needs a shorter `sonar_max_model_len`.
+   `sonar_max_model_len` only sets the longest single request; the size of the KV cache pool comes from whatever VRAM is left after the weights.
+
+3. Set the tool-call and reasoning flags in `sonar_extra_args`:
+
+   ```
+   sonar_extra_args:
+     - "--trust-remote-code"
+     - "--kv-cache-dtype=fp8"
+     - "--enable-auto-tool-choice"
+     - "--tool-call-parser=qwen3_coder"
+     - "--reasoning-parser=qwen3"
+   ```
+
+   A model that calls tools needs `--enable-auto-tool-choice` and a parser matching its tool-call format ( `qwen3_coder` for Qwen's `<tool_call><function=...>` ). 
+   Without them, the first request with tools fails with `"auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set`.
+   `--reasoning-parser=qwen3` splits the `<think>` text out of the answer so clients don't show it as part of the reply, and it's also what enables `thinking_token_budget`, below.
+   The valid parser names are in `aphrodite run --help=all`, run inside the pod; I haven't confirmed that every parser works correctly with every model.
+
+4. Deploy, then give sonar the GPUs:
+
+   ```
+   ansible-playbook -vvv -e deployments=bnekub03 -e app=sonar k8s_apps_bnekub03.yml
+   kubectl -n dev-ollama scale deploy/ollama --replicas=0
+   kubectl -n dev-sonar scale deploy/sonar --replicas=1
+   kubectl -n dev-sonar logs -f deploy/sonar
+   ```
+
+The weights are downloaded from HuggingFace on first start into the PVC, so the first start takes a while; sonar's startup probe allows 2 hours for it. 
+You can monitor the download progress via:
+
+```
+kubectl -n dev-sonar exec deploy/sonar -- du -shL /root/.cache/huggingface/hub/models--turboderp--Qwen3.8-27B-exl3
+```
+
+The finished download is about 20GB. The `-L` matters: HuggingFace keeps the finished files outside the model folder, which only links to them, so without it `du` undercounts and the number can even go down. 
+To see which files are still in progress ( they end in `.incomplete` ):
+
+```
+kubectl -n dev-sonar exec deploy/sonar -- sh -c 'ls -l /root/.cache/huggingface/hub/models--*/blobs/ | grep incomplete'
+```
+
+If a download was interrupted, the abandoned `.incomplete` files stay on the PVC. Once nothing has them open and the finished shards are the right size, they can be deleted by hand.
+
+### Configure the model in litellm
+
+Add it as an OpenAI-compatible provider ( not Ollama Chat ):
 
 * Models → Add New Model
    * Provider: **OpenAI-Compatible Endpoints**
    * Model Name: `local-sonar-<something>`, e.g. `local-sonar-qwen3.8:27b-5bpw`
-   * LiteLLM Model Name: the `sonar_served_model_name` value
+   * LiteLLM Model Name: `local-sonar` ( sonar serves every model under this name; it's `sonar_served_model_name` in the role defaults )
    * API Base: `http://web.dev-sonar.svc.cluster.local:2242/v1`
    * API Key: any non-empty string
+   * Try 'test connection' and then save
+* Then select the model, click 'Edit Settings', and add these to the 'LiteLLM Params' at the bottom of the page, and 'Save changes'. 
+  They have to go here, because sonar has no server-wide default for them:
+   * `"num_ctx": 262144` - the context window, equal to `sonar_max_model_len`. It's only used so pi and opencode know the window ( sonar itself ignores it ); 
+     without it pi falls back to its default. Run `pi-sync-models` afterwards ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#pi) ), and restart opencode.
+   * `"reasoning_effort": "medium"` - written into the prompt, so the model knows to keep its thinking short. 
+     The model's chat template accepts `low`, `medium` and `xhigh` ( the default ); `high` and `max` are rejected with a 400.
+   * `"extra_body": {"thinking_token_budget": 8192}` - a hard limit on thinking tokens. When it's reached, sonar forces the thinking to end and the model goes on to its answer, so the answer isn't lost ( the thinking is cut off mid-sentence ). 
+     I tested it at 50 tokens: the answer still came back, with about 100 characters of thinking. 8192 is a guess based on the longest legitimate turn seen so far ( about 5,300 tokens ); adjust it once you've seen more.
 
-### Tool calls and thinking
-
-A reasoning model that calls tools needs a few server flags, which are in `sonar_extra_args` in `vars/sonar/bnekub03.vars.yml` ( with comments ). Without them, 
-the first request with tools fails with `"auto" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set`:
-
-* `--enable-auto-tool-choice` and `--tool-call-parser=qwen3_coder` ( the parser matching Qwen's `<tool_call><function=...>` format )
-* `--reasoning-parser=qwen3`, which splits the `<think>` text out of the answer so clients don't show it as part of the reply. It also enables `thinking_token_budget`, below.
-
-The valid parser names are in `aphrodite run --help=all`, run inside the pod; I haven't confirmed that every parser works correctly with every model.
-
-Qwen thinks by default, and left alone it can spend its whole output limit thinking and never answer, which clients report as "Response was truncated". Don't use `max_tokens` to fix this:
-the model can't see it, so it just truncates the output. Two settings do help, and both go in the model's **LiteLLM Params** ( Models → Edit Settings ), not on the server:
-
-```
-"reasoning_effort": "medium"
-"extra_body": {"thinking_token_budget": 8192}
-```
-
-* `reasoning_effort` is written into the prompt, so the model knows to keep its thinking short. The model's chat template accepts `low`, `medium` and `xhigh` ( the default ); `high` and `max` are rejected with a 400.
-* `thinking_token_budget` is a hard limit on thinking tokens. When it's reached sonar forces the thinking to end, and the model goes on to its answer, so the answer isn't lost. The thinking is cut off mid-sentence.
-  I tested it at 50 tokens: the answer still came back, with about 100 characters of thinking. 8192 is a guess based on the longest legitimate turn seen so far ( about 5,300 tokens ); adjust it once you've seen more.
-
-Neither needs a model reload in pi. If you also want pi and opencode to know the context window, add `"num_ctx"` to the same params, equal to `sonar_max_model_len`, then run `pi-sync-models` ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#pi) ).
-Sonar itself ignores `num_ctx`.
+Qwen thinks by default, and left alone it can spend its whole output limit thinking and never answer, which clients report as "Response was truncated". 
+That's what the last two settings are for. Don't use `max_tokens` instead: the model can't see it, so it just truncates the output.
+None of these need a model reload in pi, apart from the `pi-sync-models` for `num_ctx`.
 
 ### Metrics
 
@@ -244,33 +284,107 @@ kubectl -n dev-sonar logs -f deploy/sonar | grep "Request completed"
 image ( `ghcr.io/theroyallab/tabbyapi` ), so there's nothing to build. Like ollama it's pinned to `bnenod05`, requests the GPUs, has no Ingress/TLS and is consumed via `litellm`.
 Its own README describes it as a hobby project, which is ok for bookcase-ops.
 
-Before you create, will need a litellm key stored in vault, see SETUP-DATABASE.md for details.
+* **It competes with ollama and sonar for the GPUs**, and starts scaled to 0. See [Switching between engines](#switching-between-engines).
+* **One model at a time.** Loading another model unloads the first. Unlike sonar, the pod doesn't fetch the model when it starts: you download it into the PVC through tabbyapi's API, then load it.
 
+### Install the model
 
-Deploy it first with `tabbyapi_model_name` empty ( it comes up at 0 replicas; see [Switching between engines](#switching-between-engines) ), then download an EXL3 model into the PVC. The `/v1/download` endpoint pulls from HuggingFace ( `revision` picks the
-bits-per-weight branch, which EXL3 repos usually publish as separate branches ):
+Everything specific to the model is in `vars/tabbyapi/bnekub03.vars.yml` ( with comments ).
 
-```
-ADMIN=$(vault kv get -mount=secret -field=admin_key k8s/bnekub03/secret/dev-tabbyapi/tabbyapi)
-kubectl -n dev-tabbyapi port-forward svc/web 5000:5000 &
-curl -s http://localhost:5000/v1/download -H "x-admin-key: $ADMIN" -H "Content-Type: application/json" \
-  -d '{"repo_id": "<hf-org>/<model>-exl3", "revision": "4.0bpw", "folder_name": "<model>-exl3-4.0bpw"}'
-```
+Prerequisite: the tabbyapi keys in vault, see [SETUP-DATABASE.md](SETUP-DATABASE.md). The `api_key` is what litellm uses to call tabbyapi, and the `admin_key` is needed to download and load models.
+The role refuses to run without them.
 
-Then set `tabbyapi_model_name` to that folder name in `vars/tabbyapi/bnekub03.vars.yml` and re-run the role ( the pod restarts and loads it ),
-or load it without a restart: `curl http://localhost:5000/v1/model/load -H "x-admin-key: $ADMIN" -H "Content-Type: application/json" -d '{"model_name": "<folder>"}'`.
-`kubectl -n dev-tabbyapi logs -f deploy/tabbyapi` shows the load. I haven't verified the exact EXL3 repo names or branch layout, so check the repo's HuggingFace page first.
+1. Set the context length and cache:
 
-Things that affect speed and fit, all in `defaults/main.yml`:
+   ```
+   tabbyapi_max_seq_len: 262144
+   tabbyapi_cache_mode: "8,8"
+   tabbyapi_tensor_parallel: false
+   ```
 
-* `tabbyapi_tensor_parallel` is off ( autosplit across the two GPUs ). Try `true` as a benchmark; it can be faster, but I haven't verified it works well on 3090s without NVLink.
-* `tabbyapi_cache_mode: "8,8"` quantizes the KV cache to save VRAM, at a small quality cost. `tabbyapi_max_seq_len` sets the context length.
+   `tabbyapi_max_seq_len` is the context length. `tabbyapi_cache_mode: "8,8"` quantizes the KV cache to 8 bits ( the closest match to sonar's `--kv-cache-dtype=fp8` ), which halves its VRAM
+   at a small quality cost; the role default is `FP16`. For this model a full 262144-token cache at 8 bits should be around 8GiB, on top of about 20GB of weights. 
+   I haven't measured that on tabbyapi, so if the model fails to load with an out-of-memory error, lower `tabbyapi_max_seq_len` first.
 
-Configure the model in litellm as an OpenAI-compatible provider:
+   `tabbyapi_tensor_parallel: false` splits the model across both GPUs by filling GPU 0 and then GPU 1 ( autosplit ), where sonar runs tensor-parallel. 
+   Try `true` as a benchmark; it can be faster, but I haven't verified it works well on 3090s without NVLink.
+
+2. Deploy it with `tabbyapi_model_name` still empty. It comes up at 0 replicas; then give it the GPUs, scaling down whichever engine is running first:
+
+   ```
+   ansible-playbook -vvv -e deployments=bnekub03 -e app=tabbyapi k8s_apps_bnekub03.yml
+   kubectl -n dev-sonar scale deploy/sonar --replicas=0
+   kubectl -n dev-tabbyapi scale deploy/tabbyapi --replicas=1
+   kubectl -n dev-tabbyapi logs -f deploy/tabbyapi
+   ```
+
+   ( swap `dev-sonar` / `sonar` for `dev-ollama` / `ollama` if that's what's running ). It starts with no model loaded.
+
+3. Download the model into the PVC. The `/v1/download` endpoint pulls from HuggingFace:
+
+   ```
+   ADMIN=$(vault kv get -mount=secret -field=admin_key k8s/bnekub03/secret/dev-tabbyapi/tabbyapi)
+   kubectl -n dev-tabbyapi port-forward svc/web 5000:5000 &
+   sleep 5   # port-forward returns before the port is open, and the curl fails if it runs too soon
+   curl -s http://localhost:5000/v1/download -H "x-admin-key: $ADMIN" -H "Content-Type: application/json" \
+     -d '{"repo_id": "turboderp/Qwen3.8-27B-exl3", "revision": "5.00bpw", "folder_name": "Qwen3.8-27B-exl3-5.00bpw"}'
+   ```
+
+   EXL3 repos publish each bits-per-weight as its own branch, which `revision` selects ( I've checked that `5.00bpw` exists for this repo ). 
+   `folder_name` is the directory it's saved under in `/app/models`, and what you load the model by. It's about 20GB. 
+   You can monitor the download progress via:
+
+   ```
+   kubectl -n dev-tabbyapi exec deploy/tabbyapi -- du -sh /app/models/Qwen3.8-27B-exl3-5.00bpw
+   ```
+
+4. Load it, either without a restart:
+
+   ```
+   curl http://localhost:5000/v1/model/load -H "x-admin-key: $ADMIN" -H "Content-Type: application/json" -d '{"model_name": "Qwen3.8-27B-exl3-5.00bpw"}'
+   ```
+
+   or, so it's loaded every time the pod starts, set it in the vars file and re-run the role ( the pod restarts and loads it ):
+
+   ```
+   tabbyapi_model_name: "Qwen3.8-27B-exl3-5.00bpw"
+   ```
+
+   Only set `tabbyapi_model_name` once the download has finished; if the folder doesn't exist, tabbyapi fails at startup. `kubectl -n dev-tabbyapi logs -f deploy/tabbyapi` shows the load.
+
+Tool calls and thinking: unlike sonar there are no flags to set. tabbyapi's own config has `tool_format: auto` and `reasoning: true`, and the role leaves both at their defaults, 
+so it should pick the tool-call parser and split the `<think>` text out of the answer from the model's chat template. I haven't confirmed that for this model; 
+if tool calls come back as plain text in pi, that's the place to look.
+
+### Configure the model in litellm
+
+Add it as an OpenAI-compatible provider:
 
 * Models → Add New Model
    * Provider: **OpenAI-Compatible Endpoints**
-   * Model Name: `local-tabby-<something>`
-   * LiteLLM Model Name: the folder name of the loaded model
+   * Model Name: `local-tabbyapi-<something>`, e.g. `local-tabbyapi-qwen3.8:27b-5bpw`
+   * LiteLLM Model Name: the folder name of the loaded model, e.g. `Qwen3.8-27B-exl3-5.00bpw`
    * API Base: `http://web.dev-tabbyapi.svc.cluster.local:5000/v1`
    * API Key: the `api_key` from vault
+   * Try 'test connection' and then save
+* Then select the model, click 'Edit Settings', and add these to the 'LiteLLM Params' at the bottom of the page, and 'Save changes':
+   * `"num_ctx": 262144` - the context window, equal to `tabbyapi_max_seq_len`. It's only used so pi and opencode know the window ( tabbyapi itself ignores it ); 
+     without it pi falls back to its default. Run `pi-sync-models` afterwards ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#pi) ), and restart opencode.
+   * `"reasoning_effort": "medium"` - written into the prompt, so the model knows to keep its thinking short. tabbyapi's config says it passes this top-level field to the chat template. 
+     The model's template accepts `low`, `medium` and `xhigh` ( the default ); `high` and `max` are rejected.
+   * `"extra_body": {"thinking_token_budget": 8192}` - a hard limit on thinking tokens, so a long thought can't use up the whole output limit and leave no answer ( clients report that as "Response was truncated" ). 
+     tabbyapi's config lists `thinking_token_budget` as an alias of its `reasoning_budget_tokens` request field, so the same setting as sonar should work, but I haven't tested it on tabbyapi. 
+     tabbyapi can also apply a budget server-wide with `reasoning_budget_tokens` in its `config.yml`, which the role doesn't expose yet.
+
+Don't use `max_tokens` for this: the model can't see it, so it just truncates the output.
+
+### Metrics
+
+tabbyapi has no Prometheus support, so there's nothing to scrape; see [SETUP-GRAFANA.md](SETUP-GRAFANA.md#tabbyapi--no-metrics-) for what to use instead. 
+It logs a line per request with the tokens generated and tokens/sec, which is the number to compare with sonar's `Request completed` line:
+
+```
+kubectl -n dev-tabbyapi logs -f deploy/tabbyapi | grep -i "tokens generated"
+```
+
+The wording of that line is from reading tabbyapi's source, not from seeing it run, so adjust the `grep` if it doesn't match.

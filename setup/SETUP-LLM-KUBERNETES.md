@@ -20,32 +20,6 @@ If you need to regenerate the token, from `bnekub03`, run `kubeadm token create 
 
 If starting the node appears to crash the host (including proxmox), try decreating the memory allocation a bit
 
-## Trusting the randomnoun CA
-
-Nodes need to trust the CA that signed the internal certificates, or containerd can't pull images from nexus3 ( it fails with an x509 error ). 
-
-Nodes built from the packer template already do: `01-install.sh` copies `cacert.pem` from the NAS ( `nas_ca_path` in the packer vars file ) into the trust store 
-before containerd is installed. Nodes built before that change ( `bnekub03`, `bnenod04`, and `bnenod05` if it predates it ) need it installing by hand:
-
-```
-# from a machine that has the CA: the file must end in .crt for update-ca-certificates to pick it up
-scp cacert.pem knoxg@bnenod05.dev.randomnoun:/tmp/cacert.crt
-
-# then on the node
-sudo cp /tmp/cacert.crt /usr/local/share/ca-certificates/cacert.crt
-sudo update-ca-certificates
-sudo systemctl restart containerd
-```
-
-containerd only reads the trust store when it starts, so the restart is needed; running pods aren't affected by it. To check:
-
-```
-curl -sI https://docker-combined.nexus3.dev.randomnoun/v2/ | head -1
-sudo ctr -n k8s.io images pull docker-combined.nexus3.dev.randomnoun/sonar:0.24.1
-```
-
-The `curl` should return an HTTP status ( a `401` is fine ) and not a certificate error. `crictl` isn't installed on the node, which is why this uses `ctr`.
-
 ## Attach GPUs to bnenod05
 
 Via the Proxmox UI:

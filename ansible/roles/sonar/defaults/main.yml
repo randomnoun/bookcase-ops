@@ -31,24 +31,26 @@ sonar_registry_password: ""
 #
 # sonar_model is a HuggingFace repo id, or a path under /root/.cache
 # (the PVC mount) for a model you've copied in yourself. Examples:
-#   EXL2:  turboderp/Llama-3.3-70B-Instruct-exl2 (pick a quant with sonar_model_revision, e.g. "4.0bpw")
+#   EXL3:  turboderp/Qwen3.8-27B-exl3 (pick a quant with sonar_model_revision, e.g. "5.00bpw")
 #   GGUF:  a path to a .gguf file, e.g. /root/.cache/gguf/Qwen3-Coder-30B-A3B-Q4_K_M.gguf
 sonar_model: ""
 
-# the name API clients ask for; this is what goes in litellm's "LiteLLM Model Name"
+# the name sonar serves the model under, and what goes in litellm's "LiteLLM Model Name".
+# It doesn't need to change with the model: the model-specific name is litellm's "Model Name".
 sonar_served_model_name: "local-sonar"
 
-# HF branch/tag. EXL2 repos usually publish each bits-per-weight as its own
-# branch (e.g. "4.0bpw"), so this is how you choose the quant. Empty = default branch.
+# HF branch/tag. EXL3 repos publish each bits-per-weight as its own
+# branch (e.g. "5.00bpw"), so this is how you choose the quant. Empty = default branch.
 sonar_model_revision: ""
 
-# "exl2", "gguf", or empty to let sonar work it out (a .gguf file path is
-# detected automatically). Set it explicitly for EXL2 to be safe.
-# (the pinned aphrodite image supports exl2; a self-built current Sonar image supports exl3 instead)
+# Leave empty: sonar works the format out from the model files ( EXL3 ) or the path ( a .gguf file ).
+# Only set it to override that, e.g. "gguf".
+# ( a self-built current Sonar image loads EXL3; the old pinned alpindale/aphrodite-openai image
+#   above loads EXL2 instead, and needs this set to "exl2" )
 sonar_quantization: ""
 
 # a GGUF file carries no tokenizer sonar can use; point this at the HF repo
-# of the original (unquantized) model. Not needed for EXL2.
+# of the original (unquantized) model. Not needed for EXL3.
 sonar_tokenizer: ""
 
 # optional HuggingFace token, for gated repos (e.g. meta-llama). Empty = none.
