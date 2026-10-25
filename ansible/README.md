@@ -58,18 +58,16 @@ The system components installed are:
 * **k8s-node-labels**
    * applies the GPU node labels described above (`gpu-vendor`, `gpu-model`) to whichever nodes need them. Generic/data-driven so new nodes/vendors just need an entry in `vars/k8s-node-labels/bnekub03.vars.yml`, not a new role.
 * **nvidia-device-plugin**
-   * advertises `nvidia.com/gpu` as a schedulable resource for any node labelled `gpu-vendor=nvidia`, and registers an `nvidia` RuntimeClass so pods (including the plugin itself) actually run under containerd's nvidia runtime rather than plain `runc`.
-   * the chart's own default node affinity expects Node Feature Discovery labels we don't run; it's overridden off (see the comments in `nvidia-device-plugin-helm-values.j2.yml`)
+   * so this thing adds an `nvidia` RuntimeClass so pods run under containerd's nvidia runtime rather than plain `runc`.
+   * it advertises `nvidia.com/gpu` as a schedulable resource for any node labelled `gpu-vendor=nvidia`, so the LLM engine pods can reserve GPUs 
 * **dcgm-exporter**
-   * [NVIDIA's DCGM exporter](https://github.com/NVIDIA/dcgm-exporter), publishing GPU utilisation, VRAM, power, temperature and clocks to prometheus. Needs the `prometheus` role applied first, because its chart creates a `ServiceMonitor`.
-   * it deliberately doesn't request `nvidia.com/gpu`, so it can read the GPUs while ollama / sonar / tabbyapi hold them; see the comments in `dcgm-exporter-helm-values.j2.yml`.
+   * [NVIDIA's DCGM exporter](https://github.com/NVIDIA/dcgm-exporter), publishing a bunch of GPU stats to prometheus
 * **local-path-provisioner**
-   * [Rancher's local-path-provisioner](https://github.com/rancher/local-path-provisioner), giving a `bnenod05-local-path` StorageClass backed by local disk on bnenod05 rather than NFS. 
-   * Used for things like ollama's model storage, which is pinned to a node with dedicated GPU and storage; a local disk avoids the latency of loading large model files over the network.
+   * [Rancher's local-path-provisioner](https://github.com/rancher/local-path-provisioner), so the LLM engine pods can use local SSDs for models ( GGUFs, EXL3s etc )
+   * which is hopefully a bit quicker than loading those over the network
 * **kubernetes-coredns**
    * replaces CoreDNS's Corefile so non-cluster lookups go to my home DNS server first, then the ISP's, then google's, in that order, instead of a random pick from the node's resolver.
    * `*.dev.randomnoun` is sent to my home DNS server only
-   * CoreDNS will reload the ConfigMap within a minute with no restart. The addresses are in `vars/kubernetes-coredns/bnekub03.vars.yml`; see [SETUP-DNS.md](../setup/SETUP-DNS.md) for why.
 
 Arguably `prometheus` and `grafana` should have been installed with the other applications below, but hey.
 
