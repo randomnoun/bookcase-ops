@@ -4,7 +4,7 @@ kube_storageclass_sonar: ""
 
 # Replica count the FIRST time the deployment is created. 0 because ollama, sonar and
 # tabbyapi each want every GPU on the node, so only one can run at a time: start the one you
-# want with `kubectl scale` (see setup/SETUP-LLM.md). After the first run the role keeps
+# want with `kubectl scale` (see setup/SETUP-LLM-BACKEND.md). After the first run the role keeps
 # whatever the deployment is currently scaled to, so re-running it doesn't undo a `kubectl scale`.
 sonar_initial_replicas: 0
 
@@ -21,7 +21,7 @@ sonar_image: "alpindale/aphrodite-openai:5f1d2611"
 # nexus3's docker-combined.nexus3.dev.randomnoun allows anonymous access, so leave these
 # empty for that. When sonar_registry_username is set, a docker-registry pull secret is
 # created and attached to the pod.
-# (The node's containerd must also trust the registry's certificate - see setup/SETUP-LLM.md)
+# (The node's containerd must also trust the registry's certificate - see setup/SETUP-LLM-BACKEND.md)
 sonar_registry_host: ""
 sonar_registry_username: ""
 sonar_registry_password: ""
@@ -57,7 +57,7 @@ sonar_hf_token: ""
 sonar_gpu_node_selector_key: "gpu-vendor"
 sonar_gpu_node_selector_value: "nvidia"
 # NB: ollama requests both GPUs on the node, so the two can't run at the same
-# time at the default of 2. Scale ollama down first (see setup/SETUP-LLM.md),
+# time at the default of 2. Scale ollama down first (see setup/SETUP-LLM-BACKEND.md),
 # or set this to 1 here and the ollama gpu count to 1 there.
 sonar_gpu_count: 2
 # must match the RuntimeClass name registered by the nvidia-device-plugin role

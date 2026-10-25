@@ -7,7 +7,7 @@
 # a docker runtime or OpenHands Enterprise).
 #
 # The LLM is NOT configured here: OpenHands keeps it in its settings (stored
-# encrypted on the PVC). Set it once in the UI - see setup/SETUP-LLM.md.
+# encrypted on the PVC). Set it once in the UI - see setup/SETUP-LLM-FRONTEND.md.
 #
 # UI is at https://<host>/canvas (that prefix is baked into the image).
 

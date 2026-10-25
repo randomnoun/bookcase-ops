@@ -7,5 +7,38 @@ tabbyapi_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/da
 tabbyapi_admin_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-tabbyapi/tabbyapi:admin_key')}}"
 
 # directory name of an EXL3 model under /app/models. Leave empty on the first run, then
-# download one and set this (see setup/SETUP-LLM.md)
+# download one and set this (see setup/SETUP-LLM-BACKEND.md). Setting it before the download has
+# finished makes tabby fail at startup, as the folder doesn't exist yet.
+#
+# Model: the same one sonar serves, for a like-for-like comparison:
+#   repo_id:     turboderp/Qwen3.8-27B-exl3
+#   revision:    5.00bpw
+#   folder_name: Qwen3.8-27B-exl3-5.00bpw        <- set tabbyapi_model_name to this once downloaded
 tabbyapi_model_name: ""
+
+# Matched to sonar ( vars/sonar/bnekub03.vars.yml ) so the two backends are comparable:
+# same context length, and an 8-bit KV cache ( sonar uses fp8 ). At 8,8 the cache is ~32KiB/token,
+# so 262144 tokens is ~8GiB on top of ~20GB of weights, which fits in the 48GB across both cards.
+# If the model fails to load with an out-of-memory error, lower tabbyapi_max_seq_len first.
+tabbyapi_max_seq_len: 262144
+tabbyapi_cache_mode: "8,8"
+
+# false = autosplit ( fills GPU 0, then GPU 1 ); sonar runs tensor-parallel across both cards, so try
+# true as a second test once this works. Not verified on 3090s without NVLink.
+tabbyapi_tensor_parallel: false
+
+# Settings for this model that live in litellm ( Models -> Edit Settings -> LiteLLM Params ):
+#
+#   "num_ctx": 262144          so pi / opencode learn the window ( run pi-sync-models after )
+#   "reasoning_effort": "medium"   tabby's docs say the top-level field is passed to the chat template
+#                              ( the template accepts low / medium / xhigh only )
+#   "extra_body": {"thinking_token_budget": 8192}
+#                              tabby accepts this name as an alias of reasoning_budget_tokens, so the
+#                              same litellm setting as sonar should work. It can also be set server-wide
+#                              with reasoning_budget_tokens in tabby's config.yml, which this role
+#                              doesn't expose yet.
+#
+# Tool calls and thinking: tabby's config has tool_format: auto and reasoning: true, and the role leaves
+# both at their defaults. Unlike sonar there are no flags to set, but I haven't confirmed that "auto"
+# picks the right parser for this model's <tool_call><function=...> format. If tool calls come back
+# as plain text in pi, that's the thing to look at.

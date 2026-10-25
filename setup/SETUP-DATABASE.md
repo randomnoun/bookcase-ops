@@ -293,7 +293,7 @@ echo -n "put-the-opencode-litellm-virtual-key-here" | vault kv put   -mount=secr
 echo -n "$(openssl rand -hex 24)"                   | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-opencode/opencode" server_password=-
 ```
 
-**openhands** doesn't read its litellm key from vault; you paste it into the OpenHands settings UI instead ( see [SETUP-LLM.md](SETUP-LLM.md) ). 
+**openhands** doesn't read its litellm key from vault; you paste it into the OpenHands settings UI instead ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#openhands) ). 
 Vault only needs the key you'll be asked for when you first open the UI:
 
 ```

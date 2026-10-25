@@ -4,7 +4,7 @@ kube_storageclass_tabbyapi: ""
 
 # Replica count the FIRST time the deployment is created. 0 because ollama, sonar and
 # tabbyapi each want every GPU on the node, so only one can run at a time: start the one you
-# want with `kubectl scale` (see setup/SETUP-LLM.md). After the first run the role keeps
+# want with `kubectl scale` (see setup/SETUP-LLM-BACKEND.md). After the first run the role keeps
 # whatever the deployment is currently scaled to, so re-running it doesn't undo a `kubectl scale`.
 tabbyapi_initial_replicas: 0
 
@@ -18,7 +18,7 @@ tabbyapi_volume_size_gb: 300
 tabbyapi_image: "ghcr.io/theroyallab/tabbyapi:latest"
 
 # Keys for the API. Required (the role refuses to run without them). Generate with
-# `openssl rand -hex 24` and keep them in vault, see setup/SETUP-LLM.md.
+# `openssl rand -hex 24` and keep them in vault, see setup/SETUP-LLM-BACKEND.md.
 #   api_key   - used by litellm for inference
 #   admin_key - needed for /v1/model/load and /v1/download
 tabbyapi_api_key: ""
@@ -26,7 +26,7 @@ tabbyapi_admin_key: ""
 
 # Model to load when the server starts: a directory name under /app/models (the PVC),
 # e.g. "Qwen3-30B-A3B-exl3". Empty = start with nothing loaded, then download and load
-# models through the API (see setup/SETUP-LLM.md). Unlike ollama, tabbyapi serves ONE
+# models through the API (see setup/SETUP-LLM-BACKEND.md). Unlike ollama, tabbyapi serves ONE
 # loaded model at a time (loading another unloads the first).
 tabbyapi_model_name: ""
 
@@ -44,7 +44,7 @@ tabbyapi_tensor_parallel: false
 tabbyapi_gpu_node_selector_key: "gpu-vendor"
 tabbyapi_gpu_node_selector_value: "nvidia"
 # NB: ollama (and sonar) also request both GPUs, so only one of them can run at a
-# time. Scale the others down first, see setup/SETUP-LLM.md.
+# time. Scale the others down first, see setup/SETUP-LLM-BACKEND.md.
 tabbyapi_gpu_count: 2
 # must match the RuntimeClass name registered by the nvidia-device-plugin role
 tabbyapi_gpu_runtime_class_name: "nvidia"

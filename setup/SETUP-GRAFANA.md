@@ -23,7 +23,7 @@ The ones you want are the 'dotdc' dashboards here: https://grafana.com/grafana/d
 
 Gives tokens/sec, latency, queue depth and KV cache usage for the `sonar` backend. 
 
-Prometheus only scrapes it because the `sonar` role creates a `ServiceMonitor` in the `dev-sonar` namespace ( see [SETUP-LLM.md](SETUP-LLM.md) ). Before importing anything, 
+Prometheus only scrapes it because the `sonar` role creates a `ServiceMonitor` in the `dev-sonar` namespace ( see [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md#sonar) ). Before importing anything, 
 check that Prometheus has found it: open `https://prometheus.dev.randomnoun/targets` and look for `serviceMonitor/dev-sonar/sonar`, which should be `UP`. 
 If it isn't listed, check that the `dev-sonar` namespace has the `prometheusEnabled=true` label and the ServiceMonitor has the `prometheus: default` label.
 
@@ -82,6 +82,29 @@ The exporter's profiling metrics ( `DCGM_FI_PROF_*` ) aren't all supported on Ge
 
 ### Not scraped yet
 
-Only `sonar` and the GPUs are scraped. `ollama` and `tabbyapi` have no ServiceMonitor, and `litellm` serves `/metrics` behind authentication and needs its prometheus callback enabled first.
+Only `sonar` and the GPUs are scraped. `ollama` has no ServiceMonitor, and `litellm` serves `/metrics` behind authentication and needs its prometheus callback enabled first.
+
+### Tabbyapi ( no metrics )
+
+`tabbyapi` can't be scraped: it has no Prometheus support. I checked its source ( the server, router, config, logger and the ExLlamaV3 backend ) for `prometheus`, `/metrics` and OpenTelemetry and found none, 
+its config sample has no metrics option, and I couldn't find a community exporter or dashboard for it. So there's no ServiceMonitor for it and nothing to import. 
+I haven't checked this against a running tabbyapi, only its source, so it's worth a `curl http://localhost:5000/metrics` after a `kubectl port-forward` the first time you run it.
+
+What you can use instead, when comparing it with sonar:
+
+* **Per-request speed:** tabbyapi logs a line after each generation, with tokens generated, tokens/sec, prompt tokens and how much of the prompt was cached, and queue / prompt / generation times. 
+  Compare its generation tokens/sec with sonar's `Decode: ... tokens/s`:
+
+  ```
+  kubectl -n dev-tabbyapi logs -f deploy/tabbyapi | grep -i "tokens generated"
+  kubectl -n dev-sonar logs -f deploy/sonar | grep "Request completed"
+  ```
+
+  The wording of tabbyapi's line is from reading its source, not from seeing it run, so adjust the `grep` if it doesn't match.
+* **Over time, per model:** langfuse gets traces for both backends through litellm, so latency and token counts can be compared there by model name.
+* **GPU load:** `dcgm-exporter` doesn't care which backend is using the cards, so the GPU dashboard above works for tabbyapi too.
+
+What you won't get for tabbyapi is the engine-level view that sonar's dashboard has ( queue depth, KV cache usage, inter-token latency ). 
+If that turns out to matter, the usual workaround is a small sidecar that tails the log line and exposes the numbers as metrics, which would be a custom thing to maintain.
 
 
