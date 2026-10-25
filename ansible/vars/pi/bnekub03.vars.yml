@@ -8,3 +8,9 @@ pi_litellm_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/
 
 # must be a model registered in litellm (see setup/SETUP-LLM-BACKEND.md)
 pi_default_model: "local-qwen3-coder:30b"
+
+# pi's default output limit is 16384 tokens per request. tabbyapi doesn't stream a tool call's arguments,
+# it sends the whole call at the end, so writing a big file can use all of it ( and take 8+ minutes at ~34 tokens/sec ).
+# Matched on the model's api_base in litellm; run `pi-sync-models` after changing this.
+pi_max_tokens_rules:
+  - { api_base_contains: "web.dev-tabbyapi", max_tokens: 32768 }

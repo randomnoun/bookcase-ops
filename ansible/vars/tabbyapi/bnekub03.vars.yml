@@ -13,8 +13,11 @@ tabbyapi_admin_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/
 # Model: the same one sonar serves, for a like-for-like comparison:
 #   repo_id:     turboderp/Qwen3.8-27B-exl3
 #   revision:    5.00bpw
-#   folder_name: Qwen3.8-27B-exl3-5.00bpw        <- set tabbyapi_model_name to this once downloaded
-tabbyapi_model_name: ""
+#   folder_name: Qwen3.8-27B-exl3-5.00bpw
+#
+# Set so the model is loaded at startup using the settings below. A model loaded by hand through
+# /v1/model/load doesn't pick them up unless they're also in the request ( see setup/SETUP-LLM-BACKEND.md ).
+tabbyapi_model_name: "Qwen3.8-27B-exl3-5.00bpw"
 
 # Matched to sonar ( vars/sonar/bnekub03.vars.yml ) so the two backends are comparable:
 # same context length, and an 8-bit KV cache ( sonar uses fp8 ). At 8,8 the cache is ~32KiB/token,
@@ -23,9 +26,11 @@ tabbyapi_model_name: ""
 tabbyapi_max_seq_len: 262144
 tabbyapi_cache_mode: "8,8"
 
-# false = autosplit ( fills GPU 0, then GPU 1 ); sonar runs tensor-parallel across both cards, so try
-# true as a second test once this works. Not verified on 3090s without NVLink.
-tabbyapi_tensor_parallel: false
+# false = autosplit ( fills GPU 0, then GPU 1, so only one card works at a time ); true = tensor-parallel across
+# both cards, as sonar does. Autosplit gave ~34 tokens/sec against sonar's ~52, so this is being tried to close
+# the gap. Not verified on 3090s without NVLink ( the cards are connected over PCIe only ): if the model fails
+# to load, or isn't faster, set it back to false.
+tabbyapi_tensor_parallel: true
 
 # Settings for this model that live in litellm ( Models -> Edit Settings -> LiteLLM Params ):
 #

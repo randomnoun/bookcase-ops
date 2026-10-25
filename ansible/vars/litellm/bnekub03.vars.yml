@@ -18,3 +18,6 @@ litellm_salt_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/da
 litellm_langfuse_host: "http://web.dev-langfuse.svc.cluster.local:3000"
 litellm_langfuse_public_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:public_key')}}"
 litellm_langfuse_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:secret_key')}}"
+
+# send the prompts and responses to langfuse too, so messages show up in its Sessions and Tracing pages
+litellm_langfuse_capture_message_content: "span_only"
