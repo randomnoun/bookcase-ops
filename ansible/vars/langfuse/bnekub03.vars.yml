@@ -1,0 +1,39 @@
+kube_context_langfuse: "bnekub03"
+kube_storageclass_langfuse: "bnenas05-nfs-csi"
+
+langfuse_ingress_host: "langfuse.dev.randomnoun"
+langfuse_ingress_class: "nginx-internal"
+
+langfuse_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse-tls-secret:tls.crt')}}"
+langfuse_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse-tls-secret:tls.key')}}"
+
+langfuse_db_host: "bnesql02.dev.randomnoun"
+langfuse_db_schema: "langfuse"
+langfuse_db_username: "langfuse"
+langfuse_db_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/db/bnesql02/langfuse:password')}}"
+
+langfuse_nextauth_secret: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:nextauth_secret')}}"
+langfuse_salt: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:salt')}}"
+langfuse_encryption_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:encryption_key')}}"
+
+langfuse_clickhouse_host: "bnesql02.dev.randomnoun"
+langfuse_clickhouse_database: "langfuse"
+langfuse_clickhouse_username: "langfuse"
+langfuse_clickhouse_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:clickhouse_password')}}"
+
+# rustfs on bnenas05; 30292 is the S3 API port ( the web UI is on 30293 )
+langfuse_s3_endpoint: "http://bnenas05.dev.randomnoun:30292"
+langfuse_s3_bucket: "langfuse"
+langfuse_s3_access_key_id: "langfuse"
+langfuse_s3_secret_access_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:s3_secret_access_key')}}"
+
+langfuse_redis_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:redis_password')}}"
+
+langfuse_init_org_name: "randomnoun"
+langfuse_init_project_name: "litellm"
+
+langfuse_init_user_email: "knoxg@randomnoun.com"
+langfuse_init_user_name: "knoxg"
+langfuse_init_user_password: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:init_user_password')}}"
+langfuse_init_public_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:public_key')}}"
+langfuse_init_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-langfuse/langfuse:secret_key')}}"

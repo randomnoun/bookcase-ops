@@ -102,6 +102,7 @@ The initial set of applications are:
 * karakeep
 * atuin
 * wakapi
+* langfuse
 * litellm
 * ollama
 * open-webui

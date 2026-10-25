@@ -1,0 +1,314 @@
+# k8s yaml based on the docker-compose.yml at https://github.com/langfuse/langfuse
+#
+# langfuse v4 needs more than just postgres: clickhouse holds the traces,
+# redis is the ingestion queue/cache, and S3 holds the raw events.
+# Postgres and clickhouse run natively on bnesql02, S3 is rustfs on bnenas05,
+# and only redis runs in this namespace.
+#
+# All the pods set enableServiceLinks: false. The service here is called
+# 'redis', and kubernetes would otherwise inject REDIS_PORT=tcp://10.x.x.x:6379
+# into every pod in the namespace, clobbering the REDIS_PORT langfuse expects
+# to be a number.
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: langfuse-secrets
+type: Opaque
+stringData:
+  # connect_timeout: same DNS-resolution flakiness toward bnesql02 we hit with litellm
+  DATABASE_URL: "postgresql://{{ langfuse_db_username }}:{{ langfuse_db_password }}@{{ langfuse_db_host }}:5432/{{ langfuse_db_schema }}?connect_timeout=30"
+  SALT: "{{ langfuse_salt }}"
+  ENCRYPTION_KEY: "{{ langfuse_encryption_key }}"
+  CLICKHOUSE_PASSWORD: "{{ langfuse_clickhouse_password }}"
+  REDIS_AUTH: "{{ langfuse_redis_password }}"
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: "{{ langfuse_s3_secret_access_key }}"
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: "{{ langfuse_s3_secret_access_key }}"
+  LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY: "{{ langfuse_s3_secret_access_key }}"
+
+---
+# only the web container needs these
+apiVersion: v1
+kind: Secret
+metadata:
+  name: langfuse-web-secrets
+type: Opaque
+stringData:
+  NEXTAUTH_SECRET: "{{ langfuse_nextauth_secret }}"
+  LANGFUSE_INIT_USER_PASSWORD: "{{ langfuse_init_user_password }}"
+  LANGFUSE_INIT_PROJECT_SECRET_KEY: "{{ langfuse_init_secret_key }}"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: langfuse-config
+data:
+  TELEMETRY_ENABLED: "false"
+  # clickhouse on bnesql02: http port for queries, native port for migrations
+  CLICKHOUSE_URL: "http://{{ langfuse_clickhouse_host }}:{{ langfuse_clickhouse_http_port }}"
+  CLICKHOUSE_MIGRATION_URL: "clickhouse://{{ langfuse_clickhouse_host }}:{{ langfuse_clickhouse_native_port }}"
+  CLICKHOUSE_DB: "{{ langfuse_clickhouse_database }}"
+  CLICKHOUSE_USER: "{{ langfuse_clickhouse_username }}"
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  # S3 on bnenas05. The media upload and batch export endpoints are used to
+  # build presigned URLs that the browser fetches directly, so they need to be
+  # reachable from wherever you're browsing, not just from the cluster.
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "{{ langfuse_s3_bucket }}"
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: "auto"
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: "{{ langfuse_s3_access_key_id }}"
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: "{{ langfuse_s3_endpoint }}"
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "events/"
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "{{ langfuse_s3_bucket }}"
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: "auto"
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: "{{ langfuse_s3_access_key_id }}"
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: "{{ langfuse_s3_endpoint }}"
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "media/"
+  LANGFUSE_S3_BATCH_EXPORT_ENABLED: "true"
+  LANGFUSE_S3_BATCH_EXPORT_BUCKET: "{{ langfuse_s3_bucket }}"
+  LANGFUSE_S3_BATCH_EXPORT_PREFIX: "exports/"
+  LANGFUSE_S3_BATCH_EXPORT_REGION: "auto"
+  LANGFUSE_S3_BATCH_EXPORT_ENDPOINT: "{{ langfuse_s3_endpoint }}"
+  LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID: "{{ langfuse_s3_access_key_id }}"
+  LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE: "true"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: langfuse-redis-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_langfuse }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: langfuse-redis
+  template:
+    metadata:
+      labels:
+        app: langfuse-redis
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: redis
+          image: docker.io/redis:7
+          imagePullPolicy: IfNotPresent
+          # langfuse's queue lives in here, so it must never evict keys
+          command:
+            - sh
+            - -c
+            - exec redis-server --requirepass "$REDIS_AUTH" --maxmemory-policy noeviction --appendonly yes
+          ports:
+            - containerPort: 6379
+          env:
+            - name: REDIS_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: langfuse-secrets
+                  key: REDIS_AUTH
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            periodSeconds: 5
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /data
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: langfuse-redis-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector:
+    app: langfuse-redis
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: langfuse-worker
+  template:
+    metadata:
+      labels:
+        app: langfuse-worker
+    spec:
+      # ClusterFirst so this resolves both the in-cluster services above and
+      # bnesql02.dev.randomnoun, see the dnsPolicy note on litellm's role
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: false
+      containers:
+        - name: langfuse-worker
+          image: docker.langfuse.com/langfuse/langfuse-worker:{{ langfuse_version }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3030
+          envFrom:
+            - configMapRef:
+                name: langfuse-config
+            - secretRef:
+                name: langfuse-secrets
+          env:
+            - name: NEXTAUTH_URL
+              value: "https://{{ langfuse_ingress_host }}"
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              cpu: 250m
+              memory: 1Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: langfuse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: langfuse-web
+  template:
+    metadata:
+      labels:
+        app: langfuse-web
+    spec:
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: false
+      containers:
+        - name: langfuse
+          image: docker.langfuse.com/langfuse/langfuse:{{ langfuse_version }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: langfuse-config
+            - secretRef:
+                name: langfuse-secrets
+            - secretRef:
+                name: langfuse-web-secrets
+          env:
+            - name: NEXTAUTH_URL
+              value: "https://{{ langfuse_ingress_host }}"
+            # headless init: creates the org, project, user and project API keys
+            # on first startup. Ignored on later startups once they exist.
+            - name: LANGFUSE_INIT_ORG_ID
+              value: "{{ langfuse_init_org_name }}"
+            - name: LANGFUSE_INIT_ORG_NAME
+              value: "{{ langfuse_init_org_name }}"
+            - name: LANGFUSE_INIT_PROJECT_ID
+              value: "{{ langfuse_init_project_name }}"
+            - name: LANGFUSE_INIT_PROJECT_NAME
+              value: "{{ langfuse_init_project_name }}"
+            - name: LANGFUSE_INIT_PROJECT_PUBLIC_KEY
+              value: "{{ langfuse_init_public_key }}"
+            - name: LANGFUSE_INIT_USER_EMAIL
+              value: "{{ langfuse_init_user_email }}"
+            - name: LANGFUSE_INIT_USER_NAME
+              value: "{{ langfuse_init_user_name }}"
+            # sign-ups are open by default; this is a private instance with one user
+            - name: AUTH_DISABLE_SIGNUP
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /api/public/ready
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            limits:
+              memory: 3Gi
+            requests:
+              cpu: 250m
+              memory: 1536Mi
+
+---
+# litellm docs use just a ClusterIP + ingress, I'll stick to LoadBalancer for consistency with the other apps here
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: langfuse-web
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: langfuse-tls-secret
+data:
+  tls.crt: "{{ langfuse_tls_secret_cert }}"
+  tls.key: "{{ langfuse_tls_secret_key }}"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: langfuse-web-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # litellm posts batches of spans over OTLP, which can exceed nginx's 1m default
+    nginx.org/client-max-body-size: "50m"
+spec:
+  tls:
+    - hosts:
+        - {{ langfuse_ingress_host }}
+      secretName: langfuse-tls-secret
+  rules:
+  - host: {{ langfuse_ingress_host }}
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: "web"
+            port:
+              number: 3000

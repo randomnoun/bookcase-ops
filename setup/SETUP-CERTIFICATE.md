@@ -114,6 +114,7 @@ cd /opt/openssl-ca
 ./bin/create-certificate.sh atuin.dev.randomnoun
 ./bin/create-certificate.sh wakapi.dev.randomnoun
 ./bin/create-certificate.sh litellm.dev.randomnoun
+./bin/create-certificate.sh langfuse.dev.randomnoun
 ./bin/create-certificate.sh searxng.dev.randomnoun
 ./bin/create-certificate.sh open-webui.dev.randomnoun
 ./bin/create-certificate.sh opencode.dev.randomnoun
@@ -151,6 +152,7 @@ vault login
 ./bin/upload-certificate.sh atuin.dev.randomnoun        k8s/bnekub03/secret/dev-atuin/atuin-tls-secret
 ./bin/upload-certificate.sh wakapi.dev.randomnoun       k8s/bnekub03/secret/dev-wakapi/wakapi-tls-secret
 ./bin/upload-certificate.sh litellm.dev.randomnoun      k8s/bnekub03/secret/dev-litellm/litellm-tls-secret
+./bin/upload-certificate.sh langfuse.dev.randomnoun     k8s/bnekub03/secret/dev-langfuse/langfuse-tls-secret
 ./bin/upload-certificate.sh searxng.dev.randomnoun      k8s/bnekub03/secret/dev-searxng/searxng-tls-secret
 ./bin/upload-certificate.sh open-webui.dev.randomnoun   k8s/bnekub03/secret/dev-open-webui/open-webui-tls-secret
 ./bin/upload-certificate.sh opencode.dev.randomnoun     k8s/bnekub03/secret/dev-opencode/opencode-tls-secret

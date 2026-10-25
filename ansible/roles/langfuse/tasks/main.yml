@@ -1,0 +1,17 @@
+- name: "kubernetes namespace langfuse"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_langfuse }}"
+    wait: true
+    definition: "{{ lookup('template', 'langfuse-namespace.j2.yml')  }}"
+
+# web can't become ready until redis is up and the postgres and clickhouse
+# migrations have run, which takes longer than the default 120s
+- name: "kubernetes deployment langfuse"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_langfuse }}"
+    namespace: "{{ kube_namespace_langfuse }}"
+    wait: true
+    wait_timeout: 600
+    definition: "{{ lookup('template', 'langfuse.j2.yml')  }}"
