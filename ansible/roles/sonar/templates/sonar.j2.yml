@@ -128,11 +128,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: web
+  # the ServiceMonitor selects on this label
+  labels:
+    app: sonar-web
 spec:
   selector:
     app: sonar-web
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: 2242
       targetPort: 2242
   type: LoadBalancer
