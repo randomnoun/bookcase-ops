@@ -51,9 +51,9 @@ Okay so what you've got is:
    * [SETUP-LLM-ARCHITECTURE.md](setup/SETUP-LLM-ARCHITECTURE.md) - a diagram of how it all fits together
    * [SETUP-LLM-KUBERNETES.md](setup/SETUP-LLM-KUBERNETES.md) - added a proxmox variant of `packer-ubuntu-kubernetes-node` with access to the GPUs 
    * [SETUP-LLM-MIDDLEWARE.md](setup/SETUP-LLM-MIDDLEWARE.md) - some middleware
+      * langfuse - a log/observation thing for LLMs
       * litellm - an LLM proxy
       * searxng - a search proxy for LLMs
-      * langfuse - a log/observation thing for LLMs
    * [SETUP-LLM-BACKEND.md](setup/SETUP-LLM-BACKEND.md) - some backends
       * ollama - an LLM engine
       * sonar - another one of those

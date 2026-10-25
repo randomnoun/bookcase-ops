@@ -6,7 +6,7 @@ This page is the index; details are in these files:
 |---|---|
 | [SETUP-LLM-ARCHITECTURE.md](SETUP-LLM-ARCHITECTURE.md) | The diagram of how the pieces connect, and why |
 | [SETUP-LLM-KUBERNETES.md](SETUP-LLM-KUBERNETES.md) | Creating and configuring the GPU kubernetes node `bnenod05` |
-| [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md) | `litellm`, `searxng` and `langfuse` |
+| [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md) | `langfuse`, `litellm` and `searxng` |
 | [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar` and `tabbyapi` |
 | [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md) | `open-webui`, `pi`, `opencode` and `openhands` |
 
@@ -32,6 +32,8 @@ Jump over to [ansible/README.md](../ansible/README.md) and get some containers r
 
 I've created them in this order, you may need to do some configuration in each container to connect them up as you go.
 
+* langfuse ( [middleware](SETUP-LLM-MIDDLEWARE.md#langfuse) )
+   * needs postgres, clickhouse and rustfs set up, and secrets in vault; it goes first so litellm has somewhere to send traces
 * litellm ( [middleware](SETUP-LLM-MIDDLEWARE.md#litellm) )
    * and create a user in the web UI
 * ollama ( [backends](SETUP-LLM-BACKEND.md#ollama) )
@@ -40,12 +42,10 @@ I've created them in this order, you may need to do some configuration in each c
 * pi ( [frontends](SETUP-LLM-FRONTEND.md#pi) )
    * will connect to litellm (not ollama directly), create a litellm key first
 
-And then once you've got that going, can try these deployments, which will add some observability and lets you try out some different frontends and backends 
+And then once you've got that going, can try these deployments, which will add web search and let you try out some different frontends and backends 
 
 * searxng ( [middleware](SETUP-LLM-MIDDLEWARE.md#searxng) )
    * then configure searxng in litellm
-* langfuse ( [middleware](SETUP-LLM-MIDDLEWARE.md#langfuse) )
-   * needs postgres, clickhouse and rustfs set up, and secrets in vault; deploy it before litellm so litellm has somewhere to send traces
 * sonar ( [backends](SETUP-LLM-BACKEND.md#sonar) )
    * needs an image you build yourself, and starts scaled to 0
 * tabbyapi ( [backends](SETUP-LLM-BACKEND.md#tabbyapi) )

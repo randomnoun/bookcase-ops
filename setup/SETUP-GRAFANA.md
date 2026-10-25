@@ -104,6 +104,9 @@ What you can use instead, when comparing it with sonar:
 * **Over time, per model:** langfuse gets traces for both backends through litellm, so latency and token counts can be compared there by model name.
 * **GPU load:** `dcgm-exporter` doesn't care which backend is using the cards, so the GPU dashboard above works for tabbyapi too.
 
+For reference, with the same Qwen3.8-27B 5bpw model and tensor-parallel on both, tabbyapi decodes at about 47-48 tokens/sec and sonar at about 52. 
+tabbyapi's log line also shows `(tensor parallel)` or `(autosplit)` when the model loads, which is the first thing to check if its speed looks low.
+
 What you won't get for tabbyapi is the engine-level view that sonar's dashboard has ( queue depth, KV cache usage, inter-token latency ). 
 If that turns out to matter, the usual workaround is a small sidecar that tails the log line and exposes the numbers as metrics, which would be a custom thing to maintain.
 

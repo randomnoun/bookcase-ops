@@ -299,15 +299,16 @@ The role refuses to run without them.
    ```
    tabbyapi_max_seq_len: 262144
    tabbyapi_cache_mode: "8,8"
-   tabbyapi_tensor_parallel: false
+   tabbyapi_tensor_parallel: true
    ```
 
    `tabbyapi_max_seq_len` is the context length. `tabbyapi_cache_mode: "8,8"` quantizes the KV cache to 8 bits ( the closest match to sonar's `--kv-cache-dtype=fp8` ), which halves its VRAM
-   at a small quality cost; the role default is `FP16`. For this model a full 262144-token cache at 8 bits should be around 8GiB, on top of about 20GB of weights. 
-   I haven't measured that on tabbyapi, so if the model fails to load with an out-of-memory error, lower `tabbyapi_max_seq_len` first.
+   at a small quality cost; the role default is `FP16`. For this model a full 262144-token cache at 8 bits is around 8GiB, on top of about 20GB of weights, and it loads fine on the two 3090s. 
+   A model that doesn't fit fails to load with an out-of-memory error; lowering `tabbyapi_max_seq_len` is the first thing to try.
 
-   `tabbyapi_tensor_parallel: false` splits the model across both GPUs by filling GPU 0 and then GPU 1 ( autosplit ), where sonar runs tensor-parallel. 
-   Try `true` as a benchmark; it can be faster, but I haven't verified it works well on 3090s without NVLink.
+   `tabbyapi_tensor_parallel: true` runs both GPUs on every token, as sonar does. With `false` the model is split across the GPUs by filling GPU 0 and then GPU 1 ( autosplit ), so only one card works at a time. 
+   For this model that is the difference between about 36-37 tokens/sec ( autosplit ) and about 47-48 ( tensor-parallel ), against about 52 for sonar. The cards are connected over PCIe only, with no NVLink, 
+   and it still helps. The first few requests after loading are slow while it warms up.
 
 2. Deploy it with `tabbyapi_model_name` still empty. It comes up at 0 replicas; then give it the GPUs, scaling down whichever engine is running first:
 
@@ -338,19 +339,25 @@ The role refuses to run without them.
    kubectl -n dev-tabbyapi exec deploy/tabbyapi -- du -sh /app/models/Qwen3.8-27B-exl3-5.00bpw
    ```
 
-4. Load it, either without a restart:
-
-   ```
-   curl http://localhost:5000/v1/model/load -H "x-admin-key: $ADMIN" -H "Content-Type: application/json" -d '{"model_name": "Qwen3.8-27B-exl3-5.00bpw"}'
-   ```
-
-   or, so it's loaded every time the pod starts, set it in the vars file and re-run the role ( the pod restarts and loads it ):
+4. Set the model in the vars file and re-run the role. The pod restarts and loads it at startup, using the settings from step 1, and loads it again every time the pod starts:
 
    ```
    tabbyapi_model_name: "Qwen3.8-27B-exl3-5.00bpw"
    ```
 
-   Only set `tabbyapi_model_name` once the download has finished; if the folder doesn't exist, tabbyapi fails at startup. `kubectl -n dev-tabbyapi logs -f deploy/tabbyapi` shows the load.
+   Only set `tabbyapi_model_name` once the download has finished; if the folder doesn't exist, tabbyapi fails at startup. 
+   `kubectl -n dev-tabbyapi logs -f deploy/tabbyapi` shows the load. With tensor-parallel on, the load line should no longer end with `(autosplit)`.
+
+   You can also load a model without restarting, through the API. Pass the settings in the request, because a load request that only names the model doesn't pick up the values in the config file ( tabbyapi 
+   falls back to the model folder's own config, the config's `use_as_default` keys, then its built-in defaults, so you'd get autosplit and its default cache ):
+
+   ```
+   curl http://localhost:5000/v1/model/load -H "x-admin-key: $ADMIN" -H "Content-Type: application/json" \
+     -d '{"model_name": "Qwen3.8-27B-exl3-5.00bpw", "tensor_parallel": true, "cache_mode": "8,8", "max_seq_len": 262144}'
+   ```
+
+   The call returns a stream of progress messages while the model loads. If it returns straight away with `already loaded` in tabbyapi's log, nothing happened: the model is loaded already, with the old settings. 
+   Unload it first ( `curl -X POST http://localhost:5000/v1/model/unload -H "x-admin-key: $ADMIN"` ), or restart the pod. I haven't tried the unload call.
 
 Tool calls and thinking: unlike sonar there are no flags to set. tabbyapi's own config has `tool_format: auto` and `reasoning: true`, and the role leaves both at their defaults, 
 so it should pick the tool-call parser and split the `<think>` text out of the answer from the model's chat template. I haven't confirmed that for this model; 
