@@ -116,7 +116,7 @@ The initial set of applications are:
 what I would suggest you do is to restrict to a specific app using `-e app=xxxxx` (see cmdline below), and deploy a single application at a time, 
 fixing up the startup failures as you go.
 
-### Why both nexus2 and nexu3 ?
+### Why both nexus2 and nexus3 ?
 
 You could probably just get by with nexus3, as it can hold maven artifacts just fine, but I'm using nexus2 for the same reason that sonatype still use nexus2 for maven central. Which is that nexus3, whilst admirably reinventing quite a lot of wheels, doesn't seem to have reached feature parity with nexus2 for maven repositories just yet.
 
