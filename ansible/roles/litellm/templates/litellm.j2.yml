@@ -1,5 +1,18 @@
 # k8s yaml based on docker config at https://docs.litellm.ai/docs/proxy/deploy
 
+{% if litellm_langfuse_host %}
+---
+# the langfuse callback; models are still managed in the Admin UI (STORE_MODEL_IN_DB)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+data:
+  config.yaml: |
+    litellm_settings:
+      callbacks: ["langfuse_otel"]
+{% endif %}
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -15,40 +28,29 @@ spec:
       labels:
         app: litellm-web
     spec:
-      # ClusterFirst (the real k8s default) tries CoreDNS first for
-      # everything - needed to resolve in-cluster service names like
-      # web.dev-ollama.svc.cluster.local. CoreDNS's own Corefile forwards
-      # anything outside cluster.local to the node's resolv.conf, so this
-      # still resolves bnesql02.dev.randomnoun correctly too. A prior
-      # dnsPolicy: Default (node's resolv.conf only, bypassing CoreDNS
-      # entirely) fixed bnesql02 resolution but broke resolution of
-      # in-cluster service names - this fixes both via one consistent path.
+      # must be ClusterFirst to resolve in-cluster service names like web.dev-ollama.svc.cluster.local. 
+      # CoreDNS's own Corefile forwards anything outside cluster.local to the node's resolv.conf, so still resolves bnesql02.dev.randomnoun 
       dnsPolicy: ClusterFirst
       containers:
         - name: litellm
-          # pinned (was main-stable, a moving tag) - a pod restart pulling a
-          # newer image than the DB schema was migrated for is what caused
-          # the "column does not exist" errors we hit. Bump deliberately,
-          # and re-run the migration/push step when you do.
+          # pinned (was main-stable, a moving tag) 
+          # a pod restart pulling a newer image than the DB schema causes "column does not exist" errors during startup.
+          # Bump deliberately, and re-run the migration/push step when you do.
           image: ghcr.io/berriai/litellm-database:v1.104.0
           imagePullPolicy: IfNotPresent
-          # the default 'prisma migrate' schema-sync path doesn't seem to
-          # actually apply pending changes on this image (confirmed: it only
-          # ever ran the read-only diff check, even though should_update_
-          # prisma_schema() defaults to true) - force prisma db push instead,
-          # which is safe here since litellm's own schema changes are
-          # consistently additive (ADD COLUMN/CREATE TABLE/CREATE INDEX)
           args:
             - "--use_prisma_db_push"
+{% if litellm_langfuse_host %}
+            - "--config"
+            - "/app/config.yaml"
+{% endif %}
           ports:
             - containerPort: 4000
           env:
             - name: DATABASE_URL
-              # connect_timeout: DNS resolution for bnesql02 from inside this
-              # pod is occasionally slow (not broken, just slow - a plain
-              # python getaddrinfo() always succeeds, but prisma's own
-              # resolver sometimes hits its default timeout first). Give it
-              # more time to connect rather than fail with P1001.
+              # connect_timeout: DNS resolution for bnesql02 is occasionally slow 
+              # (not broken, just slow - a plain python getaddrinfo() always succeeds, but prisma's own resolver sometimes hits its default timeout first). 
+              # Give it more time to connect rather than fail with P1001.
               value: "postgresql://{{litellm_db_username}}:{{litellm_db_password}}@{{litellm_db_host}}:5432/{{litellm_db_schema}}?connect_timeout=30"
             - name: LITELLM_MASTER_KEY
               value: "{{litellm_master_key}}"
@@ -62,11 +64,33 @@ spec:
             # the startup warning about it
             - name: LITELLM_DISABLE_NO_REDIS_WARNING
               value: "true"
+{% if litellm_langfuse_host %}
+            # send every request to langfuse as an OTLP trace, see the langfuse_otel callback in litellm-config
+            - name: LITELLM_OTEL_V2
+              value: "true"
+            - name: LANGFUSE_HOST
+              value: "{{litellm_langfuse_host}}"
+            - name: LANGFUSE_PUBLIC_KEY
+              value: "{{litellm_langfuse_public_key}}"
+            - name: LANGFUSE_SECRET_KEY
+              value: "{{litellm_langfuse_secret_key}}"
+{% endif %}
           resources:
             limits:
               memory: 2Gi
             requests:
               memory: 2Gi
+{% if litellm_langfuse_host %}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: litellm-config
+{% endif %}
 
 ---
 # litellm docs use just a ClusterIP + ingress, I'll stick to LoadBalancer for consistency with the other apps here

@@ -1,0 +1,40 @@
+- name: "sonar skipped, sonar_model is not set"
+  debug:
+    msg: "set sonar_model in vars/sonar/<cluster>.vars.yml to deploy sonar"
+  when: sonar_model | length == 0
+
+- name: "kubernetes namespace sonar"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_sonar }}"
+    wait: true
+    definition: "{{ lookup('template', 'sonar-namespace.j2.yml')  }}"
+  when: sonar_model | length > 0
+
+- name: "look up current sonar replicas"
+  k8s_info:
+    context: "{{ kube_context_sonar }}"
+    api_version: apps/v1
+    kind: Deployment
+    name: sonar
+    namespace: "{{ kube_namespace_sonar }}"
+  register: _sonar_existing
+  when: sonar_model | length > 0
+
+- name: "work out sonar replicas"
+  set_fact:
+    sonar_replicas: "{{ _sonar_existing.resources[0].spec.replicas if (_sonar_existing.resources | length > 0) else sonar_initial_replicas }}"
+  when: sonar_model | length > 0
+
+- name: "kubernetes deployment sonar"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_sonar }}"
+    namespace: "{{ kube_namespace_sonar }}"
+    # nothing to wait for when scaled to 0
+    wait: "{{ sonar_replicas | int > 0 }}"
+    # the model is downloaded on first start, which can take far longer than
+    # the default 120s wait
+    wait_timeout: 1800
+    definition: "{{ lookup('template', 'sonar.j2.yml')  }}"
+  when: sonar_model | length > 0

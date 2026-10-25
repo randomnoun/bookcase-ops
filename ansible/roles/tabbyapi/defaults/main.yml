@@ -1,0 +1,59 @@
+kube_context_tabbyapi: ""
+kube_namespace_tabbyapi: "dev-tabbyapi"
+kube_storageclass_tabbyapi: ""
+
+# Replica count the FIRST time the deployment is created. 0 because ollama, sonar and
+# tabbyapi each want every GPU on the node, so only one can run at a time: start the one you
+# want with `kubectl scale` (see setup/SETUP-LLM.md). After the first run the role keeps
+# whatever the deployment is currently scaled to, so re-running it doesn't undo a `kubectl scale`.
+tabbyapi_initial_replicas: 0
+
+tabbyapi_volume_size_gb: 300
+
+# Published by the project to ghcr.io (tags: latest = CUDA 12.8, cu13 = CUDA 13,
+# latest-extras = with the embeddings stack). There are no version tags, so
+# 'latest' is a moving target: IfNotPresent below stops a pod restart from silently
+# pulling a new one, but a fresh node will. Pin by digest (image@sha256:...) if you care.
+# cu13 needs a newer nvidia driver on the node than latest does.
+tabbyapi_image: "ghcr.io/theroyallab/tabbyapi:latest"
+
+# Keys for the API. Required (the role refuses to run without them). Generate with
+# `openssl rand -hex 24` and keep them in vault, see setup/SETUP-LLM.md.
+#   api_key   - used by litellm for inference
+#   admin_key - needed for /v1/model/load and /v1/download
+tabbyapi_api_key: ""
+tabbyapi_admin_key: ""
+
+# Model to load when the server starts: a directory name under /app/models (the PVC),
+# e.g. "Qwen3-30B-A3B-exl3". Empty = start with nothing loaded, then download and load
+# models through the API (see setup/SETUP-LLM.md). Unlike ollama, tabbyapi serves ONE
+# loaded model at a time (loading another unloads the first).
+tabbyapi_model_name: ""
+
+tabbyapi_max_seq_len: 32768
+
+# KV cache precision as "k_bits,v_bits" (2-8), or FP16/Q8/Q6/Q4. Lower = less VRAM.
+# "8,8" is close to lossless and halves the cache; FP16 is the project default.
+tabbyapi_cache_mode: "FP16"
+
+# Split the model across both GPUs. false = autosplit (fills GPU 0, then GPU 1) which
+# is the safest default; true = tensor parallelism (needs the /dev/shm below, and is
+# faster when it works, but verify it with your cards before relying on it).
+tabbyapi_tensor_parallel: false
+
+tabbyapi_gpu_node_selector_key: "gpu-vendor"
+tabbyapi_gpu_node_selector_value: "nvidia"
+# NB: ollama (and sonar) also request both GPUs, so only one of them can run at a
+# time. Scale the others down first, see setup/SETUP-LLM.md.
+tabbyapi_gpu_count: 2
+# must match the RuntimeClass name registered by the nvidia-device-plugin role
+tabbyapi_gpu_runtime_class_name: "nvidia"
+
+tabbyapi_cpu_request: "4"
+tabbyapi_cpu_limit: "8"
+tabbyapi_memory_request: "16Gi"
+tabbyapi_memory_limit: "48Gi"
+
+# ExLlamaV3 uses /dev/shm for tensor parallelism; docker's 64Mi default is too small.
+# Only consumes memory for what's actually written.
+tabbyapi_shm_size: "8Gi"

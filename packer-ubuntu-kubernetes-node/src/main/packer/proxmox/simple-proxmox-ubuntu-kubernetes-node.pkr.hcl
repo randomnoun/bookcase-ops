@@ -25,10 +25,11 @@ variable "builder_memsize" { type = string }
 variable "builder_disksize" { type = string }
 variable "builder_ethernet0_mac" { type = string }
 
-variable "backup_host" { type = string }
-variable "backup_path" { type = string }
-variable "backup_username" { type = string }
-variable "backup_password" { type = string }
+variable "nas_host" { type = string }
+variable "nas_backup_path" { type = string }
+variable "nas_ca_path" { type = string }
+variable "nas_username" { type = string }
+variable "nas_password" { type = string }
 
 packer {
   required_version = ">= 1.7.0"
@@ -158,10 +159,11 @@ build {
   provisioner "shell" {
     environment_vars = [
       "CLOUD_INIT_USERNAME=${var.cloud_init_username}",
-      "BACKUP_HOST=${var.backup_host}",
-      "BACKUP_PATH=${var.backup_path}",
-      "BACKUP_USERNAME=${var.backup_username}",
-      "BACKUP_PASSWORD=${var.backup_password}",
+      "NAS_HOST=${var.nas_host}",
+      "NAS_BACKUP_PATH=${var.nas_backup_path}",
+      "NAS_CA_PATH=${var.nas_ca_path}",
+      "NAS_USERNAME=${var.nas_username}",
+      "NAS_PASSWORD=${var.nas_password}",
     ]
     execute_command = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
     script          = "../common/packer-scripts/01-install.sh"

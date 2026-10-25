@@ -5,10 +5,24 @@
     wait: true
     definition: "{{ lookup('template', 'ollama-namespace.j2.yml')  }}"
 
+- name: "look up current ollama replicas"
+  k8s_info:
+    context: "{{ kube_context_ollama }}"
+    api_version: apps/v1
+    kind: Deployment
+    name: ollama
+    namespace: "{{ kube_namespace_ollama }}"
+  register: _ollama_existing
+
+- name: "work out ollama replicas"
+  set_fact:
+    ollama_replicas: "{{ _ollama_existing.resources[0].spec.replicas if (_ollama_existing.resources | length > 0) else ollama_initial_replicas }}"
+
 - name: "kubernetes deployment ollama"
   k8s:
     state: "present"
     context: "{{ kube_context_ollama }}"
     namespace: "{{ kube_namespace_ollama }}"
-    wait: true
+    # nothing to wait for when scaled to 0
+    wait: "{{ ollama_replicas | int > 0 }}"
     definition: "{{ lookup('template', 'ollama.j2.yml')  }}"

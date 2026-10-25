@@ -2,6 +2,11 @@ kube_context_ollama: ""
 kube_namespace_ollama: "dev-ollama"
 kube_storageclass_ollama: ""
 
+# Replica count the FIRST time the deployment is created. After that the role keeps
+# whatever the deployment is currently scaled to, so re-running it doesn't undo a
+# `kubectl scale` (ollama, sonar and tabbyapi each want every GPU, so only one runs at a time).
+ollama_initial_replicas: 1
+
 ollama_volume_size_gb: 1000
 
 ollama_gpu_node_selector_key: "gpu-vendor"

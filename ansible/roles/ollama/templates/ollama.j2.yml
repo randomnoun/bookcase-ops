@@ -19,7 +19,7 @@ kind: Deployment
 metadata:
   name: ollama
 spec:
-  replicas: 1
+  replicas: {{ ollama_replicas }}
   # default RollingUpdate tries to bring up the new pod before tearing down
   # the old one - with nvidia.com/gpu: 2 requested and only 2 GPUs on the
   # node, the new pod can never schedule while the old one still holds them.

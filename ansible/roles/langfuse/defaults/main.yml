@@ -1,0 +1,54 @@
+kube_context_langfuse: ""
+kube_namespace_langfuse: "dev-langfuse"
+kube_storageclass_langfuse: "freenas-nfs"
+
+langfuse_ingress_host: ""
+langfuse_ingress_class: ""
+langfuse_tls_secret_cert: ""
+langfuse_tls_secret_key: ""
+
+# major version tag of the langfuse web + worker images
+langfuse_version: "4"
+
+# postgres, hosted externally
+langfuse_db_host: ""
+langfuse_db_schema: ""
+langfuse_db_username: ""
+langfuse_db_password: ""
+
+# signs login sessions
+langfuse_nextauth_secret: ""
+# hashes API keys
+langfuse_salt: ""
+# encrypts stored LLM credentials, must be 64 hex chars ( openssl rand -hex 32 )
+langfuse_encryption_key: ""
+
+# clickhouse, hosted externally. langfuse creates its tables in the database
+# itself, but the database and user must exist already
+langfuse_clickhouse_host: ""
+langfuse_clickhouse_http_port: "8123"
+langfuse_clickhouse_native_port: "9000"
+langfuse_clickhouse_database: ""
+langfuse_clickhouse_username: ""
+langfuse_clickhouse_password: ""
+
+# S3-compatible object storage ( rustfs ), hosted externally. The bucket must exist already.
+# The endpoint is also used to build presigned URLs for your browser, so it
+# has to be reachable from there as well as from the cluster
+langfuse_s3_endpoint: ""
+langfuse_s3_bucket: ""
+langfuse_s3_access_key_id: ""
+langfuse_s3_secret_access_key: ""
+
+# redis runs in the cluster, as a queue and cache
+langfuse_redis_password: ""
+
+# created on first startup ( headless init ), ignored once they exist
+langfuse_init_org_name: ""
+langfuse_init_project_name: ""
+langfuse_init_user_email: ""
+langfuse_init_user_name: ""
+langfuse_init_user_password: ""
+# API keys for the initial project, used by litellm to send traces
+langfuse_init_public_key: ""
+langfuse_init_secret_key: ""

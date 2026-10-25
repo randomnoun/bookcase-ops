@@ -217,6 +217,8 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.org/client-max-body-size: "0"
+    nginx.org/proxy-read-timeout: "900s"
+    nginx.org/proxy-send-timeout: "900s"
     nginx.org/redirect-to-https: "false"
     ingress.kubernetes.io/ssl-redirect: "false"
 spec:

@@ -1,5 +1,7 @@
 # bookcase-ops LLM setup
 
+## Overview
+
 A maze of twisty little components, all alike:
 
 ```mermaid
@@ -17,12 +19,17 @@ flowchart TB
         end
 
         litellm["litellm<br/>LLM proxy"]
+        langfuse["langfuse<br/>traces + comparison<br/>(+ redis)"]
         searxng["searxng<br/>web search"]
 
         subgraph bnenod05 ["node bnenod05 (VM on Proxmox host bnellm01)"]
-            ollama["ollama<br/>:11434"]
+            subgraph backends ["backends (only one runs at a time)"]
+                ollama["ollama<br/>:11434<br/>GGUF"]
+                sonar["sonar<br/>:2242<br/>starts at 0 replicas"]
+                tabbyapi["tabbyapi<br/>:5000<br/>EXL3<br/>starts at 0 replicas"]
+            end
             gpus[/"2 x RTX 3090<br/>(PCI passthrough)"/]
-            models[("/mnt/models<br/>local-path storage")]
+            models[("/mnt/models<br/>local-path storage<br/>one PVC per backend")]
         end
     end
 
@@ -31,7 +38,8 @@ flowchart TB
     end
 
     pg[("postgres<br/>bnesql02")]
-    nfs[("NFS storage<br/>bnenas05")]
+    ch[("clickhouse<br/>bnesql02")]
+    nfs[("NFS storage + rustfs<br/>bnenas05")]
 
     user -->|HTTPS| ingress
     user -.->|"kubectl exec -it deploy/pi -- pi"| pi
@@ -40,24 +48,36 @@ flowchart TB
     ingress --> opencode
     ingress --> openhands
     ingress --> litellm
+    ingress --> langfuse
 
     agents -->|"OpenAI API<br/>/v1 + virtual key"| litellm
     litellm -->|"ollama_chat"| ollama
+    litellm -->|"openai-compatible<br/>/v1"| sonar
+    litellm -->|"openai-compatible<br/>/v1 + api key"| tabbyapi
     litellm -->|"search"| searxng
-    ollama -->|"nvidia-device-plugin<br/>nvidia.com/gpu"| gpus
-    ollama --- models
+    litellm -->|"OTLP traces"| langfuse
+    backends -->|"nvidia-device-plugin<br/>nvidia.com/gpu"| gpus
+    backends --- models
     models -->|"1TB disk"| thin
 
     litellm -->|"db: litellm"| pg
+    langfuse -->|"db: langfuse"| pg
+    langfuse -->|"traces"| ch
+    langfuse -->|"S3: events"| nfs
     openwebui -->|"db: openwebui"| pg
     openhands -->|"db: openhands<br/>(automations only)"| pg
 
     agents -.->|"PVCs<br/>(sessions, repos)"| nfs
 ```
 
-Nothing but `litellm` talks to `ollama`; everything else goes through litellm's API, using its own virtual key.
- 
-Only `ollama` is pinned to `bnenod05` ( it needs the GPUs and the model disk ). 
+So the plan is that whilst I"m still working out how this is supposed to work, I'll have a few different frontends / UIs, and a few different backends.
+
+Everything will get funnelled through litellm, which will act as a proxy for the frontends to talk to the backends.  
+This should keep most of the LLM config is centralised somewhere, and should make it easier to connect to remote LLMs later. 
+Each frontend has a different litellm virtual API key, so I can see what's going where.
+
+The backends are pinned to `bnenod05` ( they need the GPUs to operate). 
+Each backend requests both GPUs, so only one can run at a time: `ollama` runs by default and `sonar` and `tabbyapi` start scaled to 0, see [Switching between engines](#switching-between-engines).
 
 ### Steps
 
@@ -65,10 +85,12 @@ OK so first you'll need to install **proxmox** on the new `bnellm01` machine tha
 
 Then:  
 
-* Create the `tpl-ubuntu-kubernetes-node` VM template via packer. See [../packer-ubuntu-kubernetes-node/README.md](../packer-ubuntu-kubernetes-node/README.md).
-* Clone that to create the `bnenod05` kubernetes node; it'll join the `bnekub03` cluster
+* Create the VM template `tpl-ubuntu-kubernetes-node` via packer. See [../packer-ubuntu-kubernetes-node/README.md](../packer-ubuntu-kubernetes-node/README.md).
+* Clone that template to create the `bnenod05` kubernetes node; it'll join the `bnekub03` cluster
 * Attach the GPUs to `bnenod05`
 * Start installing the containers 
+
+## The node
 
 ### Kubernetes node on proxmox
 
@@ -114,7 +136,7 @@ The second SSD on bnellm01 is there to hold LLM models; carve out a dedicated th
 
 The disk will be mounted as `/mnt/models` on `bnenod05`.
 
-The `local-path-provisioner` ansible role will provision ollama's PVC here. 
+The `local-path-provisioner` ansible role will provision the backends' PVCs ( ollama, sonar, tabbyapi ) here, one directory each.
 
 Create the disk attached to the VM (shutdown the VM first):
 
@@ -174,28 +196,42 @@ Filesystem      Size  Used Avail Use% Mounted on
 /dev/sdb1      1007G   28K  956G   1% /mnt/models
 ```
 
-### Kubernetes deployments
+## Kubernetes deployments
 
-And then jump over to [ansible/README.md](ansible/README.md) and get some containers running on the node.
+Jump over to [ansible/README.md](ansible/README.md) and get some containers running on the node.
 
-I've created them in this order:
+I've created them in this order, you may need to do some configuration in each container to connect them up as you go.
 
 * litellm
    * and create a user in the web UI
-* searxng
-   * then configure searxng in litellm
 * ollama
    * then install a few models in ollama
    * then configure those models in litellm
-* open-webui
-   * will connect to litellm (not ollama directly), create a litellm key first
 * pi
+   * will connect to litellm (not ollama directly), create a litellm key first
+
+And then once you've got that going, can try these deployments, which will add some observability and lets you try out some different frontends and backends 
+
+* searxng
+   * then configure searxng in litellm
+* langfuse
+   * needs postgres, clickhouse and rustfs set up, and secrets in vault; deploy it before litellm so litellm has somewhere to send traces
+* sonar
+   * needs an image you build yourself, and starts scaled to 0
+* tabbyapi
+   * needs two keys in vault, and starts scaled to 0
+   * then download an EXL3 model and configure it in litellm
+* open-webui
    * will connect to litellm (not ollama directly), create a litellm key first
 * opencode
    * will connect to litellm (not ollama directly), create a litellm key first
 * openhands   
    * will connect to litellm (not ollama directly), create a litellm key first
-   
+
+Only one of `ollama`, `sonar` and `tabbyapi` can use the GPUs at a time, see [Switching between engines](#switching-between-engines).
+
+## Litellm
+
 ### litellm
 
 So to get this running the first time ( and then again any time it upgrades ), you'll need to do a 'prisma' schema update, via:
@@ -224,6 +260,63 @@ Once it's running:
 
 If you're me, then setup some byzantine structure to be able to use the LLMs that are hidden behind your work VPN, 
 but that's not the sort of thing you're going to describe in a public-facing repository. 
+
+### searxng
+
+A search proxy that gives the LLMs web search. Accessible at `https://searxng.dev.randomnoun`.
+
+Needs a secret key ( for CSRF/session signing ) in vault, see [SETUP-DATABASE.md](SETUP-DATABASE.md). Once both are running, configure it in litellm ( the litellm side isn't written up here yet ).
+
+### langfuse
+
+Observability for the whole stack: every request that goes through litellm gets recorded as a trace, with the model, prompt, response, token counts, latency and cost,
+so I can compare frontends ( by their virtual key ) and backends ( by model ) side by side. Accessible at `https://langfuse.dev.randomnoun`.
+
+Langfuse doesn't talk to the frontends or backends at all; it's a sink for litellm. Because every request already goes through litellm, there's nothing to configure in 
+open-webui, pi, opencode or openhands.
+
+Needs a postgres database, a clickhouse database, a rustfs bucket and a bunch of secrets in vault, see [SETUP-DATABASE.md](SETUP-DATABASE.md). 
+Postgres and clickhouse run natively on `bnesql02`, and the S3 storage is the rustfs on `bnenas05`. Only `redis` ( a queue and cache ) is deployed by the role, 
+into the `dev-langfuse` namespace as a single replica backed by a PVC.
+
+The first startup creates the organisation, project, user and project API keys from the `langfuse_init_*` vars, so there's no signup to do. 
+Log in as `langfuse_init_user_email` with the `init_user_password` from vault. Signups are disabled.
+
+**Order matters here:** deploy `langfuse` before `litellm`. The litellm role is configured to send traces to langfuse ( via the `langfuse_otel` callback, using the project keys from vault ), 
+so it'll log export errors until langfuse is up. To turn tracing off again, set `litellm_langfuse_host: ""` in the litellm vars file and re-run the litellm role.
+
+To check it's working, make any request through litellm ( e.g. the `curl` test under [ollama](#ollama) ) and look under Tracing in the langfuse UI. 
+To split the results by frontend, filter on the user or key alias; the pi / opencode / open-webui / openhands virtual keys each show up separately.
+
+## Backends
+
+The backends run the models: `ollama` ( GGUF ), `sonar` and `tabbyapi` ( both EXL3 ). All three are pinned to `bnenod05`, request both GPUs, have no Ingress/TLS and are
+consumed only by `litellm`. They each need the `nvidia-device-plugin` and `local-path-provisioner` system components.
+
+### Switching between engines
+
+`ollama`, `sonar` and `tabbyapi` each request both GPUs, so only one can run at a time. Whichever starts second would sit `Pending`, and after a
+node reboot they'd race for the GPUs, so only `ollama` starts running ( `ollama_initial_replicas: 1` ); `sonar` and `tabbyapi` are created at 0 replicas.
+
+Switch by scaling the one that's running down to 0 *first* ( a GPU stays held until the old pod has finished terminating ), then the one you want up:
+
+```
+kubectl -n dev-ollama   scale deploy/ollama   --replicas=0
+kubectl -n dev-tabbyapi scale deploy/tabbyapi --replicas=1
+kubectl -n dev-tabbyapi rollout status deploy/tabbyapi --timeout=15m
+```
+
+( swap the namespace and name for `dev-sonar` / `sonar` or `dev-ollama` / `ollama` ). Check what's running with `kubectl get deploy -A | grep -E 'ollama|sonar|tabbyapi'`.
+
+Re-running a role does **not** reset the replica count: it reads the current value from the cluster and keeps it, so `initial_replicas` only applies
+the first time the deployment is created. To change a role's behaviour permanently, scale it with `kubectl` as above.
+
+Things to note:
+
+* A scaled-down engine keeps its PVC and models; only the pod goes away.
+* litellm returns an error for a model whose engine is scaled to 0. It doesn't try to start it.
+* Loading a big model takes minutes after scaling up ( tabbyapi/sonar load the weights into VRAM; ollama loads on first request ).
+* The `sonar` role does nothing until `sonar_model` is set, whatever its replica count.
 
 ### ollama 
 
@@ -319,6 +412,115 @@ tokens: 68
 A mutex (short for "mutual exclusion") is a synchronization primitive that allows only one thread to access a shared resource at a time, preventing other threads from accessing it until the mutex is released. By acquiring and releasing a mutex, threads can coordinate access to shared data, preventing data corruption and ensuring that multiple threads don't try to modify the same data simultaneously.
 tokens: 74
 ```
+
+### sonar
+
+Sonar is an alternative to `ollama` that can serve EXL3 quantizations as well as GGUF, with an OpenAI-compatible API. 
+It was formerly called "Aphrodite Engine"; some components still use the old name as the project is mid-rename.  
+Like ollama it's pinned to `bnenod05`, requests the GPUs, has no Ingress/TLS and is consumed via `litellm`.
+
+* **It competes with ollama and tabbyapi for the GPUs**, and starts scaled to 0. See [Switching between engines](#switching-between-engines).
+  ( Alternatively set two of them to 1 GPU ( and `sonar_tensor_parallel_size: 1` ) and run a small model in each. )
+* **One model per deployment.** Sonar loads a single model at startup and keeps it resident; there's no `pull`. Set `sonar_model` in
+  `vars/sonar/bnekub03.vars.yml` and re-run the role to change it ( until it's set, the role does nothing ).
+  Weights are downloaded from HuggingFace on first start into the PVC, so the first start takes a while; `kubectl -n dev-sonar logs -f deploy/sonar`.
+* **EXL3:** set `sonar_quantization: "exl3"`, `sonar_model` to the repo, and `sonar_model_revision` to the bits-per-weight branch ( e.g. `4.0bpw` ).
+* **GGUF:** set `sonar_model` to a path to a `.gguf` file on the PVC, and `sonar_tokenizer` to the HF repo of the original model.  Copy the file in via `kubectl -n dev-sonar cp`.
+* **The VRAM budget is different to ollama's.** Sonar reserves `sonar_gpu_memory_utilization` ( 0.90 ) of each GPU and
+  pre-allocates the KV cache for `sonar_max_model_len` tokens at startup. If the model doesn't fit it fails to start rather than spilling onto the CPU.
+  Two 24GB 3090s give around 43GB usable, so a 70b at 4.0bpw is tight and needs a shorter `sonar_max_model_len`.
+
+There's no prebuilt image of current Sonar on Docker Hub or ghcr.io, so to use it you build one yourself from
+[dphnAI/sonar](https://github.com/dphnAI/sonar) and push it to nexus3
+
+To build and push, bump up the memory in `%USER_PROFILE%/.wsl.conf` first:
+
+```
+[wsl2]
+memory=26GB
+swap=8GB
+``` 
+
+then run this on WSL. It takes forever. Well, 7 hours or so.
+
+Note we're pushing to `docker-releases` because `docker-combined` is a read-only group of releases + snapshots and can't be pushed to.
+
+```
+git clone --branch v0.24.1 https://github.com/dphnAI/sonar.git
+cd sonar
+
+# this took about 7 hours to complete
+BUILDKIT_MAX_PARALLEL_WORKERS=1 docker build --build-arg BUILDKIT_JOBS=1 -f docker/Dockerfile --target aphrodite-openai -t docker-releases.nexus3.dev.randomnoun/sonar:0.24.1 .
+
+
+docker build -f docker/Dockerfile --target aphrodite-openai -t docker-releases.nexus3.dev.randomnoun/sonar:0.24.1 .
+docker login docker-releases.nexus3.dev.randomnoun
+docker push docker-releases.nexus3.dev.randomnoun/sonar:0.24.1
+```
+
+When the push fails on the largest layer with `failed commit on ref "layer-sha256:..." ... timeout awaiting response headers`, push with `skopeo` instead, which doesn't have that timeout:
+
+```
+docker save -o sonar.tar docker-releases.nexus3.dev.randomnoun/sonar:0.24.1
+skopeo copy --dest-creds USER:PASS docker-archive:sonar.tar docker://docker-releases.nexus3.dev.randomnoun/sonar:0.24.1
+```
+
+Try this from `bnenod05` to check that worked
+
+
+```
+sudo ctr -n k8s.io images pull docker-combined.nexus3.dev.randomnoun/sonar:0.24
+```
+
+Configure the model in litellm as an OpenAI-compatible provider ( not Ollama Chat ):
+
+* Models → Add New Model
+   * Provider: **OpenAI-Compatible Endpoints**
+   * Model Name: `local-sonar-<something>`
+   * LiteLLM Model Name: the `sonar_served_model_name` value
+   * API Base: `http://web.dev-sonar.svc.cluster.local:2242/v1`
+   * API Key: any non-empty string
+
+### tabbyapi
+
+[TabbyAPI](https://github.com/theroyallab/tabbyAPI) is an ExLlama server: it runs **EXL3** ( and FP16/BF16 ) models, not GGUF or EXL2. Unlike sonar it has a prebuilt
+image ( `ghcr.io/theroyallab/tabbyapi` ), so there's nothing to build. Like ollama it's pinned to `bnenod05`, requests the GPUs, has no Ingress/TLS and is consumed via `litellm`.
+Its own README describes it as a hobby project, which is ok for bookcase-ops.
+
+Before you create, will need a litellm key stored in vault, see SETUP-DATABASE.md for details.
+
+
+Deploy it first with `tabbyapi_model_name` empty ( it comes up at 0 replicas; see [Switching between engines](#switching-between-engines) ), then download an EXL3 model into the PVC. The `/v1/download` endpoint pulls from HuggingFace ( `revision` picks the
+bits-per-weight branch, which EXL3 repos usually publish as separate branches ):
+
+```
+ADMIN=$(vault kv get -mount=secret -field=admin_key k8s/bnekub03/secret/dev-tabbyapi/tabbyapi)
+kubectl -n dev-tabbyapi port-forward svc/web 5000:5000 &
+curl -s http://localhost:5000/v1/download -H "x-admin-key: $ADMIN" -H "Content-Type: application/json" \
+  -d '{"repo_id": "<hf-org>/<model>-exl3", "revision": "4.0bpw", "folder_name": "<model>-exl3-4.0bpw"}'
+```
+
+Then set `tabbyapi_model_name` to that folder name in `vars/tabbyapi/bnekub03.vars.yml` and re-run the role ( the pod restarts and loads it ),
+or load it without a restart: `curl http://localhost:5000/v1/model/load -H "x-admin-key: $ADMIN" -H "Content-Type: application/json" -d '{"model_name": "<folder>"}'`.
+`kubectl -n dev-tabbyapi logs -f deploy/tabbyapi` shows the load. I haven't verified the exact EXL3 repo names or branch layout, so check the repo's HuggingFace page first.
+
+Things that affect speed and fit, all in `defaults/main.yml`:
+
+* `tabbyapi_tensor_parallel` is off ( autosplit across the two GPUs ). Try `true` as a benchmark; it can be faster, but I haven't verified it works well on 3090s without NVLink.
+* `tabbyapi_cache_mode: "8,8"` quantizes the KV cache to save VRAM, at a small quality cost. `tabbyapi_max_seq_len` sets the context length.
+
+Configure the model in litellm as an OpenAI-compatible provider:
+
+* Models → Add New Model
+   * Provider: **OpenAI-Compatible Endpoints**
+   * Model Name: `local-tabby-<something>`
+   * LiteLLM Model Name: the folder name of the loaded model
+   * API Base: `http://web.dev-tabbyapi.svc.cluster.local:5000/v1`
+   * API Key: the `api_key` from vault
+
+## Frontends
+
+These all talk to `litellm`, never to a backend directly, each using its own litellm virtual key.
 
 ### open-webui
 

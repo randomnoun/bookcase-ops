@@ -1,0 +1,11 @@
+kube_context_tabbyapi: "bnekub03"
+kube_storageclass_tabbyapi: "bnenod05-local-path"
+
+tabbyapi_volume_size_gb: 300
+
+tabbyapi_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-tabbyapi/tabbyapi:api_key')}}"
+tabbyapi_admin_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-tabbyapi/tabbyapi:admin_key')}}"
+
+# directory name of an EXL3 model under /app/models. Leave empty on the first run, then
+# download one and set this (see setup/SETUP-LLM.md)
+tabbyapi_model_name: ""

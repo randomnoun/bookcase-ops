@@ -16,11 +16,13 @@ variable "builder_disksize" { type = string }
 variable "builder_ethernet0_mac" { type = string }
 
 variable "mysql_root_password" { type = string }
+variable "postgres_password" { type = string }
+variable "clickhouse_password" { type = string }
 
-variable "backup_host" { type = string }
-variable "backup_path" { type = string }
-variable "backup_username" { type = string }
-variable "backup_password" { type = string }
+variable "nas_host" { type = string }
+variable "nas_backup_path" { type = string }
+variable "nas_username" { type = string }
+variable "nas_password" { type = string }
 
 source "vmware-iso" "mysql" {
 
@@ -106,12 +108,13 @@ build {
 
   provisioner "shell" {
     environment_vars = [
-      "BACKUP_HOST=${var.backup_host}", 
-      "BACKUP_PATH=${var.backup_path}", 
-      "BACKUP_USERNAME=${var.backup_username}", 
-      "BACKUP_PASSWORD=${var.backup_password}", 
+      "NAS_HOST=${var.nas_host}", 
+      "NAS_BACKUP_PATH=${var.nas_backup_path}", 
+      "NAS_USERNAME=${var.nas_username}", 
+      "NAS_PASSWORD=${var.nas_password}", 
       "MYSQL_ROOT_PASSWORD=${var.mysql_root_password}",
-      "POSTGRES_PASSWORD=${var.postgres_password}"
+      "POSTGRES_PASSWORD=${var.postgres_password}",
+      "CLICKHOUSE_PASSWORD=${var.clickhouse_password}"
     ]
     execute_command  = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
     script           = "packer-scripts/01-install.sh"

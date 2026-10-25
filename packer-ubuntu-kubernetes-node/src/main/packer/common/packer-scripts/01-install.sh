@@ -28,11 +28,19 @@ echo '>>>> Creating /root/backup-variables.sh'
 
 cat << EOF > /root/backup-variables.sh
 #! /bin/bash
-BACKUP_HOST=${BACKUP_HOST}
-BACKUP_PATH=${BACKUP_PATH}
-BACKUP_USERNAME=${BACKUP_USERNAME}
-BACKUP_PASSWORD=${BACKUP_PASSWORD}
+NAS_HOST=${NAS_HOST}
+NAS_BACKUP_PATH=${NAS_BACKUP_PATH}
+NAS_CA_PATH=${NAS_CA_PATH}
+NAS_USERNAME=${NAS_USERNAME}
+NAS_PASSWORD=${NAS_PASSWORD}
 EOF
+
+echo '>>>> Installing the randomnoun CA certificate'
+
+# before containerd is installed, so it trusts the CA (eg. for nexus3's docker registries) from its first start
+sshpass -p ${NAS_PASSWORD} scp -o 'StrictHostKeyChecking no' ${NAS_USERNAME}@${NAS_HOST}:${NAS_CA_PATH}/cacert.pem /tmp/cacert.crt
+mv /tmp/cacert.crt /usr/local/share/ca-certificates/cacert.crt
+update-ca-certificates
 
 echo '>>>> Copying files from /opt/packer to filesystem'
  
@@ -105,7 +113,7 @@ echo '>>>> Fetching kubernetes join command'
 # rename, whenever they're ready to join.
 
 mkdir -p /opt/backup/join-command
-sshpass -p ${BACKUP_PASSWORD}  scp -o 'StrictHostKeyChecking no' ${BACKUP_USERNAME}@${BACKUP_HOST}:${BACKUP_PATH}/join-command/kubernetes-join-command.sh /opt/backup/join-command/kubernetes-join-command.sh
+sshpass -p ${NAS_PASSWORD}  scp -o 'StrictHostKeyChecking no' ${NAS_USERNAME}@${NAS_HOST}:${NAS_BACKUP_PATH}/join-command/kubernetes-join-command.sh /opt/backup/join-command/kubernetes-join-command.sh
 
 chmod a+x /opt/backup/join-command/kubernetes-join-command.sh
 

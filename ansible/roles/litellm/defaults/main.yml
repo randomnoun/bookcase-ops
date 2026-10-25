@@ -13,3 +13,8 @@ litellm_db_password: ""
 
 litellm_master_key: ""
 litellm_salt_key: ""
+
+# leave litellm_langfuse_host empty to disable sending traces to langfuse
+litellm_langfuse_host: ""
+litellm_langfuse_public_key: ""
+litellm_langfuse_secret_key: ""

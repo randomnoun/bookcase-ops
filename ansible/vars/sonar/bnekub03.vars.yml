@@ -1,0 +1,23 @@
+kube_context_sonar: "bnekub03"
+kube_storageclass_sonar: "bnenod05-local-path"
+
+sonar_volume_size_gb: 300
+sonar_gpu_memory_utilization: "0.92"
+
+# Needs to be built beforehand
+sonar_image: "docker-combined.nexus3.dev.randomnoun/sonar:0.24.1"
+
+# One model per deployment. 
+
+# This will change every time a new model is deployed
+sonar_model: "turboderp/Qwen3.8-27B-exl3"
+sonar_model_revision: "5.00bpw"
+sonar_hf_token: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-sonar/sonar:hf_token')}}"
+sonar_quantization: ""
+sonar_served_model_name: "local-sonar"
+sonar_max_model_len: "98304"
+sonar_extra_args:
+  - "--trust-remote-code"
+  - "--kv-cache-dtype=fp8"
+
+

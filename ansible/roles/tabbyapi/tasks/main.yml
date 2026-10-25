@@ -1,0 +1,37 @@
+- name: "tabbyapi keys must be set"
+  assert:
+    that:
+      - tabbyapi_api_key | length > 0
+      - tabbyapi_admin_key | length > 0
+    fail_msg: "set tabbyapi_api_key and tabbyapi_admin_key (see setup/SETUP-LLM.md)"
+
+- name: "kubernetes namespace tabbyapi"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_tabbyapi }}"
+    wait: true
+    definition: "{{ lookup('template', 'tabbyapi-namespace.j2.yml')  }}"
+
+- name: "look up current tabbyapi replicas"
+  k8s_info:
+    context: "{{ kube_context_tabbyapi }}"
+    api_version: apps/v1
+    kind: Deployment
+    name: tabbyapi
+    namespace: "{{ kube_namespace_tabbyapi }}"
+  register: _tabbyapi_existing
+
+- name: "work out tabbyapi replicas"
+  set_fact:
+    tabbyapi_replicas: "{{ _tabbyapi_existing.resources[0].spec.replicas if (_tabbyapi_existing.resources | length > 0) else tabbyapi_initial_replicas }}"
+
+- name: "kubernetes deployment tabbyapi"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_tabbyapi }}"
+    namespace: "{{ kube_namespace_tabbyapi }}"
+    # nothing to wait for when scaled to 0
+    wait: "{{ tabbyapi_replicas | int > 0 }}"
+    # loading a model onto the GPUs can take minutes
+    wait_timeout: 900
+    definition: "{{ lookup('template', 'tabbyapi.j2.yml')  }}"

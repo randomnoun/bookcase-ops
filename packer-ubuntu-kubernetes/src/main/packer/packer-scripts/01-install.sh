@@ -28,11 +28,19 @@ echo '>>>> Creating /root/backup-variables.sh'
 
 cat << EOF > /root/backup-variables.sh
 #! /bin/bash
-BACKUP_HOST=${BACKUP_HOST}
-BACKUP_PATH=${BACKUP_PATH}
-BACKUP_USERNAME=${BACKUP_USERNAME}
-BACKUP_PASSWORD=${BACKUP_PASSWORD}
+NAS_HOST=${NAS_HOST}
+NAS_BACKUP_PATH=${NAS_BACKUP_PATH}
+NAS_CA_PATH=${NAS_CA_PATH}
+NAS_USERNAME=${NAS_USERNAME}
+NAS_PASSWORD=${NAS_PASSWORD}
 EOF
+
+echo '>>>> Installing the randomnoun CA certificate'
+
+# before containerd is installed, so it trusts the CA (eg. for nexus3's docker registries) from its first start
+sshpass -p ${NAS_PASSWORD} scp -o 'StrictHostKeyChecking no' ${NAS_USERNAME}@${NAS_HOST}:${NAS_CA_PATH}/cacert.pem /tmp/cacert.crt
+mv /tmp/cacert.crt /usr/local/share/ca-certificates/cacert.crt
+update-ca-certificates
 
 echo '>>>> Copying files from /opt/packer to filesystem'
  
@@ -223,9 +231,9 @@ EOF
 # ^ using long-lived token instead
 # kubeadm token create --print-join-command >> /opt/backup/join-command/kubernetes-join-command.sh
 
-sshpass -p ${BACKUP_PASSWORD} ssh -o 'StrictHostKeyChecking no' ${BACKUP_USERNAME}@${BACKUP_HOST} mkdir -p ${BACKUP_PATH}/join-command
-sshpass -p ${BACKUP_PASSWORD}  scp -o 'StrictHostKeyChecking no' /opt/backup/join-command/kubernetes-join-command.sh ${BACKUP_USERNAME}@${BACKUP_HOST}:${BACKUP_PATH}/join-command/kubernetes-join-command.sh
-sshpass -p ${BACKUP_PASSWORD}  scp -o 'StrictHostKeyChecking no' ${HOME}/.kube/config ${BACKUP_USERNAME}@${BACKUP_HOST}:${BACKUP_PATH}/kubeconfig
+sshpass -p ${NAS_PASSWORD} ssh -o 'StrictHostKeyChecking no' ${NAS_USERNAME}@${NAS_HOST} mkdir -p ${NAS_BACKUP_PATH}/join-command
+sshpass -p ${NAS_PASSWORD}  scp -o 'StrictHostKeyChecking no' /opt/backup/join-command/kubernetes-join-command.sh ${NAS_USERNAME}@${NAS_HOST}:${NAS_BACKUP_PATH}/join-command/kubernetes-join-command.sh
+sshpass -p ${NAS_PASSWORD}  scp -o 'StrictHostKeyChecking no' ${HOME}/.kube/config ${NAS_USERNAME}@${NAS_HOST}:${NAS_BACKUP_PATH}/kubeconfig
 
 echo '>>>> ip addr show'
 ip addr show

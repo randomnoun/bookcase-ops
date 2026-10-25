@@ -11,8 +11,8 @@ Looking over my notes, this took about 4 weekends, spread over about 4 months (p
 And you know, when I inevitably kick the bucket, my immediate family, who have difficulty selecting a different HDMI input or operating a printer, might be able to salvage some of my life's work. Which they won't be able to appreciate or comprehend in any way. I guess they could admire the punctuation or something. I have a niece starting computer science this year though, so I guess hope springs eternal.
 
 **Update 2026-10-06:** OK so not only has my niece decided not to go ahead with that degree, but in the four years between starting this project and now, 
-LLMs have become the thing that everyone is talking about. So I've gone out and dumped an outrageous amount of cash on an 'LLM server', which I'll be using to put myself out of a job,
-if everything goes according to plan. The proxmox bits below are for that new server.
+LLMs have become the shiny new thing that everyone is talking about. So I've gone out and dumped an outrageous amount of cash on an 'LLM server', which I'll be using to put myself out of a job,
+if everything goes according to plan. I'm using proxmox on the LLM server as a hypervisor, and various bits and bobs on a k8s node running within that.
 
 # What's in the box ?
 
@@ -23,13 +23,14 @@ Okay so what you've got is:
    * [SETUP-HARDWARE.md](setup/SETUP-HARDWARE.md) - what I'm running this on
    * [SETUP-DNS.md](setup/SETUP-DNS.md) - DNS + DHCP configuration for the things in this project
    * [SETUP-NAS.md](setup/SETUP-NAS.md) - setting up the free version of TrueNAS SCALE
-   * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.5 ( for the first node )
-   * [SETUP-PROXMOX.md](setup/SETUP-PROXMOX.md) - setting up proxmox ( for the second node )
-* [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run MySQL 8.0 and vault , on ubuntu 24
+   * [SETUP-RUSTFS.md](setup/SETUP-RUSTFS.md) - setting up rustfs (s3-compatible storage provider) on the NAS
+   * [SETUP-ESX.md](setup/SETUP-ESX.md) - setting up the free version of ESX 6.5; used this for the initial set of VMs, including the k8s API server and node
+   * [SETUP-PROXMOX.md](setup/SETUP-PROXMOX.md) - setting up the free version of proxmox; used this for the k8s node that runs the LLM stuff
+* [packer-ubuntu-mysql](packer-ubuntu-mysql/) - a packer script to create a VM to run vault, MySQL, postgres and clickhouse , on ubuntu 24
    * This'll need to be the first virtual machine you create, as it will contain the vault server holding the secrets used in configuring kubernetes
    * [SETUP-VAULT.md](setup/SETUP-VAULT.md) - setting up vault
    * [SETUP-CERTIFICATE.md](setup/SETUP-CERTIFICATE.md) - setting up a certificate authority (CA) and the site certificates used later in kubernetes ingresses
-   * [SETUP-DATABASE.md](setup/SETUP-DATABASE.md) - setting up the db schema and user for xwiki   
+   * [SETUP-DATABASE.md](setup/SETUP-DATABASE.md) - setting up the databases, schemas, users, + a bunch of other application passwords and secrets   
 * [SETUP-RESTIC.md](setup/SETUP-RESTIC.md) - setting up restic. This actually runs on the NAS, but we need to create certificates for it, so we're setting it up here after the CA has been created.
 * [packer-ubuntu-kubernetes](packer-ubuntu-kubernetes/) - a packer script to create a kubernetes 1.35 cluster / API server running on ubuntu 24
 * [packer-ubuntu-kubernetes-node](packer-ubuntu-kubernetes-node/) - a packer script to create a kubernetes 1.35 node running on ubuntu 24
@@ -46,15 +47,21 @@ Okay so what you've got is:
    * karakeep - a bookmark organiser
    * atuin - shell history server
    * wakapi - developer time tracker
-   * litellm - an LLM proxy
-   * searxng - a search proxy ( for LLMs mostly )
-* [SETUP-LLM.md](setup/SETUP-LLM.md) After I got the second node
+* [SETUP-LLM.md](setup/SETUP-LLM.md) - the large language model server, node and containers
    * added a proxmox variant of `packer-ubuntu-kubernetes-node`
-   * ollama - an LLM engine
-   * open-webui - a simple frontend to that ( connects to litellm )
-   * pi - minimalistic terminal coding harness 
-   * opencode - an "AI terminal" for interactive coding sessions
-   * openhands - a "platform and control layer for repeatable coding agent workflows"
+   * Some middleware
+      * litellm - an LLM proxy
+      * searxng - a search proxy for LLMs
+      * langfuse - a log/observation thing for LLMs
+   * Some backends
+      * ollama - an LLM engine
+      * sonar - another one of those
+      * tabbyapi - another one of those
+   * Some frontends
+      * open-webui - a simple frontend to that ( connects to litellm )
+      * pi - minimalistic terminal coding harness 
+      * opencode - an "AI terminal" for interactive coding sessions
+      * openhands - a "platform and control layer for repeatable coding agent workflows"
    
 The packer scripts are designed to install virtual machines in the free version of ESXi 6.0 server, but the k8s node can now be either ESXi or proxmox.
 
@@ -79,11 +86,13 @@ Anyway once everything's running, you should be able to connect to the following
 * [https://karakeep.dev.randomnoun](https://karakeep.dev.randomnoun)
 * [https://atuin.dev.randomnoun](https://atuin.dev.randomnoun)
 * [https://wakapi.dev.randomnoun](https://wakapi.dev.randomnoun)
-* [https://litellm.dev.randomnoun](https://litellm.dev.randomnoun)
-* [https://searxng.dev.randomnoun](https://searxng.dev.randomnoun)
-* [https://open-webui.dev.randomnoun](https://open-webui.dev.randomnoun)
-* [https://opencode.dev.randomnoun](https://opencode.dev.randomnoun)
-* [https://openhands.dev.randomnoun](https://openhands.dev.randomnoun)
+* And the LLM-related stuff:
+   * [https://litellm.dev.randomnoun](https://litellm.dev.randomnoun)
+   * [https://langfuse.dev.randomnoun](https://langfuse.dev.randomnoun)
+   * [https://searxng.dev.randomnoun](https://searxng.dev.randomnoun)
+   * [https://open-webui.dev.randomnoun](https://open-webui.dev.randomnoun)
+   * [https://opencode.dev.randomnoun](https://opencode.dev.randomnoun)
+   * [https://openhands.dev.randomnoun](https://openhands.dev.randomnoun)
 
 ## Updates
 
@@ -93,7 +102,7 @@ Anyway once everything's running, you should be able to connect to the following
 * 2026-02: added atuin
 * 2026-03: added wakapi
 * 2026-08: added litellm, searxng
-* 2026-10: added bnellm01, proxmox, bnenod05, ollama, open-webui, pi, opencode, openhands
+* 2026-10: added bnellm01, proxmox, bnenod05, ollama, open-webui, pi, opencode, openhands, sonar, tabbyapi, langfuse
    * Have gone a bit LLM-mad, will probably remove some of those as I find out what works and what doesn't
 
 ## License

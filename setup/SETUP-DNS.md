@@ -202,6 +202,7 @@ karakeep      IN CNAME bnenod04
 atuin         IN CNAME bnenod04
 wakapi        IN CNAME bnenod04
 litellm       IN CNAME bnenod04
+langfuse      IN CNAME bnenod04
 searxng       IN CNAME bnenod04
 open-webui    IN CNAME bnenod04
 opencode      IN CNAME bnenod04

@@ -19,10 +19,11 @@ variable "kubernetes_fqdn" { type = string }
 variable "kubernetes_clustername" { type = string }
 variable "kubernetes_token" { type = string }
 
-variable "backup_host" { type = string }
-variable "backup_path" { type = string }
-variable "backup_username" { type = string }
-variable "backup_password" { type = string }
+variable "nas_host" { type = string }
+variable "nas_backup_path" { type = string }
+variable "nas_ca_path" { type = string }
+variable "nas_username" { type = string }
+variable "nas_password" { type = string }
 
 source "vmware-iso" "kubernetes" {
 
@@ -117,10 +118,11 @@ build {
       "KUBERNETES_FQDN=${var.kubernetes_fqdn}",
       "KUBERNETES_CLUSTERNAME=${var.kubernetes_clustername}",
       "KUBERNETES_TOKEN=${var.kubernetes_token}",
-      "BACKUP_HOST=${var.backup_host}",
-      "BACKUP_PATH=${var.backup_path}", 
-      "BACKUP_USERNAME=${var.backup_username}", 
-      "BACKUP_PASSWORD=${var.backup_password}", 
+      "NAS_HOST=${var.nas_host}",
+      "NAS_BACKUP_PATH=${var.nas_backup_path}", 
+      "NAS_CA_PATH=${var.nas_ca_path}",
+      "NAS_USERNAME=${var.nas_username}", 
+      "NAS_PASSWORD=${var.nas_password}", 
     ]
     execute_command  = "echo '${var.cloud_init_password}' | {{ .Vars }} sudo -E -S /bin/bash '{{ .Path }}'"
     script           = "packer-scripts/01-install.sh"
