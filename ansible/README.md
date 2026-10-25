@@ -56,7 +56,7 @@ The system components installed are:
 * **grafana**
    * gives you a nicer frontend to the metrics stored in prometheus
 * **k8s-node-labels**
-   * applies the GPU node labels described above (`gpu-vendor`, `gpu-model`) to whichever nodes need them. Generic/data-driven so new nodes/vendors just need an entry in `vars/k8s-node-labels/bnekub03.vars.yml`, not a new role.
+   * applies some GPU node labels (`gpu-vendor`, `gpu-model`) to the nodes that need them ( just `bnenod05` at the moment )
 * **nvidia-device-plugin**
    * so this thing adds an `nvidia` RuntimeClass so pods run under containerd's nvidia runtime rather than plain `runc`.
    * it advertises `nvidia.com/gpu` as a schedulable resource for any node labelled `gpu-vendor=nvidia`, so the LLM engine pods can reserve GPUs 
@@ -67,7 +67,7 @@ The system components installed are:
    * which is hopefully a bit quicker than loading those over the network
 * **kubernetes-coredns**
    * replaces CoreDNS's Corefile so non-cluster lookups go to my home DNS server first, then the ISP's, then google's, in that order, instead of a random pick from the node's resolver.
-   * `*.dev.randomnoun` is sent to my home DNS server only
+   * `*.dev.randomnoun` is sent to the home DNS server only
 
 Arguably `prometheus` and `grafana` should have been installed with the other applications below, but hey.
 
