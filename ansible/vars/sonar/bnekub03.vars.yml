@@ -28,6 +28,9 @@ sonar_max_model_len: "262144"
 
 sonar_extra_args:
   - "--trust-remote-code"
+  # fp8 KV on sm86 leaves FlashInfer as the only usable attention backend. Tried int8_per_token_head + TRITON_ATTN
+  # ( needs --max-num-seqs=64 too ) to get fused MTP drafting and full CUDA graphs: no faster at equal acceptance and ~23% slower on a
+  # long generation, so this stays. See setup/SETUP-LLM-MTP.md
   - "--kv-cache-dtype=fp8"
   # the next three are what make tool calls and thinking work through litellm:
   # without --enable-auto-tool-choice the API rejects "tool_choice: auto" ( HTTP 400 ),
@@ -36,6 +39,14 @@ sonar_extra_args:
   - "--enable-auto-tool-choice"
   - "--tool-call-parser=qwen3_coder"
   - "--reasoning-parser=qwen3"
+  # MTP self-speculative decoding using the MTP layer in the EXL3 checkpoint ( no "model" key = load it from the
+  # target ). The head is a single layer, so depth beyond 1 reuses it and acceptance drops at later positions;
+  # 3 is the top of sonar's suggested 1-3 range, lower it if the acceptance rate is poor. Costs ~0.7GiB of the
+  # KV pool. The "revision" must repeat sonar_model_revision: the speculative config reuses the target's repo id
+  # but not its branch, and the repo's main branch has no config.json ( "Invalid repository ID or local directory" ).
+  # If sonar fails at startup with an MTP error, this sonar version lacks MTP for the architecture
+  # or can't read the EXL3 mtp.* tensors: remove this line.
+  - '--speculative-config={"method":"mtp","num_speculative_tokens":3,"revision":"5.00bpw"}'
 
 # Settings for this model that live in litellm ( Models -> Edit Settings -> LiteLLM Params ), not here,
 # because sonar has no server-wide default for them:

@@ -73,7 +73,7 @@ spec:
             - "--tokenizer={{ sonar_tokenizer }}"
 {% endif %}
 {% for arg in sonar_extra_args %}
-            - "{{ arg }}"
+            - {{ arg | to_json }}
 {% endfor %}
           ports:
             - containerPort: 2242

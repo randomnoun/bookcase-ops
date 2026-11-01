@@ -41,6 +41,15 @@ tabbyapi_cache_mode: "FP16"
 # faster when it works, but verify it with your cards before relying on it).
 tabbyapi_tensor_parallel: false
 
+# Speculative decoding, written to tabby's draft_model section. Empty = don't write the section
+# (tabby's default is no drafting). "mtp" uses the model's own multi-token-prediction layer, so it
+# needs a quant that kept the mtp.* tensors and no separate draft model. Others: model, ngram, disabled.
+tabbyapi_draft_mode: ""
+# tokens drafted per step; 0 = tabby's default. With dynamic_draft this is the ceiling.
+tabbyapi_draft_num_tokens: 0
+# lower the draft length on the fly when acceptance drops
+tabbyapi_dynamic_draft: false
+
 tabbyapi_gpu_node_selector_key: "gpu-vendor"
 tabbyapi_gpu_node_selector_value: "nvidia"
 # NB: ollama (and sonar) also request both GPUs, so only one of them can run at a

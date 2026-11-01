@@ -18,6 +18,16 @@
   },
   'model': tabby_model,
 } %}
+{% if tabbyapi_draft_mode | length > 0 %}
+{% set tabby_draft = {'draft_mode': tabbyapi_draft_mode} %}
+{% if tabbyapi_draft_num_tokens | int > 0 %}
+{% set _ = tabby_draft.update({'draft_num_tokens': tabbyapi_draft_num_tokens | int}) %}
+{% endif %}
+{% if tabbyapi_dynamic_draft | bool %}
+{% set _ = tabby_draft.update({'dynamic_draft': true}) %}
+{% endif %}
+{% set _ = tabby_config.update({'draft_model': tabby_draft}) %}
+{% endif %}
 {% set tabby_tokens = {
   'api_key': [tabbyapi_api_key],
   'admin_key': tabbyapi_admin_key,
