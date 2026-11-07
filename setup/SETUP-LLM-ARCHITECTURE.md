@@ -27,6 +27,7 @@ flowchart TB
                 ollama["ollama<br/>:11434<br/>GGUF"]
                 sonar["sonar<br/>:2242<br/>starts at 0 replicas"]
                 tabbyapi["tabbyapi<br/>:5000<br/>EXL3<br/>starts at 0 replicas"]
+                ninfer["ninfer<br/>:8080<br/>NInfer, one GPU<br/>starts at 0 replicas"]
             end
             gpus[/"2 x RTX 3090<br/>(PCI passthrough)"/]
             models[("/mnt/models<br/>local-path storage<br/>one PVC per backend")]
@@ -54,6 +55,7 @@ flowchart TB
     litellm -->|"ollama_chat"| ollama
     litellm -->|"openai-compatible<br/>/v1"| sonar
     litellm -->|"openai-compatible<br/>/v1 + api key"| tabbyapi
+    litellm -->|"openai-compatible<br/>/v1 + api key"| ninfer
     litellm -->|"search"| searxng
     litellm -->|"OTLP traces"| langfuse
     backends -->|"nvidia-device-plugin<br/>nvidia.com/gpu"| gpus
@@ -77,4 +79,5 @@ This should keep most of the LLM config is centralised somewhere, and should mak
 Each frontend has a different litellm virtual API key, so I can see what's going where.
 
 The backends are pinned to `bnenod05` ( they need the GPUs to operate). 
-Each backend requests both GPUs, so only one can run at a time: `ollama` runs by default and `sonar` and `tabbyapi` start scaled to 0, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
+`ollama`, `sonar` and `tabbyapi` each request both GPUs, so only one can run at a time; `ninfer` requests one, but `llm.py engine set` still scales the others down for it. 
+`ollama` runs by default and the rest start scaled to 0, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).

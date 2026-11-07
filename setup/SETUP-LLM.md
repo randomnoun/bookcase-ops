@@ -7,14 +7,14 @@ These docs go through the LLM setup for bookcase-ops, it's still in a bit of flu
 | [SETUP-LLM-ARCHITECTURE.md](SETUP-LLM-ARCHITECTURE.md) | The diagram of how the pieces connect, and why |
 | [SETUP-LLM-KUBERNETES.md](SETUP-LLM-KUBERNETES.md) | Creating and configuring the GPU kubernetes node `bnenod05` |
 | [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md) | `langfuse`, `litellm` and `searxng` |
-| [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar` and `tabbyapi` |
+| [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar`, `tabbyapi` and `ninfer` |
 | [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md) | `open-webui`, `pi`, `opencode` and `openhands` |
 
 To simplify configuration, all the frontends talk to `litellm`, which then connects to models running on the various backends.
 
-Currently, only one of `ollama`, `sonar` and `tabbyapi` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
+Currently, only one of `ollama`, `sonar`, `tabbyapi` and `ninfer` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
 
-Once everything's up and running there's a `llm.py` which can be used for switching engines and models. 
+Once everything's up and running there's a `llm.py` which can be used for switching engines and models, and keeping litellm's models in step with them. 
 
 ## Steps
 
@@ -54,6 +54,9 @@ And then once you've got that going, can try these deployments, which will add w
 * tabbyapi ( [backends](SETUP-LLM-BACKEND.md#tabbyapi) )
    * needs two keys in vault, and starts scaled to 0
    * then download an EXL3 model and configure it in litellm
+* ninfer ( [backends](SETUP-LLM-BACKEND.md#ninfer) )
+   * needs an image you build yourself ( [docker/ninfer-3090](../docker/ninfer-3090/README.md) ) and a key in vault, and starts scaled to 0
+   * the model is downloaded by an init container the first time it starts
 * open-webui ( [frontends](SETUP-LLM-FRONTEND.md#open-webui) )
    * will connect to litellm (not ollama directly), create a litellm key first
 * opencode ( [frontends](SETUP-LLM-FRONTEND.md#opencode) )
@@ -61,6 +64,6 @@ And then once you've got that going, can try these deployments, which will add w
 * openhands ( [frontends](SETUP-LLM-FRONTEND.md#openhands) )
    * will connect to litellm (not ollama directly), create a litellm key first
 
-Only one of `ollama`, `sonar` and `tabbyapi` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
+Only one of `ollama`, `sonar`, `tabbyapi` and `ninfer` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
 
 Metrics and dashboards for these ( sonar's tokens/sec, GPU load ) are in [SETUP-GRAFANA.md](SETUP-GRAFANA.md).
