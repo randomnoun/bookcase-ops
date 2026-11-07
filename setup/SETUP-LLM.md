@@ -4,7 +4,7 @@ These docs go through the LLM setup for bookcase-ops, it's still in a bit of flu
 
 | File | What's in it |
 |---|---|
-| [SETUP-LLM-ARCHITECTURE.md](SETUP-LLM-ARCHITECTURE.md) | The diagram of how the pieces connect, and why |
+| [SETUP-LLM-ARCHITECTURE.md](SETUP-LLM-ARCHITECTURE.md) | The diagram of how the pieces connect |
 | [SETUP-LLM-KUBERNETES.md](SETUP-LLM-KUBERNETES.md) | Creating and configuring the GPU kubernetes node `bnenod05` |
 | [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md) | `langfuse`, `litellm` and `searxng` |
 | [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar`, `tabbyapi` and `ninfer` |
