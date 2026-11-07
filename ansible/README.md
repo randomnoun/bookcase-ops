@@ -104,14 +104,9 @@ The initial set of applications are:
 * karakeep
 * atuin
 * wakapi
-* langfuse
-* litellm
-* ollama
-* open-webui
-* pi
-* opencode
-* openhands
-* searxng
+
+The LLM-related applications ( langfuse, litellm, ollama, sonar, tabbyapi, open-webui, pi, opencode, openhands and searxng ) are deployed
+by a separate playbook, `k8s_llm_bnekub03.yml`; see [LLM applications](#llm-applications) below.
 
 what I would suggest you do is to restrict to a specific app using `-e app=xxxxx` (see cmdline below), and deploy a single application at a time, 
 fixing up the startup failures as you go.
@@ -119,11 +114,6 @@ fixing up the startup failures as you go.
 ### Why both nexus2 and nexus3 ?
 
 You could probably just get by with nexus3, as it can hold maven artifacts just fine, but I'm using nexus2 for the same reason that sonatype still use nexus2 for maven central. Which is that nexus3, whilst admirably reinventing quite a lot of wheels, doesn't seem to have reached feature parity with nexus2 for maven repositories just yet.
-
-### Here be dragons 
-
-Once you get down to the LLM-looking containers, head over to [SETUP-LLM.md](../setup/SETUP-LLM.md) because it's all a bit fiddly and things need to be created
-and configured in the right order.  
 
 ## Installation
 
@@ -155,6 +145,28 @@ Use this sort of thing to scale it down
 ```
 knoxg@bnekub03:~$ kubectl -n dev-xwiki scale deployments/xwiki --replicas=0
 deployment.apps/xwiki scaled
+```
+
+## LLM applications
+
+### Here be dragons 
+
+The LLM-looking containers ( langfuse, litellm, ollama, sonar, tabbyapi, open-webui, pi, opencode, openhands and searxng ) live in their own playbook.
+Head over to [SETUP-LLM.md](../setup/SETUP-LLM.md) because it's all a bit fiddly and things need to be created
+and configured in the right order.  
+
+To install all of them, run
+
+```
+. vault-login.sh
+ansible-playbook -vvv -e deployments=bnekub03 k8s_llm_bnekub03.yml
+```
+
+Or to just install a single app, run
+
+```
+. vault-login.sh
+ansible-playbook -vvv -e deployments=bnekub03 -e app=litellm k8s_llm_bnekub03.yml
 ```
 
 

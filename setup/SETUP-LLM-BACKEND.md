@@ -223,7 +223,7 @@ but unauthenticated downloads are slower and rate limited.
 4. Deploy, then give sonar the GPUs:
 
    ```
-   ansible-playbook -vvv -e deployments=bnekub03 -e app=sonar k8s_apps_bnekub03.yml
+   ansible-playbook -vvv -e deployments=bnekub03 -e app=sonar k8s_llm_bnekub03.yml
    kubectl -n dev-ollama scale deploy/ollama --replicas=0
    kubectl -n dev-sonar scale deploy/sonar --replicas=1
    kubectl -n dev-sonar logs -f deploy/sonar
@@ -313,7 +313,7 @@ The role refuses to run without them.
 2. Deploy it with `tabbyapi_model_name` still empty. It comes up at 0 replicas; then give it the GPUs, scaling down whichever engine is running first:
 
    ```
-   ansible-playbook -vvv -e deployments=bnekub03 -e app=tabbyapi k8s_apps_bnekub03.yml
+   ansible-playbook -vvv -e deployments=bnekub03 -e app=tabbyapi k8s_llm_bnekub03.yml
    kubectl -n dev-sonar scale deploy/sonar --replicas=0
    kubectl -n dev-tabbyapi scale deploy/tabbyapi --replicas=1
    kubectl -n dev-tabbyapi logs -f deploy/tabbyapi

@@ -1,6 +1,6 @@
 # bookcase-ops LLM setup
 
-This page is the index; details are in these files:
+These docs go through the LLM setup for bookcase-ops, it's still in a bit of flux at the moment whilst I work out what works and what doesn't.
 
 | File | What's in it |
 |---|---|
@@ -10,7 +10,8 @@ This page is the index; details are in these files:
 | [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar` and `tabbyapi` |
 | [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md) | `open-webui`, `pi`, `opencode` and `openhands` |
 
-Everything goes through `litellm`, so the frontends never talk to a backend directly.
+To simplify configuration, all the frontends talk to `litellm`, which then connects to models running on the various backends.
+
 Only one of `ollama`, `sonar` and `tabbyapi` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
 
 ## Steps
