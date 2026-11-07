@@ -47,7 +47,8 @@ Okay so what you've got is:
    * karakeep - a bookmark organiser
    * atuin - shell history server
    * wakapi - developer time tracker
-* [SETUP-LLM.md](setup/SETUP-LLM.md) - the large language model server, node and containers. This is the index to the pages below
+* The LLM stuff
+   * [SETUP-LLM.md](setup/SETUP-LLM.md) - the large language model server, node and containers.
    * [SETUP-LLM-ARCHITECTURE.md](setup/SETUP-LLM-ARCHITECTURE.md) - a diagram of how it all fits together
    * [SETUP-LLM-KUBERNETES.md](setup/SETUP-LLM-KUBERNETES.md) - added a proxmox variant of `packer-ubuntu-kubernetes-node` with access to the GPUs 
    * [SETUP-LLM-MIDDLEWARE.md](setup/SETUP-LLM-MIDDLEWARE.md) - some middleware

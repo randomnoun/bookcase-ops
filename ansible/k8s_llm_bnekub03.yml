@@ -12,12 +12,13 @@
         - name: ollama-bnekub03
           role: ollama
           var_files: [bnekub03]
+        # bnekub03-models: the model registry and active model, which bin/llm.py edits
         - name: sonar-bnekub03
           role: sonar
-          var_files: [bnekub03]
+          var_files: [bnekub03, bnekub03-models]
         - name: tabbyapi-bnekub03
           role: tabbyapi
-          var_files: [bnekub03]
+          var_files: [bnekub03, bnekub03-models]
         - name: open-webui-bnekub03
           role: open-webui
           var_files: [bnekub03]

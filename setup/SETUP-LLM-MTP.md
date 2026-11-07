@@ -33,7 +33,7 @@ Draft acceptance was 60-81% on short replies and 47-50% on long ones. Prefix reu
 To read speeds and draft acceptance from the logs ( tabby wraps each entry over several lines; the script joins them ):
 
 ```
-python bin/llm.py tabby-speeds --since 1h
+python bin/llm.py speed tabbyapi --since 1h
 ```
 
 See [Tooling](#tooling) for the other verbs.
@@ -120,10 +120,10 @@ Prefix cache hits were 9% of prompt tokens in this short-request test ( real lon
 Sonar does not log acceptance; it is in the engine's `/metrics` ( counters since the pod started ):
 
 ```
-python bin/llm.py sonar-metrics
+python bin/llm.py metric sonar
 ```
 
-Per-request speed ( from the `Request completed` log lines ): `python bin/llm.py sonar-speeds --since 1h`.
+Per-request speed ( from the `Request completed` log lines ): `python bin/llm.py speed sonar --since 1h`.
 
 ### Why sonar trails tabby ( from the startup log and source )
 
@@ -248,21 +248,22 @@ Sonar's advantages are its Prometheus metrics and batching several requests; nei
 
 ## Tooling
 
-`bin/llm.py` is a [click](https://click.palletsprojects.com) CLI with one verb per task; add new ones as `@cli.command()` functions. It needs Python 3 and `click`
-( standard library otherwise ), and `kubectl` for the verbs that read the cluster.
+`bin/llm.py` is a [click](https://click.palletsprojects.com) CLI with two-level verbs ( `speed`, `metric`, `engine`, `model` ); add new ones as commands on one of those groups.
+It needs Python 3 and `pip install click pyyaml hvac requests`, and `kubectl` for the verbs that read the cluster. The `engine` and `model` verbs, which switch engines and models, are described in
+[SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md#switching-between-engines).
 
 ```
 python bin/llm.py --help
-python bin/llm.py sonar-speeds --since 2h          # decode tok/sec per request, from sonar's log
-python bin/llm.py sonar-metrics                    # MTP acceptance by draft position, prefix cache hit rate ( kubectl exec )
-python bin/llm.py tabby-speeds --since 2h          # generation tok/sec, cached share and draft acceptance, from tabby's log
-python bin/llm.py langfuse-speeds 2026-10-29T12:30:00Z 2026-10-29T14:00:00Z --model sonar
+python bin/llm.py speed sonar --since 2h          # decode tok/sec per request, from sonar's log
+python bin/llm.py metric sonar                    # MTP acceptance by draft position, prefix cache hit rate ( kubectl exec )
+python bin/llm.py speed tabbyapi --since 2h          # generation tok/sec, cached share and draft acceptance, from tabby's log
+python bin/llm.py speed langfuse 2026-10-29T12:30:00Z 2026-10-29T14:00:00Z --model sonar
 ```
 
 The three log/metrics verbs also take `--file <path>` to read saved text instead of asking the cluster. Each prints a per-request table and then median speeds by
 prompt size ( `<15k`, `15-45k`, `45-65k`, `>65k` ) for requests with at least `--min-out` tokens out ( default 1000 ).
 
-`langfuse-speeds` needs the project keys: `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` ( in vault under `k8s/bnekub03/secret/dev-langfuse/langfuse` ). From WSL running a Windows Python,
+`speed langfuse` needs the project keys: `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` ( in vault under `k8s/bnekub03/secret/dev-langfuse/langfuse` ). From WSL running a Windows Python,
 also `export WSLENV=LANGFUSE_PUBLIC_KEY:LANGFUSE_SECRET_KEY:$WSLENV`, or the variables are not passed through. Langfuse is v4.70, where the old `/api/public/observations`
 returns 404; the verb uses `/api/public/v2/observations` with cursor paging. Its speed is `--basis e2e` ( output tokens / total latency, so it includes prefill ) because
 `timeToFirstToken` is empty ( next section ).
@@ -275,7 +276,7 @@ on short ones ( 38 vs 112 tok/sec for a ~100-token reply with a 1.6 s prefill ).
 * litellm v1.104.0 does not send the first-token time to langfuse, so langfuse's `timeToFirstToken` is empty. litellm records it ( `completion_start_time`, used for its Prometheus metrics ) but its `langfuse_otel`
   exporter never put it on the span; langfuse reads the span attribute `langfuse.observation.completion_start_time` and derives the field from it. Fixed upstream by "fix(langfuse_otel)!: send the completion start time
   (#45597)", merged 2026-10-20. Checked 2026-10-30: the attribute is absent from every stable tag through v1.106.6 and from v1.107.0-rc.2 and v1.108.0-rc.1, and present in `v1.109.0-dev.1`.
-  So it needs a stable litellm release newer than 1.106.6 that includes that commit; when `litellm_image` is next bumped, re-run `langfuse-speeds --basis decode` over a streaming request to confirm it fills in.
+  So it needs a stable litellm release newer than 1.106.6 that includes that commit; when `litellm_image` is next bumped, re-run `speed langfuse --basis decode` over a streaming request to confirm it fills in.
   Streaming requests only. Requests already stored will stay empty.
 
 * Other MoE Qwens to try on tabby: `turboderp/Qwen3.5-35B-A3B-exl3` ( fits in VRAM ) and `turboderp/Qwen3.8-Flash-Next-exl3` ( 125B, ~6B active; needs CPU expert offload,

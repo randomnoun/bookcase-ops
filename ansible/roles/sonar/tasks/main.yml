@@ -1,6 +1,24 @@
-- name: "sonar skipped, sonar_model is not set"
+- name: "sonar_active_model must be one of sonar_models"
+  assert:
+    that: sonar_active_model in sonar_models
+    fail_msg: "sonar_active_model '{{ sonar_active_model }}' is not in sonar_models ( {{ sonar_models.keys() | list }} )"
+  when: sonar_active_model | length > 0
+
+- name: "use the active sonar model"
+  set_fact:
+    sonar_model: "{{ _sonar_entry.model }}"
+    sonar_model_revision: "{{ _sonar_entry.revision | default(sonar_model_revision) }}"
+    sonar_quantization: "{{ _sonar_entry.quantization | default(sonar_quantization) }}"
+    sonar_tokenizer: "{{ _sonar_entry.tokenizer | default(sonar_tokenizer) }}"
+    sonar_max_model_len: "{{ _sonar_entry.max_model_len | default(sonar_max_model_len) }}"
+    sonar_extra_args: "{{ _sonar_entry.extra_args | default(sonar_extra_args) }}"
+  vars:
+    _sonar_entry: "{{ sonar_models[sonar_active_model] }}"
+  when: sonar_active_model | length > 0
+
+- name: "sonar skipped, no sonar model is set"
   debug:
-    msg: "set sonar_model in vars/sonar/<cluster>.vars.yml to deploy sonar"
+    msg: "set sonar_active_model in vars/sonar/<cluster>-models.vars.yml ( or sonar_model ) to deploy sonar"
   when: sonar_model | length == 0
 
 - name: "kubernetes namespace sonar"

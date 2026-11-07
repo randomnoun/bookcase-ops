@@ -27,7 +27,15 @@ sonar_registry_username: ""
 sonar_registry_password: ""
 
 # Sonar (formerly Aphrodite Engine) serves exactly ONE model per process (unlike ollama, which swaps
-# models in and out). To change model, edit these and re-run the role.
+# models in and out). To change model, change sonar_active_model and re-run the role.
+#
+# sonar_models is a registry of models, keyed by name, and sonar_active_model is the one deployed. They live in
+# vars/sonar/<cluster>-models.vars.yml, which bin/llm.py reads and edits ( `llm.py model load NAME` ). The role copies
+# the active entry onto sonar_model, sonar_model_revision, sonar_quantization, sonar_tokenizer, sonar_max_model_len
+# and sonar_extra_args below ( an entry only needs the keys it changes ). With no active model, those can still be
+# set directly.
+sonar_active_model: ""
+sonar_models: {}
 #
 # sonar_model is a HuggingFace repo id, or a path under /root/.cache
 # (the PVC mount) for a model you've copied in yourself. Examples:

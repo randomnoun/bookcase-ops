@@ -24,6 +24,15 @@ tabbyapi_image: "ghcr.io/theroyallab/tabbyapi:latest"
 tabbyapi_api_key: ""
 tabbyapi_admin_key: ""
 
+# tabbyapi_models is a registry of models, keyed by name, and tabbyapi_active_model is the one loaded at startup.
+# They live in vars/tabbyapi/<cluster>-models.vars.yml, which bin/llm.py reads and edits ( `llm.py model load NAME` ).
+# The role copies the active entry onto tabbyapi_model_name ( the entry's "folder" ), tabbyapi_max_seq_len,
+# tabbyapi_cache_mode, tabbyapi_tensor_parallel, tabbyapi_draft_mode, tabbyapi_draft_num_tokens and
+# tabbyapi_dynamic_draft below ( an entry only needs the keys it changes ). With no active model, those can still be
+# set directly.
+tabbyapi_active_model: ""
+tabbyapi_models: {}
+
 # Model to load when the server starts: a directory name under /app/models (the PVC),
 # e.g. "Qwen3-30B-A3B-exl3". Empty = start with nothing loaded, then download and load
 # models through the API (see setup/SETUP-LLM-BACKEND.md). Unlike ollama, tabbyapi serves ONE

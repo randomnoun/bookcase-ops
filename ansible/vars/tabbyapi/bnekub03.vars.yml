@@ -6,52 +6,6 @@ tabbyapi_volume_size_gb: 300
 tabbyapi_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-tabbyapi/tabbyapi:api_key')}}"
 tabbyapi_admin_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-tabbyapi/tabbyapi:admin_key')}}"
 
-# directory name of an EXL3 model under /app/models. Leave empty on the first run, then
-# download one and set this (see setup/SETUP-LLM-BACKEND.md). Setting it before the download has
-# finished makes tabby fail at startup, as the folder doesn't exist yet.
-#
-# Model: the same one sonar serves, for a like-for-like comparison:
-#   repo_id:     turboderp/Qwen3.8-27B-exl3
-#   revision:    5.00bpw
-#   folder_name: Qwen3.8-27B-exl3-5.00bpw
-#
-# Set so the model is loaded at startup using the settings below. A model loaded by hand through
-# /v1/model/load doesn't pick them up unless they're also in the request ( see setup/SETUP-LLM-BACKEND.md ).
-tabbyapi_model_name: "Qwen3.8-27B-exl3-5.00bpw"
-
-# Matched to sonar ( vars/sonar/bnekub03.vars.yml ) so the two backends are comparable:
-# same context length, and an 8-bit KV cache ( sonar uses fp8 ). At 8,8 the cache is ~32KiB/token,
-# so 262144 tokens is ~8GiB on top of ~20GB of weights, which fits in the 48GB across both cards.
-# If the model fails to load with an out-of-memory error, lower tabbyapi_max_seq_len first.
-tabbyapi_max_seq_len: 262144
-tabbyapi_cache_mode: "8,8"
-
-# false = autosplit ( fills GPU 0, then GPU 1, so only one card works at a time ); true = tensor-parallel across
-# both cards, as sonar does. Autosplit gave ~34 tokens/sec against sonar's ~52, so this is being tried to close
-# the gap. Not verified on 3090s without NVLink ( the cards are connected over PCIe only ): if the model fails
-# to load, or isn't faster, set it back to false.
-tabbyapi_tensor_parallel: true
-
-# MTP self-speculative decoding: this quant's 5.00bpw branch keeps the model's one MTP layer ( mtp_bits: 4,
-# mtp.* tensors in model-00003 ), so no draft model is needed. It costs ~0.7GiB of VRAM at 262144 context.
-# The MTP head is a single layer, so depth beyond 1 reuses it; dynamic_draft backs the length off when
-# acceptance drops, with num_tokens as the ceiling. If the model fails to load with MTP, clear tabbyapi_draft_mode.
-tabbyapi_draft_mode: "mtp"
-tabbyapi_draft_num_tokens: 4
-tabbyapi_dynamic_draft: true
-
-# Settings for this model that live in litellm ( Models -> Edit Settings -> LiteLLM Params ):
-#
-#   "num_ctx": 262144          so pi / opencode learn the window ( run pi-sync-models after )
-#   "reasoning_effort": "medium"   tabby's docs say the top-level field is passed to the chat template
-#                              ( the template accepts low / medium / xhigh only )
-#   "extra_body": {"thinking_token_budget": 8192}
-#                              tabby accepts this name as an alias of reasoning_budget_tokens, so the
-#                              same litellm setting as sonar should work. It can also be set server-wide
-#                              with reasoning_budget_tokens in tabby's config.yml, which this role
-#                              doesn't expose yet.
-#
-# Tool calls and thinking: tabby's config has tool_format: auto and reasoning: true, and the role leaves
-# both at their defaults. Unlike sonar there are no flags to set, but I haven't confirmed that "auto"
-# picks the right parser for this model's <tool_call><function=...> format. If tool calls come back
-# as plain text in pi, that's the thing to look at.
+# Which model is loaded, and its context length, cache, tensor-parallel, MTP and litellm settings are in
+# bnekub03-models.vars.yml ( listed after this file in k8s_llm_bnekub03.yml ); `python bin/llm.py model load NAME` switches it.
+# With no tabbyapi_active_model there, tabbyapi starts with nothing loaded.

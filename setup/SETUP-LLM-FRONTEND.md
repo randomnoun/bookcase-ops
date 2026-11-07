@@ -42,7 +42,7 @@ Projects live in `/workspace` and sessions in `/root/.pi/agent`, both on the sam
 * **Session id:** every request carries pi's session id as an `x-session-id` header, which litellm passes to langfuse so each pi session appears under Sessions there. 
   See [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md#sessions).
 
-The sync prints these as it writes them, e.g. `local-tabbyapi-qwen3.8:27b-5bpw (ctx 262144, max out 32768)`.
+The sync prints these as it writes them, e.g. `tabbyapi-qwen3.8:27b-5bpw (ctx 262144, max out 32768)`.
 
 ### One-time setup
 
@@ -116,7 +116,7 @@ This role is based on the [helm chart](https://github.com/OpenHands/OpenHands/tr
       * pick **OpenHands**. The choice is per backend, and can be changed under Settings → Agent later
    * **Set up your LLM:** 
       * Choose **Advanced**
-      * Custom Model: `openai/local-qwen3-coder:30b` 
+      * Custom Model: `openai/ollama-qwen3-coder:30b` 
       * Base URL: `http://web.dev-litellm.svc.cluster.local:4000/v1`
       * API Key: the litellm virtual key for openhands ( see [SETUP-DATABASE.md](SETUP-DATABASE.md) )
       

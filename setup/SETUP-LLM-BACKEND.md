@@ -10,7 +10,16 @@ consumed only by `litellm`. They each need the `nvidia-device-plugin` and `local
 `ollama`, `sonar` and `tabbyapi` each request both GPUs, so only one can run at a time. Whichever starts second would sit `Pending`, and after a
 node reboot they'd race for the GPUs, so only `ollama` starts running ( `ollama_initial_replicas: 1` ); `sonar` and `tabbyapi` are created at 0 replicas.
 
-Switch by scaling the one that's running down to 0 *first* ( a GPU stays held until the old pod has finished terminating ), then the one you want up:
+Switch with `bin/llm.py`. It needs `pip install click pyyaml hvac requests`, `kubectl`, and `. vault-login.sh` first for the verbs that call APIs: secrets are read from vault with
+[hvac](https://python-hvac.org) ( `VAULT_ADDR` and `VAULT_TOKEN`, plus `VAULT_CACERT` if vault uses the private CA ), litellm is called directly at `LITELLM_URL` ( default `https://litellm.dev.randomnoun`;
+`requests` doesn't use the OS certificate store, so set `LITELLM_CACERT` to the CA certificate ), and the engines, which have no ingress, are reached through a temporary `kubectl port-forward`:
+
+```
+python bin/llm.py engine list              # replicas, pod phase, configured / serving model, litellm models
+python bin/llm.py engine set tabbyapi      # scale the others to 0, wait for their pods to go, scale tabbyapi to 1, wait for the rollout
+```
+
+That's the same as scaling the one that's running down to 0 *first* ( a GPU stays held until the old pod has finished terminating ), then the one you want up:
 
 ```
 kubectl -n dev-ollama   scale deploy/ollama   --replicas=0
@@ -19,6 +28,27 @@ kubectl -n dev-tabbyapi rollout status deploy/tabbyapi --timeout=15m
 ```
 
 ( swap the namespace and name for `dev-sonar` / `sonar` or `dev-ollama` / `ollama` ). Check what's running with `kubectl get deploy -A | grep -E 'ollama|sonar|tabbyapi'`.
+
+### Switching models
+
+`sonar` and `tabbyapi` each have a model registry, in `ansible/vars/<engine>/bnekub03-models.vars.yml`: a `<engine>_models` map, and `<engine>_active_model` naming the one that's deployed.
+Each entry holds the engine settings for that model ( sonar: model, revision, context length, flags; tabbyapi: folder, context length, cache, tensor-parallel, MTP ) and a `litellm:` block with its litellm
+name and params. The roles copy the active entry onto their usual variables, so the choice survives pod restarts and re-running the role.
+
+```
+python bin/llm.py model list                     # the current engine's registry ( tabbyapi: marks what's on the PVC ); ollama: pulled models
+python bin/llm.py model download NAME            # tabbyapi: fetch the entry's download: repo onto the PVC
+python bin/llm.py model load NAME                # edit <engine>_active_model, re-run the role ( ansible-playbook ), then sync litellm
+python bin/llm.py model sync --dry-run           # show what would change in litellm
+python bin/llm.py model unload                   # tabbyapi / ollama only; not persistent
+```
+
+"Current engine" is whichever of ollama, sonar and tabbyapi is scaled up; pass `--engine` to pick one. `model load` leaves a one-line change in the registry file for you to commit. Run it from WSL,
+since it runs `ansible-playbook` ( or use `--no-apply` and run the printed command yourself ).
+
+`model sync` makes litellm match the active models: it creates or updates one litellm model per engine and deletes the ones it created for entries that are no longer active ( sonar serves every model under
+the same name, so a stale entry would answer with the wrong model ). It marks its models with a `bookcase-ops` entry in `model_info` ( `{"engine": ..., "ansible-model": ...}`, the engine and the registry entry it was built from ) and leaves everything else alone, so models you added in the litellm UI are untouched. 
+Ollama's models aren't synced; add them in the UI. After a sync that changes `num_ctx`, run `pi-sync-models` and restart opencode as before.
 
 Re-running a role does **not** reset the replica count: it reads the current value from the cluster and keeps it, so `initial_replicas` only applies
 the first time the deployment is created. To change a role's behaviour permanently, scale it with `kubectl` as above.
@@ -52,12 +82,12 @@ Configure the models these in litellm via:
 * Models → Add New Model
    * Provider: **Ollama Chat** ( not plain `Ollama` )
    * LiteLLM Model Name(s): select **Custom Model Name**, then enter `qwen3-coder:30b` ( the name it has in ollama )
-   * Model Mappings - Public Model Name: `local-qwen3-coder:30b` ( what litellm clients ask for )
+   * Model Mappings - Public Model Name: `ollama-qwen3-coder:30b` ( what litellm clients ask for )
    * API Base: http://web.dev-ollama.svc.cluster.local:11434
    * Try 'test connection' and then save
 * Repeat for all models
 * Once you've created them, you can specify per-model context windows
-   * I'm just trying this in `local-qwen3:30b` for now; select that and click 'Edit Settings'
+   * I'm just trying this in `ollama-qwen3:30b` for now; select that and click 'Edit Settings'
    * In the 'LiteLLM Params' at the bottom of the page, add `"num_ctx": 65536` to the JSON
    * 'Save changes' 
 
@@ -101,25 +131,25 @@ KEY=<a litellm virtual key>
 kubectl -n dev-litellm run toolcheck --rm -i --restart=Never --image=curlimages/curl -- \
   curl -sN http://web.dev-litellm.svc.cluster.local:4000/v1/chat/completions \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"model":"local-qwen3-coder:30b","stream":true,"messages":[{"role":"user","content":"list the files in the current directory"}],"tools":[{"type":"function","function":{"name":"bash","description":"run a shell command","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}}]}'
+  -d '{"model":"ollama-qwen3-coder:30b","stream":true,"messages":[{"role":"user","content":"list the files in the current directory"}],"tools":[{"type":"function","function":{"name":"bash","description":"run a shell command","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}}]}'
 ```
 
 To test models through litellm, try the following ( uses the virtual key for the 'pi' service account ):
 
 ```
 KEY=$(vault kv get -mount=secret -field=litellm_virtual_key k8s/bnekub03/secret/dev-pi/pi)
-for m in local-qwen3-coder:30b local-llama3.1:8b; do
+for m in ollama-qwen3-coder:30b ollama-llama3.1:8b; do
   echo "== $m"
   curl -s -w '\n%{time_total}s total\n' https://litellm.dev.randomnoun/v1/chat/completions \
     -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
     -d "{\"model\":\"$m\",\"messages\":[{\"role\":\"user\",\"content\":\"Explain what a mutex is in two sentences\"}]}"
 done
 
-== local-qwen3-coder:30b
+== ollama-qwen3-coder:30b
 0.710104s total
 A mutex (short for "mutual exclusion") is a synchronization primitive that ensures only one thread or process can access a shared resource or critical section of code at a time. When a thread locks a mutex, other threads attempting to acquire the same lock will be blocked until the first thread releases it, preventing race conditions and data corruption.
 tokens: 68
-== local-llama3.1:8b
+== ollama-llama3.1:8b
 0.883475s total
 A mutex (short for "mutual exclusion") is a synchronization primitive that allows only one thread to access a shared resource at a time, preventing other threads from accessing it until the mutex is released. By acquiring and releasing a mutex, threads can coordinate access to shared data, preventing data corruption and ensuring that multiple threads don't try to modify the same data simultaneously.
 tokens: 74
@@ -178,7 +208,9 @@ sudo ctr -n k8s.io images pull docker-combined.nexus3.dev.randomnoun/sonar:0.24.
 
 ### Install the model
 
-Everything specific to the model is in `vars/sonar/bnekub03.vars.yml` ( with comments ). To change model, edit it and re-run the role.
+Everything specific to the model is in the registry, `vars/sonar/bnekub03-models.vars.yml` ( with comments ); the steps below describe the keys of an entry ( `model`, `revision`, `max_model_len`, `extra_args` ),
+not the flat `sonar_*` variables they're copied onto. To change model, add an entry and `python bin/llm.py model load NAME` ( see [Switching models](#switching-models) ). 
+Only the memory settings and the image are still in `vars/sonar/bnekub03.vars.yml`.
 
 Prerequisite: the sonar secret in vault, see [SETUP-DATABASE.md](SETUP-DATABASE.md). That's a HuggingFace token, read as `sonar_hf_token`; it isn't needed for public repos, 
 but unauthenticated downloads are slower and rate limited.
@@ -247,12 +279,14 @@ If a download was interrupted, the abandoned `.incomplete` files stay on the PVC
 
 ### Configure the model in litellm
 
+`python bin/llm.py model sync` does all of this from the registry entry's `litellm:` block. What follows is the same thing by hand.
+
 Add it as an OpenAI-compatible provider ( not Ollama Chat ):
 
 * Models → Add New Model
    * Provider: **OpenAI-Compatible Endpoints**
    * LiteLLM Model Name(s): select **Custom Model Name**, then enter `local-sonar` ( sonar serves every model under this name; it's `sonar_served_model_name` in the role defaults )
-   * Model Mappings - Public Model Name: `local-sonar-<something>`, e.g. `local-sonar-qwen3.8:27b-5bpw` ( what litellm clients ask for )
+   * Model Mappings - Public Model Name: `sonar-<something>`, e.g. `sonar-qwen3.8:27b-5bpw` ( what litellm clients ask for )
    * API Base: `http://web.dev-sonar.svc.cluster.local:2242/v1`
    * API Key: any non-empty string
    * Try 'test connection' and then save
@@ -289,7 +323,9 @@ Its own README describes it as a hobby project, which is ok for bookcase-ops.
 
 ### Install the model
 
-Everything specific to the model is in `vars/tabbyapi/bnekub03.vars.yml` ( with comments ).
+Everything specific to the model is in the registry, `vars/tabbyapi/bnekub03-models.vars.yml` ( with comments ); the steps below describe the keys of an entry ( `folder`, `max_seq_len`, `cache_mode`,
+`tensor_parallel`, `draft_*` ), not the flat `tabbyapi_*` variables they're copied onto. To change model, add an entry, `python bin/llm.py model download NAME` and `model load NAME` 
+( see [Switching models](#switching-models) ), which replaces steps 3 and 4 below for later models. Only the keys and the volume size are still in `vars/tabbyapi/bnekub03.vars.yml`.
 
 Prerequisite: the tabbyapi keys in vault, see [SETUP-DATABASE.md](SETUP-DATABASE.md). The `api_key` is what litellm uses to call tabbyapi, and the `admin_key` is needed to download and load models.
 The role refuses to run without them.
@@ -365,12 +401,14 @@ if tool calls come back as plain text in pi, that's the place to look.
 
 ### Configure the model in litellm
 
+`python bin/llm.py model sync` does all of this from the registry entry's `litellm:` block. What follows is the same thing by hand.
+
 Add it as an OpenAI-compatible provider:
 
 * Models → Add New Model
    * Provider: **OpenAI-Compatible Endpoints**
    * LiteLLM Model Name(s): select **Custom Model Name**, then enter the folder name of the loaded model, e.g. `Qwen3.8-27B-exl3-5.00bpw`
-   * Model Mappings - Public Model Name: `local-tabbyapi-<something>`, e.g. `local-tabbyapi-qwen3.8:27b-5bpw` ( what litellm clients ask for )
+   * Model Mappings - Public Model Name: `tabbyapi-<something>`, e.g. `tabbyapi-qwen3.8:27b-5bpw` ( what litellm clients ask for )
    * API Base: `http://web.dev-tabbyapi.svc.cluster.local:5000/v1`
    * API Key: the `api_key` from vault, via `vault kv get -mount=secret -field=api_key k8s/bnekub03/secret/dev-tabbyapi/tabbyapi` ( run `vault login` first )
    * Try 'test connection' and then save
@@ -379,8 +417,9 @@ Add it as an OpenAI-compatible provider:
      without it pi falls back to its default. Run `pi-sync-models` afterwards ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#pi) ), and restart opencode.
    * `"reasoning_effort": "xhigh"` - written into the prompt, so the model knows to keep its thinking short. tabbyapi's config says it passes this top-level field to the chat template. 
      The model's template accepts `low`, `medium` and `xhigh` ( the default ); `high` and `max` are rejected.
-   * `"extra_body": {"thinking_token_budget": 8192}` - a hard limit on thinking tokens, so a long thought can't use up the whole output limit and leave no answer ( clients report that as "Response was truncated" ). 
-     tabbyapi's config lists `thinking_token_budget` as an alias of its `reasoning_budget_tokens` request field, so the same setting as sonar should work, but I haven't tested it on tabbyapi. 
+   * `"extra_body": {"reasoning_budget_tokens": 8192}` - a hard limit on thinking tokens, so a long thought can't use up the whole output limit and leave no answer ( clients report that as "Response was truncated" ). 
+     This is tabbyapi's own name for the field; it lists `thinking_token_budget` ( what sonar uses ) as an alias, but litellm hides any value whose key has a `token` segment as `****` in its API, 
+     which stops `model sync` seeing it. `reasoning_budget_tokens` isn't hidden. I haven't tested that tabbyapi honours it from litellm. 
      tabbyapi can also apply a budget server-wide with `reasoning_budget_tokens` in its `config.yml`, which the role doesn't expose yet.
 
 Don't use `max_tokens` for this: the model can't see it, so it just truncates the output.
