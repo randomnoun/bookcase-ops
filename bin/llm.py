@@ -364,6 +364,139 @@ def tabbyapi_speeds(since, namespace, deployment, min_out, last, file):
     show_bands(recs, min_out, "generation tok/sec")
 
 
+# --- ninfer -----------------------------------------------------------------------------------------------------------
+
+NINFER_DONE_RE = re.compile(r"^(?:\d{4}-\d\d-\d\d )?(\d\d:\d\d:\d\d)\.\d+\s+\w+\s+req#(\d+) done \| (.*)$")
+
+
+def seconds(text):
+    """'2.2s', '279 ms' or '1m 11.6s' as seconds, or None."""
+    m = re.fullmatch(r"(?:(\d+)m\s*)?([\d.,]+)\s*(ms|s)", text.strip())
+    if not m:
+        return None
+    mins, value, unit = m.groups()
+    return num(value) / (1000 if unit == "ms" else 1) + 60 * int(mins or 0)
+
+
+def per_second(text):
+    """'412.6 tok/s' or '2.08k tok/s' as tokens per second, or None."""
+    m = re.fullmatch(r"([\d.,]+)(k?)\s*tok/s", text.strip())
+    return num(m.group(1)) * (1000 if m.group(2) else 1) if m else None
+
+
+def parse_ninfer(text):
+    recs = []
+    for line in text.splitlines():
+        m = NINFER_DONE_RE.match(line.strip())
+        if not m:
+            continue
+        t, n, rest = m.groups()
+        r = {"t": t, "n": int(n), "prompt": None, "out": None, "ttft": None, "prefill": None, "tps": None,
+             "cached_pct": None, "draft": "-", "copies": "-"}
+        for seg in (s.strip() for s in rest.split(" | ")):
+            if x := re.fullmatch(r"prompt ([\d,]+)", seg):
+                r["prompt"] = int(num(x.group(1)))
+            elif x := re.fullmatch(r"output ([\d,]+)", seg):
+                r["out"] = int(num(x.group(1)))
+            elif x := re.match(r"cache ([\d,]+) \(([\d.]+)%", seg):
+                r["cached_pct"] = float(x.group(2))
+            elif x := re.fullmatch(r"TTFT (.+)", seg):
+                r["ttft"] = seconds(x.group(1))
+            elif x := re.fullmatch(r"prefill (.+)", seg):
+                r["prefill"] = per_second(x.group(1))
+            elif x := re.fullmatch(r"decode (.+)", seg):
+                r["tps"] = per_second(x.group(1))
+            elif x := re.fullmatch(r"(\w+) accepted [\d,]+/[\d,]+ \(([\d.]+)%\)", seg):
+                r["copies" if x.group(1) == "copies" else "draft"] = f"{x.group(2)}%"
+        if r["prompt"] is not None and r["out"] is not None and r["tps"]:
+            recs.append(r)
+    return recs
+
+
+@speed_group.command("ninfer")
+@click.option("--since", default="1h", show_default=True, help="How far back to read the pod log ( kubectl --since ).")
+@click.option("--namespace", "-n", default="dev-ninfer", show_default=True)
+@click.option("--deployment", default="ninfer", show_default=True)
+@click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
+@click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
+@FILE_OPT
+def ninfer_speeds(since, namespace, deployment, min_out, last, file):
+    """Per-request speeds and speculative-decoding acceptance from ninfer's "req#N done" log lines.
+
+    Prefill and decode are ninfer's own figures for the request. Cached is the share of the prompt served from the
+    prefix cache. Draft is the share of drafted tokens accepted ( dflash2 or mtp ), and copies the same for n-gram
+    copy drafting. Times are as logged. Agent traffic has short replies, so lower --min-out ( say 100 ) to see
+    the per-band summary for it.
+    """
+    recs = parse_ninfer(cluster_or_file(file, lambda: kubectl("-n", namespace, "logs", f"deploy/{deployment}",
+                                                              f"--since={since}")))
+    if not recs:
+        raise click.ClickException("no 'req#N done' lines found")
+    dash = lambda v, fmt: "-" if v is None else format(v, fmt)
+    if last:
+        click.echo(f"{len(recs)} requests, showing the last {min(last, len(recs))}:")
+        show_table(["time", "#", "prompt", "cached", "out", "ttft s", "prefill tok/s", "decode tok/s", "draft", "copies"],
+                   [[r["t"], r["n"], f"{r['prompt']:,}", dash(r["cached_pct"], ".0f") + ("" if r["cached_pct"] is None else "%"),
+                     f"{r['out']:,}", dash(r["ttft"], ".1f"), dash(r["prefill"], ",.0f"), f"{r['tps']:.1f}",
+                     r["draft"], r["copies"]] for r in recs[-last:]])
+    show_bands(recs, min_out, "decode tok/sec")
+
+
+NINFER_METRIC_RE = re.compile(r"^(ninfer_\w+)(\{[^}]*\})?\s+(\S+)$")
+
+
+def parse_ninfer_counters(text):
+    totals = {}
+    for line in text.splitlines():
+        m = NINFER_METRIC_RE.match(line.strip())
+        if not m:
+            continue
+        name, _, value = m.groups()
+        try:
+            totals[name] = totals.get(name, 0) + float(value)
+        except ValueError:
+            continue
+    return totals
+
+
+@metric_group.command("ninfer")
+@FILE_OPT
+def ninfer_metrics(file):
+    """Decode speed and speculative-decoding acceptance from ninfer's /metrics.
+
+    The counters are cumulative since the pod started, so restart it ( or note the numbers before and after a
+    test ) to measure one run. The decode speed is tokens over the time spent in decode rounds, so it excludes
+    prefill and waiting. Reads /metrics through a kubectl port-forward, with the API key from vault.
+    """
+    t = parse_ninfer_counters(cluster_or_file(file, lambda: engine_api("ninfer", "GET", "/metrics", ninfer_headers())))
+    tokens, secs = t.get("ninfer_decode_tokens_total", 0), t.get("ninfer_decode_seconds_total", 0)
+    if not (tokens and secs):
+        raise click.ClickException("no ninfer decode counters found ( has it served a request yet? )")
+    click.echo(f"decode: {tokens:,.0f} tokens in {secs:,.1f}s of decode rounds = {tokens / secs:.1f} tok/s")
+
+    rounds = t.get("ninfer_spec_decode_rounds_total", 0)
+    drafted, accepted = t.get("ninfer_spec_decode_draft_tokens_total", 0), t.get("ninfer_spec_decode_accepted_tokens_total", 0)
+    if rounds and drafted:
+        window = t.get("ninfer_spec_decode_draft_window")
+        click.echo(f"speculation: {rounds:,.0f} rounds   draft tokens {drafted:,.0f}   accepted {accepted:,.0f} "
+                   f"( {accepted / drafted:.1%} )" + (f"   draft window {window:.0f}" if window else ""))
+        click.echo(f"tokens per forward pass: {1 + accepted / rounds:.2f}   ( 1 + accepted / rounds )")
+        fallback = t.get("ninfer_spec_decode_fallback_steps_total", 0)
+        if fallback:
+            click.echo(f"rounds without drafts: {fallback:,.0f}")
+    else:
+        click.echo("no speculative-decoding counters found ( NINFER_SPEC=none? )")
+    n_rounds, n_drafted = t.get("ninfer_spec_decode_ngram_rounds_total", 0), t.get("ninfer_spec_decode_ngram_draft_tokens_total", 0)
+    if n_rounds and n_drafted:
+        n_accepted = t.get("ninfer_spec_decode_ngram_accepted_tokens_total", 0)
+        click.echo(f"n-gram copies: {n_rounds:,.0f} rounds   copied {n_drafted:,.0f}   accepted {n_accepted:,.0f} "
+                   f"( {n_accepted / n_drafted:.1%} )")
+    # prefill counters: named in ninfer's docs but not in the output I have seen, so only shown when present
+    p_tokens, p_secs = t.get("ninfer_prefill_tokens_total", 0), t.get("ninfer_prefill_seconds_total", 0)
+    if p_tokens and p_secs:
+        click.echo(f"prefill: {p_tokens:,.0f} uncached tokens in {p_secs:,.1f}s = {p_tokens / p_secs:,.0f} tok/s")
+
+
 # --- engines ----------------------------------------------------------------------------------------------------------
 
 ANSIBLE = Path(__file__).resolve().parent.parent / "ansible"

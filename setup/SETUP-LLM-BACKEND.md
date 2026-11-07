@@ -485,5 +485,20 @@ then `"num_ctx"` in the LiteLLM Params. Run `pi-sync-models` afterwards and rest
 
 ### Metrics
 
-`ninfer-serve` has a Prometheus `/metrics` endpoint ( the role creates a `ServiceMonitor`, sending the API key as a bearer token ), and `/health` for the probes. The names changed in the release's 0.16.0, and I haven't seen the
-ones from 0.17.1 run, so build any Grafana dashboard from `/metrics` itself. It can also write a JSON line per request ( `NINFER_REQUEST_LOG_JSONL=<file>`, in `ninfer_env` ), which is how to compare speeds with the others until a `speed ninfer` verb exists.
+`ninfer-serve` has a Prometheus `/metrics` endpoint ( the role creates a `ServiceMonitor`, sending the API key as a bearer token ), and `/health` for the probes. It also logs one `req#N done` line per request, with the prompt and
+output tokens, how much of the prompt came from the cache, the time to the first token, prefill and decode speed, and how many drafted tokens were accepted. `llm.py` reads both, as it does for sonar and tabbyapi:
+
+```
+python bin/llm.py speed ninfer --since 1h --min-out 100     # per request, from the log, then median decode tok/sec by prompt size
+python bin/llm.py metric ninfer                              # decode speed and speculation acceptance since the pod started, from /metrics
+```
+
+`metric ninfer` reads the key from vault ( `. vault-login.sh` first ) and goes in through a `kubectl port-forward`. The speed is `ninfer_decode_tokens_total` over `ninfer_decode_seconds_total`, which only counts time in decode
+rounds, and the acceptance is `ninfer_spec_decode_accepted_tokens_total` over `ninfer_spec_decode_draft_tokens_total`. From the same pod, with its own key:
+
+```
+kubectl -n dev-ninfer exec deploy/ninfer -c ninfer -- sh -c 'curl -s -H "Authorization: Bearer $NINFER_API_KEY" localhost:8080/metrics | grep -E "decode|spec_decode"'
+```
+
+The metric names changed in the release's 0.16.0, so check them if you change `ninfer_image`. The prefill counters are named in ninfer's docs but weren't in the output I checked, so `metric ninfer` shows prefill speed only when they are there.
+A `speed` figure for ninfer varies a lot between requests ( 88-178 tok/sec in one coding session ) and follows the draft acceptance, so compare medians over many requests rather than single ones. The measured results are in [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md#7-ninfer--dflash2-one-gpu-).

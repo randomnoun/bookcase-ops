@@ -50,6 +50,7 @@ flowchart TB
     ingress --> openhands
     ingress --> litellm
     ingress --> langfuse
+    ingress --> searxng
 
     agents -->|"OpenAI API<br/>/v1 + virtual key"| litellm
     litellm -->|"ollama_chat"| ollama

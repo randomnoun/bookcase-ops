@@ -2,6 +2,7 @@
 
 Notes from 2026-10-29, enabling MTP self-speculative decoding for `turboderp/Qwen3.8-27B-exl3` (5.00bpw) on both EXL3 backends.
 See [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) for how the engines are deployed and switched.
+Section 7 adds `ninfer` ( 2026-11-07 ), which is a different engine with its own speculative decoding.
 
 ## Background
 
@@ -222,6 +223,30 @@ Why langfuse and engine figures differ: both count only tokens that reached the 
 decode tok/sec is output tokens / ( total time - time to first token ); langfuse has no first-token time from litellm, so it uses total latency, which includes prefill. On long requests the
 two agree to 0.7-4.6%; on a ~100-token reply with a 1.6 s prefill the engine says 112 tok/sec and langfuse 38.
 
+### 7. ninfer ( DFlash2, one GPU )
+
+Measured 2026-11-07. This is not the same setup as the rows above: ninfer serves its own 4-5 bit mix of Qwen3.8-27B ( `WarlaxZ/Qwen3.8-27B-NInfer-3090`, 17.0 GiB loaded, against ~20GB for the EXL3 5.00bpw )
+on **one** 3090, not both. It runs the image from `docker/ninfer-3090` ( NInfer-3090 0.17.1 ) with run.sh's default profile: DFlash2 speculation with K=7 and a draft head, n-gram copy drafting, `rk4v4` KV cache, one lane.
+Startup: weights ready in 22.8 s, engine ready in 29.4 s. The log also says `context lowered to 236,544 tokens (asked for 262,144)`: only 6.30 GiB of the card was free beside the model.
+
+Results are engine-reported decode tok/sec from 44 tool-calling requests in one session ( the conversation grew from 2.2k to 73k tokens, `python bin/llm.py speed ninfer --since 6h --min-out 100` ).
+Only requests with >= 100 tokens out are in the bands, not the >= 1000 used above, since agent replies are short:
+
+| Prompt tokens | n | Median decode tok/sec | Range | Tokens out |
+|---|---|---|---|---|
+| < 15k | 11 | 131.2 | 97.0-178.3 | 110-16,384 |
+| 15-45k | 6 | 142.4 | 119.3-164.0 | 798-16,384 |
+| 45-65k | 19 | 128.5 | 88.0-155.4 | 129-1,877 |
+| > 65k | 3 | 91.2 | 89.9-100.8 | 129-931 |
+
+* From `/metrics` over the pod's life ( 79,682 decode tokens in 612.6 s of decode rounds ): **130.1 tok/sec**. Draft acceptance 42.3% of drafted tokens, ~4.09 tokens per forward pass; n-gram copies accepted 72.9%.
+  `python bin/llm.py metric ninfer` prints these ( the counters are cumulative since the pod started ).
+* Prefix caching: **95.7% of prompt tokens were cache hits** ( 1,591,792 of 1,663,260 ). Uncached prefill ran at 1,683 tok/sec; a cold 13k-token prompt took 8.2 s to the first token and a cold 2.2k-token one 2.2 s.
+* Speed varies a lot from request to request ( 88-178 ) and follows the draft acceptance. The slowest requests were beyond 60k tokens of context. Output length does not explain it: a 6,917-token reply ran at 97.0
+  ( acceptance 26.3% ) but three 16,384-token replies ran at 119.6, 136.9 and 164.0 ( 38-55% ). What the model was writing probably matters, but that is a guess.
+* Not controlled: different weights, one GPU against two, a single run, and I cannot show that these prompts are the same task as the sonar and tabbyapi runs. These are not langfuse end-to-end figures,
+  so they are not comparable with the langfuse columns in sections 5 and 6.
+
 ## Comparison ( Qwen3.8-27B 5.00bpw, tensor parallel on both 3090s, 262144 context, single stream )
 
 | Setup | Short replies | ~7-8k token generation | 29-59k context, >=1k tokens out | Notes |
@@ -231,11 +256,14 @@ two agree to 0.7-4.6%; on a ~100-token reply with a 1.6 s prefill the engine say
 | **tabbyapi + MTP** | 95-128 tok/sec | 74-76 tok/sec | 87-95 tok/sec ( n=3, but 16-23k tokens out; see section 6 ) | acceptance 47-81%; prefix reuse 64-87% on repeat prompts |
 | sonar + MTP, fp8 KV, FlashInfer | 104-112 tok/sec | 69-72 tok/sec | 67-91 tok/sec | acceptance 47.5% ( short test ); needs the PVC config patch |
 | sonar + MTP, int8 KV, Triton | 80-113 tok/sec | 53 tok/sec | 19-31 tok/sec | acceptance 50-63%; much slower, see section 5 |
+| ninfer, DFlash2, **one** GPU | 121-178 tok/sec | 97 tok/sec ( one 6.9k request ) | 116-164 engine decode, not end-to-end ( n=8, median 142; see section 7 ) | acceptance 42%; 96% of prompt tokens cached; different weights ( 4-5 bit, 17 GiB ) |
 
 The first three speed columns are engine-reported decode tok/sec; the 29-59k column is end-to-end tok/sec from langfuse ( output tokens / total latency, includes prefill ), so only compare within it.
 All numbers are single runs, not averaged. The short-reply and 7-8k figures used different prompts; the 29-59k column is the same coding task in both sonar rows.
 tabbyapi + MTP is the simplest ( no patching ) and at least as fast as sonar wherever both were measured; its long-context cell comes from longer outputs than the sonar rows, so treat it as indicative ( section 6 ).
 Sonar's advantages are its Prometheus metrics and batching several requests; neither helps a single stream.
+ninfer's decode speed is higher than the other rows, on half the GPUs, but the margin depends on the cell: on short replies its range ( 121-178 ) overlaps tabbyapi's top end ( 95-128 ), and the 7-8k cell is one request.
+The ninfer row is also a different quantisation, a different task and a different measure in its last speed cell ( section 7 ), so read it as "faster", not as a precise ratio.
 
 ## Things that did not work
 
@@ -257,10 +285,12 @@ python bin/llm.py --help
 python bin/llm.py speed sonar --since 2h          # decode tok/sec per request, from sonar's log
 python bin/llm.py metric sonar                    # MTP acceptance by draft position, prefix cache hit rate ( kubectl exec )
 python bin/llm.py speed tabbyapi --since 2h          # generation tok/sec, cached share and draft acceptance, from tabby's log
+python bin/llm.py speed ninfer --since 2h --min-out 100   # prefill and decode tok/sec, cached share, draft and n-gram acceptance, from ninfer's log
+python bin/llm.py metric ninfer                   # decode speed and speculation acceptance since the pod started ( vault key, kubectl port-forward )
 python bin/llm.py speed langfuse 2026-10-29T12:30:00Z 2026-10-29T14:00:00Z --model sonar
 ```
 
-The three log/metrics verbs also take `--file <path>` to read saved text instead of asking the cluster. Each prints a per-request table and then median speeds by
+The log and metrics verbs also take `--file <path>` to read saved text instead of asking the cluster. Each prints a per-request table and then median speeds by
 prompt size ( `<15k`, `15-45k`, `45-65k`, `>65k` ) for requests with at least `--min-out` tokens out ( default 1000 ).
 
 `speed langfuse` needs the project keys: `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` ( in vault under `k8s/bnekub03/secret/dev-langfuse/langfuse` ). From WSL running a Windows Python,
@@ -268,7 +298,7 @@ also `export WSLENV=LANGFUSE_PUBLIC_KEY:LANGFUSE_SECRET_KEY:$WSLENV`, or the var
 returns 404; the verb uses `/api/public/v2/observations` with cursor paging. Its speed is `--basis e2e` ( output tokens / total latency, so it includes prefill ) because
 `timeToFirstToken` is empty ( next section ).
 
-Which numbers to compare: sonar's and tabby's own figures are decode speed ( after the first token ); langfuse's e2e figure agrees with them to within a few percent on long requests but reads far lower
+Which numbers to compare: sonar's, tabby's and ninfer's own figures are decode speed ( after the first token ); langfuse's e2e figure agrees with them to within a few percent on long requests but reads far lower
 on short ones ( 38 vs 112 tok/sec for a ~100-token reply with a 1.6 s prefill ). Neither counts rejected MTP draft tokens.
 
 ## Loose ends
