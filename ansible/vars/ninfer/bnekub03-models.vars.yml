@@ -7,7 +7,7 @@
 # Switch with `python bin/llm.py model load NAME`, which rewrites ninfer_active_model below, re-runs the role and
 # updates the litellm entry. Or edit it by hand and re-run the role.
 
-ninfer_active_model: "qwen3.8-27b-dflash2"
+ninfer_active_model: "qwen3.8-27b-mtp"
 
 ninfer_models:
 

@@ -38,7 +38,8 @@ Projects live in `/workspace` and sessions in `/root/.pi/agent`, both on the sam
 
 * **Context window:** the model's `num_ctx` from litellm's model settings, so pi knows when to compact. Ollama models without one get `ollama_context_length`.
 * **Output limit:** pi allows 16384 output tokens per request unless told otherwise. Models behind an `api_base` listed in `pi_max_tokens_rules` ( in the pi vars file ) get a different `maxTokens`; at the moment 
-  that's 32768 for tabbyapi, which doesn't stream a tool call's arguments, so writing a large file produces one long silent response that can use up the whole 16384.
+  that's 32768 for tabbyapi, which doesn't stream a tool call's arguments, so writing a large file produces one long silent response that can use up the whole 16384, and for ninfer, whose thinking
+  ( capped at 8192 by `ninfer_thinking_budget` ) comes out of the same limit as the answer, so a long reply after a full 8192 of thinking ran out at 16384 and pi reported "Response was truncated before completion".
 * **Session id:** every request carries pi's session id as an `x-session-id` header, which litellm passes to langfuse so each pi session appears under Sessions there. 
   See [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md#sessions).
 

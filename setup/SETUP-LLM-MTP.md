@@ -265,6 +265,41 @@ Sonar's advantages are its Prometheus metrics and batching several requests; nei
 ninfer's decode speed is higher than the other rows, on half the GPUs, but the margin depends on the cell: on short replies its range ( 121-178 ) overlaps tabbyapi's top end ( 95-128 ), and the 7-8k cell is one request.
 The ninfer row is also a different quantisation, a different task and a different measure in its last speed cell ( section 7 ), so read it as "faster", not as a precise ratio.
 
+## The four engines compared
+
+All four serve models to litellm from `bnenod05`, and only one runs at a time ( `python bin/llm.py engine set` ). Speeds are in the next section, with their qualifications; they are not a like-for-like benchmark.
+
+| | **ollama** | **sonar** | **tabbyapi** | **ninfer** |
+|---|---|---|---|---|
+| **Model format** | GGUF | EXL3 ( also GGUF ) | EXL3 ( and FP16/BF16 ) | its own `.ninfer`, specific models only |
+| **Models at once** | many, loaded on demand and unloaded after `keep_alive` ( 30m ) | one per process, set in the registry | one; load and unload through the API | one per process |
+| **GPUs** | both ( layer split ) | both ( tensor parallel ) | both ( autosplit, or tensor parallel ) | **one** |
+| **Speed seen, short replies** | not measured | 52 without MTP; 104-112 with | 47-48 without MTP; 95-128 with | 121-178 ( speculation always on ) |
+| **Speed seen, long generations** | not measured | 69-72 with MTP | 74-76 with MTP | 97 ( one 6.9k request ); median ~130 over a 44-request session |
+| **Metrics** | none set up | Prometheus `/metrics` | none, logs only | Prometheus `/metrics`, `/health`, and a per-request log line |
+| **Image** | stock | you build it ( the CUDA compile took about 7 hours ) | stock, from ghcr | you build it, but it only wraps a prebuilt release ( `docker/ninfer-3090` ) |
+| **Starts** | scaled up | scaled to 0 | scaled to 0 | scaled to 0 |
+| **Switch model** | `ollama pull`, then add it to litellm by hand | edit the registry, `model load` | registry, `model download`, `model load` | registry, `model load` |
+
+* **ollama** is the flexible one: the only engine that swaps many models in and out on demand, which is why it runs by default. It is also the only one without a model registry or `model sync`.
+* **sonar** has the most features ( batching, Prometheus, tool-call and reasoning parser flags ) but was the hardest to set up; MTP needed a manual patch on the PVC.
+* **tabbyapi** is the simplest way to run EXL3: MTP worked first time and models can be swapped at runtime. No metrics.
+* **ninfer** is the fastest here and uses half the GPUs, at the cost of a narrower, riskier setup: a community port of a Blackwell engine, maintained best-effort, that only runs the models it supports.
+
+### Qualifications on the speed rows
+
+* **Different weights.** sonar and tabbyapi ran the EXL3 5.00bpw quant ( ~20GB ) with an 8-bit KV cache. ninfer ran a 4-5 bit mix ( 17.7 GiB ) with a 4-bit KV cache ( `rk4v4` ). Fewer bits means less to move per token, so some of ninfer's speed
+  is a quality trade, not only a better engine. I have no measurement of how its output compares with EXL3; its model card compares it only with other ninfer and GGUF files.
+* **Different hardware use.** ninfer ran on one 3090 and the others on two with tensor parallelism, so ninfer pays no cross-GPU traffic, and on these PCIe-only cards that traffic is a real cost.
+* **Different speculation.** sonar and tabbyapi use the model's own MTP layer. ninfer's default profile uses DFlash2 with a draft head, plus n-gram copy drafting that helps when the model rewrites text it has just read ( 73% of copied
+  tokens were accepted against 42% of the others ). `NINFER_SPEC=mtp` ( the `qwen3.8-27b-mtp` registry entry ) is the closer match to the other two, and the release's own numbers have it slower than DFlash2; I have not measured it here.
+* **Different prompts and measures.** The sonar and tabbyapi figures are short test prompts and one coding task, and the ninfer ones are a different tool-calling session. All are single runs. ninfer's figures are engine-reported decode speed
+  from `speed ninfer`; none of the four were measured on the same prompts, and none are langfuse end-to-end figures. ollama was not measured at all.
+* **Large variation.** ninfer ran 88-178 tok/sec between requests, following its draft acceptance ( 26-56% ). A median of many requests is more meaningful than any one, and none of these medians is a benchmark.
+* **Output differs too.** ninfer's `run.sh` adds a min-p and a presence penalty by default as a loop guard, which the others don't, so the engines are not producing the same text from the same weights.
+
+To compare them properly: one prompt set, run through litellm against each engine in turn, with the same sampling settings, and read both the speed and the output.
+
 ## Things that did not work
 
 * `--speculative-model mtp`, `--speculative-draft-n-max`, `--quantization exllamav3`, `--kv-cache-dtype int8`: flags from other engines. Sonar uses `--speculative-config '{...}'`,
