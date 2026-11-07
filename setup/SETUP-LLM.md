@@ -12,7 +12,9 @@ These docs go through the LLM setup for bookcase-ops, it's still in a bit of flu
 
 To simplify configuration, all the frontends talk to `litellm`, which then connects to models running on the various backends.
 
-Only one of `ollama`, `sonar` and `tabbyapi` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
+Currently, only one of `ollama`, `sonar` and `tabbyapi` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
+
+Once everything's up and running there's a `llm.py` which can be used for switching engines and models. 
 
 ## Steps
 
@@ -31,7 +33,7 @@ The first three are in [SETUP-LLM-KUBERNETES.md](SETUP-LLM-KUBERNETES.md).
 
 Jump over to [ansible/README.md](../ansible/README.md) and get some containers running on the node.
 
-I've created them in this order, you may need to do some configuration in each container to connect them up as you go.
+You should probably create the containesr in this order. You may need to do some configuration in each container to connect them up as you go, most of them have a webby frontend you can login to.
 
 * langfuse ( [middleware](SETUP-LLM-MIDDLEWARE.md#langfuse) )
    * needs postgres, clickhouse and rustfs set up, and secrets in vault; it goes first so litellm has somewhere to send traces

@@ -1,0 +1,57 @@
+kube_context_ninfer: ""
+kube_namespace_ninfer: "dev-ninfer"
+kube_storageclass_ninfer: ""
+
+# Replica count the FIRST time the deployment is created. 0 because ninfer, ollama, sonar and tabbyapi all want
+# GPUs on the same node, and the other three want both of them: start the one you want with
+# `python bin/llm.py engine set ninfer`. After the first run the role keeps whatever the deployment is currently
+# scaled to, so re-running it doesn't undo that.
+ninfer_initial_replicas: 0
+
+# the model ( ~19GB ) is downloaded onto this volume by an init container
+ninfer_volume_size_gb: 60
+
+# Built from docker/ninfer-3090 ( it wraps the prebuilt NInfer-3090 Linux release ) and pushed to nexus3.
+ninfer_image: "docker-combined.nexus3.dev.randomnoun/ninfer-3090:0.17.1"
+
+# Bearer token for the API ( and for /metrics ). Empty = no authentication, which on a LoadBalancer service means anyone
+# on the network. Generate with `openssl rand -hex 24` and keep it in vault, see setup/SETUP-DATABASE.md.
+ninfer_api_key: ""
+
+# ninfer_models is a registry of models, keyed by name, and ninfer_active_model is the one deployed. They live in
+# vars/ninfer/<cluster>-models.vars.yml, which bin/llm.py reads and edits ( `llm.py model load NAME` ). The role copies
+# the active entry onto ninfer_profile, ninfer_spec, ninfer_context, ninfer_concurrency, ninfer_draft_tokens,
+# ninfer_kv_dtype, ninfer_thinking_budget and ninfer_env below ( an entry only needs the keys it changes ).
+ninfer_active_model: ""
+ninfer_models: {}
+
+# Which model run.sh serves, and so which artifact the init container downloads: qwen38-27b or qwen36-35b-a3b.
+# Empty = the role deploys nothing.
+ninfer_profile: ""
+
+# The rest become the NINFER_* variables that run.sh reads ( run.sh in the release lists them all ). They are only set
+# when non-empty, so run.sh's own defaults apply otherwise. NB: setting ninfer_context or ninfer_kv_capacity
+# turns off run.sh's --fit-context, which otherwise lowers the context to what fits the free GPU memory.
+ninfer_spec: ""             # NINFER_SPEC: dflash2 ( 27b default ), mtp, none
+ninfer_context: ""          # NINFER_CONTEXT
+ninfer_concurrency: ""      # NINFER_CONCURRENCY ( lanes sharing the context )
+ninfer_draft_tokens: ""     # NINFER_DRAFT_TOKENS
+ninfer_kv_dtype: ""         # NINFER_KV_DTYPE
+ninfer_thinking_budget: ""  # NINFER_DEFAULT_THINKING_BUDGET: server-wide cap on thinking tokens
+ninfer_env: {}              # any other NINFER_* variable, name: value
+
+# the name the API serves the model under ( --model-id ); the litellm entry's "upstream" has to match
+ninfer_served_model_name: "ninfer"
+
+ninfer_gpu_node_selector_key: "gpu-vendor"
+ninfer_gpu_node_selector_value: "nvidia"
+# The engine is single-GPU. ( ollama, sonar and tabbyapi request both GPUs, so while one of them runs this stays Pending. )
+ninfer_gpu_count: 1
+# must match the RuntimeClass name registered by the nvidia-device-plugin role
+ninfer_gpu_runtime_class_name: "nvidia"
+
+ninfer_cpu_request: "4"
+ninfer_cpu_limit: "8"
+# run.sh pins 8GiB of host RAM for the context cache ( NINFER_HOST_CONTEXT_MIB ) and counts it against the pod
+ninfer_memory_request: "24Gi"
+ninfer_memory_limit: "40Gi"

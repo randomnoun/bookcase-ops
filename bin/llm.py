@@ -369,9 +369,10 @@ def tabbyapi_speeds(since, namespace, deployment, min_out, last, file):
 ANSIBLE = Path(__file__).resolve().parent.parent / "ansible"
 ENGINES = {"ollama": {"ns": "dev-ollama", "port": 11434},
            "sonar": {"ns": "dev-sonar", "port": 2242},
-           "tabbyapi": {"ns": "dev-tabbyapi", "port": 5000}}
+           "tabbyapi": {"ns": "dev-tabbyapi", "port": 5000},
+           "ninfer": {"ns": "dev-ninfer", "port": 8080}}
 # the engines with a model registry ( ansible/vars/<engine>/<cluster>-models.vars.yml ); ollama manages its own
-CATALOGUED = ("sonar", "tabbyapi")
+CATALOGUED = ("sonar", "tabbyapi", "ninfer")
 # the model_info key on the litellm models this script creates ( holding {"engine", "ansible-model"} ), so
 # `model sync` never touches ones made in the UI
 TAG = "bookcase-ops"
@@ -446,6 +447,23 @@ def tabbyapi_headers(admin=False):
         return {"x-admin-key": tabbyapi_key("admin_key")}
     key = tabbyapi_key("api_key")
     return {"x-api-key": key, "Authorization": f"Bearer {key}"}
+
+
+def ninfer_key():
+    return vault(f"k8s/{CLUSTER}/secret/dev-ninfer/ninfer", "api_key")
+
+
+def ninfer_headers():
+    return {"Authorization": f"Bearer {ninfer_key()}"}
+
+
+def engine_api_key(engine):
+    """The key litellm sends to the engine ( sonar has none, but litellm wants a non-empty string )."""
+    if engine == "tabbyapi":
+        return tabbyapi_key("api_key")
+    if engine == "ninfer":
+        return ninfer_key()
+    return "none"
 
 
 # litellm has an ingress, so it's called directly. It's served with a certificate from the private CA, which requests
@@ -526,6 +544,8 @@ def serving(engine):
         return [m["name"] for m in engine_api("ollama", "GET", "/api/ps")["models"]]
     if engine == "sonar":
         return [m["id"] for m in engine_api("sonar", "GET", "/v1/models")["data"]]
+    if engine == "ninfer":
+        return [m["id"] for m in engine_api("ninfer", "GET", "/v1/models", ninfer_headers())["data"]]
     try:
         return [engine_api("tabbyapi", "GET", "/v1/model", tabbyapi_headers())["id"]]
     except click.ClickException as e:
@@ -598,7 +618,7 @@ def desired_models():
         lit = entry.get("litellm")
         if not lit:
             continue
-        upstream = entry["folder"] if engine == "tabbyapi" else lit.get("upstream", "local-sonar")
+        upstream = entry["folder"] if engine == "tabbyapi" else lit.get("upstream", {"sonar": "local-sonar"}.get(engine, engine))
         out[engine] = {
             "model_name": lit["public_name"],
             "litellm_params": {"model": f"openai/{upstream}", "api_base": f"{service_url(engine)}/v1",
@@ -670,7 +690,7 @@ def apply_sync(actions):
         kind, engine, want, match, changed = action
         if kind == "create":
             params = dict(want["litellm_params"])
-            params["api_key"] = tabbyapi_key("api_key") if engine == "tabbyapi" else "none"
+            params["api_key"] = engine_api_key(engine)
             litellm_api("POST", "/model/new", {"model_name": want["model_name"], "litellm_params": params,
                                                "model_info": want["model_info"]})
         elif kind == "update":
@@ -752,14 +772,17 @@ def engine_list():
 def engine_set(engine, timeout, dry_run):
     """Give the GPUs to ENGINE: scale the others to 0, wait for their pods to go, scale ENGINE to 1, wait for the rollout.
 
-    The engines each request both GPUs, and a GPU stays held until the old pod has finished terminating, so
-    the others have to be gone before the new pod can schedule.
+    ollama, sonar and tabbyapi each request both GPUs, and a GPU stays held until the old pod has finished
+    terminating, so the others have to be gone before the new pod can schedule. ninfer asks for one GPU, but the
+    others are scaled down for it too: it's only run on its own, and a second engine would cut into its memory.
     """
     target = engine_state(engine)
     if not target:
         raise click.ClickException(f"{engine} isn't deployed: run `ansible-playbook -e deployments={CLUSTER} -e app={engine} k8s_llm_{CLUSTER}.yml` first")
     if engine == "sonar" and not catalogue("sonar")[0]:
         raise click.ClickException("sonar has no active model, so its role deploys nothing: set sonar_active_model")
+    if engine == "ninfer" and not catalogue("ninfer")[0]:
+        raise click.ClickException("ninfer has no active model, so its role deploys nothing: set ninfer_active_model")
     if engine == "tabbyapi" and not catalogue("tabbyapi")[0]:
         click.echo("note: tabbyapi has no active model, so it will start with nothing loaded")
     others = [e for e in ENGINES if e != engine and (engine_state(e) or {}).get("replicas", 0) > 0]
@@ -807,6 +830,8 @@ def model_list(engine):
     for name, e in models.items():
         if engine == "sonar":
             detail = f"{e['model']}@{e.get('revision', '-')}  ctx {e.get('max_model_len', '-')}"
+        elif engine == "ninfer":
+            detail = f"{e['profile']}  {e.get('spec', 'default spec')}  ctx {e.get('context', 'fit to free memory')}"
         else:
             detail = f"{e['folder']}  ctx {e.get('max_seq_len', '-')}"
             if on_disk is not None and e["folder"] not in on_disk:
@@ -862,8 +887,8 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
 def model_unload(engine):
     """Unload the current model from VRAM. Not persistent: tabbyapi loads its active model again when its pod restarts."""
     engine = current_engine(engine)
-    if engine == "sonar":
-        raise click.ClickException("sonar serves one model per process and can't unload it: use `engine set` to scale it down")
+    if engine in ("sonar", "ninfer"):
+        raise click.ClickException(f"{engine} serves one model per process and can't unload it: use `engine set` to scale it down")
     if engine == "tabbyapi":
         engine_api("tabbyapi", "POST", "/v1/model/unload", tabbyapi_headers(admin=True), {})
         click.echo("tabbyapi: unloaded")

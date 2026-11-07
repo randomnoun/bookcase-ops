@@ -1,0 +1,57 @@
+# The models ninfer can serve, and which one it does serve.
+#
+# Plain YAML only ( no jinja ): bin/llm.py reads this file directly. The ninfer role copies the active entry
+# onto the flat ninfer_* variables ( ninfer_profile, ninfer_spec ... ), so anything an entry leaves out falls back
+# to the role defaults / bnekub03.vars.yml.
+#
+# Switch with `python bin/llm.py model load NAME`, which rewrites ninfer_active_model below, re-runs the role and
+# updates the litellm entry. Or edit it by hand and re-run the role.
+
+ninfer_active_model: "qwen3.8-27b-dflash2"
+
+ninfer_models:
+
+  # The same model sonar and tabbyapi serve. The artifact ( WarlaxZ/Qwen3.8-27B-NInfer-3090, 17.7GiB, 4-5 bit ) is
+  # downloaded by the init container, pinned to a revision inside the release's download-model.sh.
+  qwen3.8-27b-dflash2:
+    # run.sh's model profile: qwen38-27b or qwen36-35b-a3b. This also picks the artifact to download.
+    profile: "qwen38-27b"
+
+    # NINFER_SPEC: dflash2 is the fastest at one stream ( the artifact carries the MTP weights too ). It runs one lane
+    # at the full 262144 context, with run.sh's rk4v4 KV cache. Leaving context unset keeps run.sh's --fit-context,
+    # which lowers it to what fits the free GPU memory and says so in the log.
+    spec: "dflash2"
+
+    # The model's reasoning cap, server-wide ( NINFER_DEFAULT_THINKING_BUDGET ), so an agent can't burn its whole output
+    # on thinking. The same 8192 as the sonar and tabbyapi entries; a request can still override it.
+    thinking_budget: 8192
+
+    # The litellm model that `llm.py model sync` creates for this entry.
+    litellm:
+      public_name: "ninfer-qwen3.8:27b-dflash2"
+      # what ninfer serves the model under: must equal ninfer_served_model_name
+      upstream: "ninfer"
+      # litellm_params, merged over model / api_base / api_key:
+      #
+      #   num_ctx: only used so pi / opencode learn the context window. Run `pi-sync-models` after changing it
+      #       ( and restart opencode ). ninfer itself ignores it. Keep it equal to the context the server logs at
+      #       startup: with the default fit-context that can be below 262144 on a busy card.
+      #
+      #   reasoning_effort: "none" turns thinking off on Qwen ( ninfer's docs ). Whether it accepts the
+      #       low / medium / xhigh values sonar and tabbyapi take is untested, so none is set here.
+      #
+      # The thinking cap is set on the server ( thinking_budget above ), not here.
+      params:
+        num_ctx: 262144
+
+  # The same model with MTP speculation: two lanes share the 262144 context. Slower decode than dflash2 ( the release
+  # notes measure about 115 tok/s against 133 ), but two requests can run at once.
+  qwen3.8-27b-mtp:
+    profile: "qwen38-27b"
+    spec: "mtp"
+    thinking_budget: 8192
+    litellm:
+      public_name: "ninfer-qwen3.8:27b-mtp"
+      upstream: "ninfer"
+      params:
+        num_ctx: 262144

@@ -1,0 +1,67 @@
+- name: "ninfer_active_model must be one of ninfer_models"
+  assert:
+    that: ninfer_active_model in ninfer_models
+    fail_msg: "ninfer_active_model '{{ ninfer_active_model }}' is not in ninfer_models ( {{ ninfer_models.keys() | list }} )"
+  when: ninfer_active_model | length > 0
+
+- name: "use the active ninfer model"
+  set_fact:
+    ninfer_profile: "{{ _ninfer_entry.profile }}"
+    ninfer_spec: "{{ _ninfer_entry.spec | default(ninfer_spec) }}"
+    ninfer_context: "{{ _ninfer_entry.context | default(ninfer_context) }}"
+    ninfer_concurrency: "{{ _ninfer_entry.concurrency | default(ninfer_concurrency) }}"
+    ninfer_draft_tokens: "{{ _ninfer_entry.draft_tokens | default(ninfer_draft_tokens) }}"
+    ninfer_kv_dtype: "{{ _ninfer_entry.kv_dtype | default(ninfer_kv_dtype) }}"
+    ninfer_thinking_budget: "{{ _ninfer_entry.thinking_budget | default(ninfer_thinking_budget) }}"
+    ninfer_env: "{{ _ninfer_entry.env | default(ninfer_env) }}"
+  vars:
+    _ninfer_entry: "{{ ninfer_models[ninfer_active_model] }}"
+  when: ninfer_active_model | length > 0
+
+- name: "ninfer skipped, no ninfer model is set"
+  debug:
+    msg: "set ninfer_active_model in vars/ninfer/<cluster>-models.vars.yml ( or ninfer_profile ) to deploy ninfer"
+  when: ninfer_profile | length == 0
+
+- name: "kubernetes namespace ninfer"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_ninfer }}"
+    wait: true
+    definition: "{{ lookup('template', 'ninfer-namespace.j2.yml')  }}"
+  when: ninfer_profile | length > 0
+
+- name: "look up current ninfer replicas"
+  k8s_info:
+    context: "{{ kube_context_ninfer }}"
+    api_version: apps/v1
+    kind: Deployment
+    name: ninfer
+    namespace: "{{ kube_namespace_ninfer }}"
+  register: _ninfer_existing
+  when: ninfer_profile | length > 0
+
+- name: "work out ninfer replicas"
+  set_fact:
+    ninfer_replicas: "{{ _ninfer_existing.resources[0].spec.replicas if (_ninfer_existing.resources | length > 0) else ninfer_initial_replicas }}"
+  when: ninfer_profile | length > 0
+
+- name: "kubernetes deployment ninfer"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_ninfer }}"
+    namespace: "{{ kube_namespace_ninfer }}"
+    # nothing to wait for when scaled to 0
+    wait: "{{ ninfer_replicas | int > 0 }}"
+    # the init container downloads ~19GB on the first start, then the model loads
+    wait_timeout: 1800
+    definition: "{{ lookup('template', 'ninfer.j2.yml')  }}"
+  when: ninfer_profile | length > 0
+
+- name: "kubernetes servicemonitor ninfer"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_ninfer }}"
+    namespace: "{{ kube_namespace_ninfer }}"
+    definition: "{{ lookup('template', 'ninfer-servicemonitor.j2.yml')  }}"
+  when: ninfer_profile | length > 0

@@ -2,13 +2,14 @@
 
 Part of the [LLM setup](SETUP-LLM.md).
 
-The backends run the models: `ollama` ( GGUF ), `sonar` and `tabbyapi` ( both EXL3 ). All three are pinned to `bnenod05`, request both GPUs, have no Ingress/TLS and are
-consumed only by `litellm`. They each need the `nvidia-device-plugin` and `local-path-provisioner` system components.
+The backends run the models: `ollama` ( GGUF ), `sonar` and `tabbyapi` ( both EXL3 ), and `ninfer` ( NInfer's own format, one GPU ). All four are pinned to `bnenod05`, have no Ingress/TLS and are
+consumed only by `litellm`. `ollama`, `sonar` and `tabbyapi` request both GPUs; `ninfer` requests one. They each need the `nvidia-device-plugin` and `local-path-provisioner` system components.
 
 ## Switching between engines
 
 `ollama`, `sonar` and `tabbyapi` each request both GPUs, so only one can run at a time. Whichever starts second would sit `Pending`, and after a
-node reboot they'd race for the GPUs, so only `ollama` starts running ( `ollama_initial_replicas: 1` ); `sonar` and `tabbyapi` are created at 0 replicas.
+node reboot they'd race for the GPUs, so only `ollama` starts running ( `ollama_initial_replicas: 1` ); `sonar`, `tabbyapi` and `ninfer` are created at 0 replicas.
+`ninfer` needs only one GPU, so it could in principle run beside another one-GPU pod, but `engine set` scales everything else down for it.
 
 Switch with `bin/llm.py`. It needs `pip install click pyyaml hvac requests`, `kubectl`, and `. vault-login.sh` first for the verbs that call APIs: secrets are read from vault with
 [hvac](https://python-hvac.org) ( `VAULT_ADDR` and `VAULT_TOKEN`, plus `VAULT_CACERT` if vault uses the private CA ), litellm is called directly at `LITELLM_URL` ( default `https://litellm.dev.randomnoun`;
@@ -434,3 +435,55 @@ kubectl -n dev-tabbyapi logs -f deploy/tabbyapi | grep -i "tokens generated"
 ```
 
 The wording of that line is from reading tabbyapi's source, not from seeing it run, so adjust the `grep` if it doesn't match.
+
+## ninfer
+
+[NInfer](https://github.com/Neroued/ninfer) is a single-GPU C++/CUDA engine that runs a few specific models from its own `.ninfer` files, and `ninfer-serve` is its server. Upstream targets Blackwell
+GPUs; the RTX 3090 port is [ashalliants/ninfer-3090](https://github.com/ashalliants/ninfer-3090), which is what this uses. It serves OpenAI and Anthropic APIs, one model per process.
+
+* **One GPU**, unlike the others here ( `ninfer_gpu_count: 1` ). It is fast because it doesn't split the model across the cards.
+* **It starts scaled to 0.** See [Switching between engines](#switching-between-engines).
+* **No published image.** The role uses one you build from [docker/ninfer-3090](../docker/ninfer-3090/README.md), which wraps the port's prebuilt Linux release.
+
+### Install it
+
+1. Build the image and push it to nexus3, as for sonar; see the README in `docker/ninfer-3090`. The role pulls `docker-combined.nexus3.dev.randomnoun/ninfer-3090:0.17.1`. 
+   Check the node can pull it: `sudo ctr -n k8s.io images pull docker-combined.nexus3.dev.randomnoun/ninfer-3090:0.17.1`
+
+2. Put an API key in vault ( see [SETUP-DATABASE.md](SETUP-DATABASE.md) ). Without one the server is unauthenticated, on a LoadBalancer service. Set `ninfer_api_key: ""` in `vars/ninfer/bnekub03.vars.yml` to run without.
+
+   ```
+   echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-ninfer/ninfer" api_key=-
+   ```
+
+3. Deploy it. It comes up at 0 replicas; then give it the GPUs with `engine set`:
+
+   ```
+   ansible-playbook -vvv -e deployments=bnekub03 -e app=ninfer k8s_llm_bnekub03.yml
+   python bin/llm.py engine set ninfer
+   kubectl -n dev-ninfer logs -f deploy/ninfer
+   ```
+
+   The first start has an init container, `model`, download the model ( about 19GB ) onto the volume with the release's own `download-model.sh`; it resumes if interrupted and checks the size and SHA-256.
+   `kubectl -n dev-ninfer logs -f deploy/ninfer -c model` shows it. The container then loads the model, which the release notes say takes under a minute once it is on disk.
+
+The model and its settings are in the registry, `vars/ninfer/bnekub03-models.vars.yml`; switch with `python bin/llm.py model load NAME` ( see [Switching models](#switching-models) ). Each entry names a `profile`
+( `qwen38-27b` or `qwen36-35b-a3b` ), which is the model `run.sh` serves and the artifact the init container downloads, a `spec` ( `dflash2` is the fastest at one stream, `mtp` gives two lanes ), and
+optionally `context`, `concurrency`, `draft_tokens`, `kv_dtype`, `thinking_budget` and `env` for any other `NINFER_*` variable. They become the environment variables that `run.sh` reads, 
+which are listed at the top of `run.sh` in the release.
+
+* **Context length.** If the entry leaves `context` unset, `run.sh` starts at the largest context that fits the free GPU memory, up to 262144, and logs `context lowered to ...` when it has to cut it. 
+  Setting `context` turns that off and the server fails if it doesn't fit. Keep the litellm `num_ctx` equal to the context the server logs at startup.
+* **KV cache and memory.** The default profile uses a 4-bit-keys KV cache ( `rk4v4` ) and pins 8 GiB of host RAM for its context cache, so the pod asks for 24Gi ( limit 40Gi ). A failed pin retries with half.
+* **Thinking.** `thinking_budget` is `--default-thinking-budget`, a server-wide cap. The litellm `reasoning_effort` values the other engines use aren't known to work here; ninfer's docs say `"none"` turns thinking off for Qwen.
+
+### Configure the model in litellm
+
+`python bin/llm.py model sync` creates the litellm model from the registry entry's `litellm:` block: an OpenAI-compatible model at `http://web.dev-ninfer.svc.cluster.local:8080/v1`, called `ninfer` upstream ( `ninfer_served_model_name` ), 
+with the vault `api_key`. By hand, it is the same as for the others: Provider **OpenAI-Compatible Endpoints**, Custom Model Name `ninfer`, Public Model Name `ninfer-qwen3.8:27b-dflash2`, that API base and key, 
+then `"num_ctx"` in the LiteLLM Params. Run `pi-sync-models` afterwards and restart opencode.
+
+### Metrics
+
+`ninfer-serve` has a Prometheus `/metrics` endpoint ( the role creates a `ServiceMonitor`, sending the API key as a bearer token ), and `/health` for the probes. The names changed in the release's 0.16.0, and I haven't seen the
+ones from 0.17.1 run, so build any Grafana dashboard from `/metrics` itself. It can also write a JSON line per request ( `NINFER_REQUEST_LOG_JSONL=<file>`, in `ninfer_env` ), which is how to compare speeds with the others until a `speed ninfer` verb exists.

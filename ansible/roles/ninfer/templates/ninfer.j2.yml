@@ -1,0 +1,160 @@
+# k8s yaml for the image built from docker/ninfer-3090, which wraps https://github.com/ashalliants/ninfer-3090
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ninfer-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_ninfer }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ ninfer_volume_size_gb }}Gi"
+
+{% if ninfer_api_key | length > 0 %}
+---
+# not in the Deployment because it holds the API key; the ServiceMonitor reads it too
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ninfer-api-key
+data:
+  api_key: "{{ ninfer_api_key | b64encode }}"
+{% endif %}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ninfer
+spec:
+  replicas: {{ ninfer_replicas }}
+  # the GPU stays held until the old pod has finished terminating, so a RollingUpdate's new pod could
+  # never schedule while the old one is still running ( same reasoning as ollama )
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ninfer-web
+  template:
+    metadata:
+      labels:
+        app: ninfer-web
+    spec:
+      nodeSelector:
+        {{ ninfer_gpu_node_selector_key }}: "{{ ninfer_gpu_node_selector_value }}"
+      runtimeClassName: "{{ ninfer_gpu_runtime_class_name }}"
+      initContainers:
+        # the release's own downloader: resumable, and it checks the size and SHA-256 of the file. It does nothing
+        # but verify it when the model is already on the volume.
+        - name: model
+          image: "{{ ninfer_image }}"
+          imagePullPolicy: IfNotPresent
+          command: ["/opt/ninfer/download-model.sh", "{{ ninfer_profile }}"]
+          env:
+            - name: NINFER_MODEL_DIR
+              value: /models
+          resources:
+            requests:
+              cpu: "1"
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - mountPath: /models
+              name: models
+      containers:
+        - name: ninfer
+          image: "{{ ninfer_image }}"
+          imagePullPolicy: IfNotPresent
+          # the image's ENTRYPOINT is run.sh, so this is its profile argument
+          args: ["{{ ninfer_profile }}"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NINFER_MODEL_ID
+              value: "{{ ninfer_served_model_name }}"
+{% if ninfer_api_key | length > 0 %}
+            - name: NINFER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ninfer-api-key
+                  key: api_key
+{% endif %}
+{% if ninfer_spec | string | length > 0 %}
+            - name: NINFER_SPEC
+              value: "{{ ninfer_spec }}"
+{% endif %}
+{% if ninfer_context | string | length > 0 %}
+            - name: NINFER_CONTEXT
+              value: "{{ ninfer_context }}"
+{% endif %}
+{% if ninfer_concurrency | string | length > 0 %}
+            - name: NINFER_CONCURRENCY
+              value: "{{ ninfer_concurrency }}"
+{% endif %}
+{% if ninfer_draft_tokens | string | length > 0 %}
+            - name: NINFER_DRAFT_TOKENS
+              value: "{{ ninfer_draft_tokens }}"
+{% endif %}
+{% if ninfer_kv_dtype | string | length > 0 %}
+            - name: NINFER_KV_DTYPE
+              value: "{{ ninfer_kv_dtype }}"
+{% endif %}
+{% if ninfer_thinking_budget | string | length > 0 %}
+            - name: NINFER_DEFAULT_THINKING_BUDGET
+              value: "{{ ninfer_thinking_budget }}"
+{% endif %}
+{% for name, value in ninfer_env.items() %}
+            - name: {{ name }}
+              value: {{ value | string | to_json }}
+{% endfor %}
+          # /health is the one endpoint that needs no API key
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 15
+          resources:
+            limits:
+              cpu: "{{ ninfer_cpu_limit }}"
+              memory: "{{ ninfer_memory_limit }}"
+              nvidia.com/gpu: "{{ ninfer_gpu_count }}"
+            requests:
+              cpu: "{{ ninfer_cpu_request }}"
+              memory: "{{ ninfer_memory_request }}"
+              nvidia.com/gpu: "{{ ninfer_gpu_count }}"
+          volumeMounts:
+            - mountPath: /models
+              name: models
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ninfer-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  # the ServiceMonitor selects on this label
+  labels:
+    app: ninfer-web
+spec:
+  selector:
+    app: ninfer-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: LoadBalancer
