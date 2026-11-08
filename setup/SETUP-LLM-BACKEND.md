@@ -2,7 +2,9 @@
 
 Part of the [LLM setup](SETUP-LLM.md).
 
-The backends run the models: 
+## The engines
+
+The backend engines run the models: 
 
 * `ollama` ( GGUF )
    * is the easiest one to get going. It can swap models in and out on demand so it doesn't have a model registry in this project's source code
@@ -22,6 +24,8 @@ All four are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by 
 
 `ollama` and `sonar` request both GPUs; `ninfer` requests one, and `tabbyapi` can request 1 or 2 depending on the model. 
 They all need the `nvidia-device-plugin` component to access the GPU and `local-path-provisioner` to read/write large models on the locally-attached NVMe drive.
+
+## The models
 
 Some things affect model speed / quality:
 
