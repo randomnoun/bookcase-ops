@@ -10,20 +10,21 @@ The pieces that sit between the frontends and the backends:
 
 ## langfuse
 
-Observability for the whole stack: every request that goes through litellm gets recorded as a trace, with the model, prompt, response, token counts, latency and cost,
-so I can compare frontends ( by their virtual key ) and backends ( by model ) side by side. Accessible at `https://langfuse.dev.randomnoun`.
+**langfuse** provides observability for the LLM stack: every request that goes through **litellm** gets recorded as a trace, with the model, prompt, response, token counts, latency and cost,
+so we can compare frontends ( by their virtual key ) and backends ( by model ) side by side. 
 
-Langfuse doesn't talk to the frontends or backends at all; it's a sink for litellm. Because every request already goes through litellm, there's nothing to configure in 
-open-webui, pi, opencode or openhands.
+Access at `https://langfuse.dev.randomnoun`.
 
-Needs a postgres database, a clickhouse database, an S3-compatible (rustfs) bucket and a bunch of secrets in vault. See [SETUP-DATABASE.md](SETUP-DATABASE.md). 
+langfuse is a sink for litellm. Because every request already goes through litellm, there's nothing to configure in open-webui, pi, opencode or openhands.
 
+It needs a postgres database, a clickhouse database, an S3-compatible (rustfs) bucket and a bunch of secrets in vault. See [SETUP-DATABASE.md](SETUP-DATABASE.md). 
 
-* Postgres and clickhouse run natively on `bnesql02`
-* S3 storage is the rustfs on `bnenas05`. 
-* A `redis` server ( holding a queue and cache ) runs as a separate pod in the `dev-langfuse` namespace, with some PVC storage 
+* postgres and clickhouse run natively on `bnesql02`
+* S3 storage is provided by a rustfs container on `bnenas05`. 
+* a `redis` server ( holding a queue and cache ) runs as a separate pod in the `dev-langfuse` namespace, backed by PVC storage
+* see [SETUP-DATABASE.md](SETUP-DATABASE.md) 
 
-The first startup creates the organisation, project, user and project API keys from the `langfuse_init_*` vars, so there's no signup to do. 
+The first startup will create the organisation, project, user and project API keys from the `langfuse_init_*` vars. 
 
 Log in as `langfuse_init_user_email` with the `init_user_password` from vault. Signups are disabled.
 
