@@ -4,13 +4,65 @@ Part of the [LLM setup](SETUP-LLM.md).
 
 The backends run the models: 
 
-* `ollama` ( GGUF ), 
-* `sonar` and `tabbyapi` ( both EXL3 ), and 
-* `ninfer` ( NInfer's own format, one GPU ). 
+* `ollama` ( GGUF )
+   * is the easiest one to get going. It can swap models in and out on demand; it doesn't need a model registry in this project's source code
+* `sonar` ( EXL3 )
+   * has the most features: batching, Prometheus, and flags for tool-call and reasoning parsers. 
+   * it needs a docker image to be built ( takes 7+ hours ), and to get MTP working might have to manually patch the downloaded models
+   * use llm.py to manage the model registry 
+* `tabbyapi` ( EXL3 )
+   * is the simplest way to run EXL3. MTP worked first time
+   * it has no metrics, so you read its logs.
+   * you can swap models at runtime, but I use llm.py to manage models in the source as well
+* `ninfer` ( custom .ninfer format )
+   * runs on one GPU, fastest so far, but uses lower quantisation to fit in the VRAM, so not an apples-to-apples comparison
+   * also has a model registry managed by llm.py
 
 All four are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
 
-`ollama`, `sonar` and `tabbyapi` request both GPUs; `ninfer` requests one. They each need the `nvidia-device-plugin` and `local-path-provisioner` system components.
+`ollama` and `sonar` request both GPUs; `ninfer` requests one, and `tabbyapi` can request 1 or 2 depending on the model. 
+They all need the `nvidia-device-plugin` component to access the GPU and `local-path-provisioner` to read/write large models on the locally-attached NVMe drive.
+
+Some things affect model speed / quality:
+
+* The model variant
+   * After experimenting with a few different models on ollama, I settled on qwen3.5 but might be worth checking again now that I've modified some of the other settings
+* Engine
+   * Different engines support different model formats, which support different math operations on the model, which can speed them up.
+   * tabbyapi serves models through ExLlamaV3, the library that defines the EXL3 format, so EXL3 support comes there first.
+   * sonar is built on vLLM, so it gets continuous batching, and has added EXL3 loading and other formats. 
+     Of the four, it's the only one here with batching, which helps when several agents share the model.
+   * ninfer is NInfer, an engine for the RTX 5090 ( with the NVidia Blackwell architecture `sm_120` ), and ninfer-3090 is a port of it to the 3090 ( `sm_86` ).
+     It handles one request stream on one GPU very fast, but only for the specific models it supports.
+* Quantisation
+   * Different engines support different model formats, which then support different quantisations. 
+   * BF16 is the 'full' model ( 16-bit weights ), but to cram it onto 2x 3090s we need to reduce the number of bits
+   * Fewer bits per weight means less memory to read for every token, so faster decoding, and room for a larger context, at some cost in accuracy. 
+     The 27B Qwen3.5 model is about 54GB at BF16 and 17-20GB at 4-5 bits, which is how it can fit on one 24GB card.
+   * Here: EXL3 at 5.00 bits per weight ( sonar, tabbyapi ), and ninfer's own mix of 4-5 bits ( 17.7GiB ). Quantisations aren't comparable by bit count alone: how the bits are spread across the weights matters.
+* Size of context window
+   * Context windows grow as you converse with the LLM or the LLM produces code, the bigger the window the more tools you can use, and the larger the inputs / outputs you can send.
+   * An agent that reads code resends its whole conversation each turn: some sample pi sessions had prompts of 20,000 to 75,000 tokens, so a window below about 64k is quickly full. Qwen3.5 supports up to 262,144.
+   * It's measured in tokens and can also be quantised: the KV cache that holds the conversation has its own precision ( `fp8` and 8-bit on sonar and tabbyapi, 4-bit on ninfer ), which trades quality for memory, and for decode speed at long context.
+   * The window competes with the weights for VRAM. ninfer's log showed it starting at 236,544 tokens, not 262,144, because only part of the card was free.
+* MTP
+   * Multi-token prediction. The model has a small extra layer that guesses the next few tokens, and the full model checks the guesses in one pass, keeping the ones that match. It's speculative decoding without a second draft model.
+   * It roughly doubled decode speed on tabbyapi and sonar ( see [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md) ), but only if the quant kept the MTP layer. The gain depends on how often the guesses are right.
+   * ninfer has its own variant: DFlash2 ( the default, fastest here ), MTP, and n-gram copying, which drafts text the model has just read.
+* 'Swift' model variants
+   * Swift 1.5 is a community fine-tune of Qwen3.8-27B by UkisAI. Its model cards and write-ups say it reasons with far fewer tokens ( claims up to 58.5% fewer thinking tokens ) and scores better on coding benchmarks. Haven't tried it yet. 
+     It's the same size as the base model, so the speed gain would come from fewer tokens, not faster decoding.
+* MoE model variants
+   * Mixture of experts. Only some of the model's weights are active for each token, so a 35B-A3B model has 35B parameters in memory but about 3B doing the work per token, which makes it much faster than a dense 27B. 
+   * All the experts still have to be stored, so VRAM use follows the total size. The trade is memory for speed, and usually somewhat lower quality than a dense model of the same total size.
+* 'Flash' model variants
+   * Qwen3.8-Flash-Next is a 125B mixture of experts with about 6B active, and too big for VRAM, so it needs its experts offloaded to system RAM. It's a model name, not a technique.
+   * Unrelated to DFlash2, which is the speculative-decoding method in ninfer.
+* EXL-SC model variants
+   * EXL3 quants made by community builders rather than turboderp. "SC" appears to mean self-calibrated: the quantiser is calibrated partly on the model's own output and agentic traces, and bits are allocated tensor by tensor. 
+   * The one comparison I found says an SC build had 16% lower KL divergence than a turboderp build at the same bit rate, on one model. The names carry the head bit width ( `H5`, `H6` ), and what `V6` means I couldn't find. 
+   * They may need a newer ExLlamaV3 than tabbyapi ships, and some use a fork. I haven't tried one here.
+
 
 ## Switching between engines
 
@@ -333,7 +385,9 @@ Its own README describes it as a hobby project, which is ok for bookcase-ops.
 ### Install the model
 
 Everything specific to the model is in the registry, `vars/tabbyapi/bnekub03-models.vars.yml` ( with comments ); the steps below describe the keys of an entry ( `folder`, `max_seq_len`, `cache_mode`,
-`tensor_parallel`, `draft_*` ), not the flat `tabbyapi_*` variables they're copied onto. To change model, add an entry, `python bin/llm.py model download NAME` and `model load NAME` 
+`tensor_parallel`, `draft_*`, and optionally `gpu_count`, `vision` and `vision_offload` ), not the flat `tabbyapi_*` variables they're copied onto.
+`gpu_count: 1` asks kubernetes for one GPU, so tabbyapi sees a single device and doesn't split the model, and the other 3090 stays free ( ninfer can then use it, once its own pod is up ).
+`vision` loads the model's vision tower, and `vision_offload` keeps its weights in system RAM instead of VRAM. To change model, add an entry, `python bin/llm.py model download NAME` and `model load NAME` 
 ( see [Switching models](#switching-models) ), which replaces steps 3 and 4 below for later models. Only the keys and the volume size are still in `vars/tabbyapi/bnekub03.vars.yml`.
 
 Prerequisite: the tabbyapi keys in vault, see [SETUP-DATABASE.md](SETUP-DATABASE.md). The `api_key` is what litellm uses to call tabbyapi, and the `admin_key` is needed to download and load models.
