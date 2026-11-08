@@ -31,7 +31,7 @@ Log in as `langfuse_init_user_email` with the `init_user_password` from vault. S
 Probably easiest to deploy `langfuse` before `litellm`. The litellm role is configured to send traces to langfuse ( via the `langfuse_otel` callback, using the project keys from vault ), 
 so it'll log export errors until langfuse is up. To turn tracing off again, set `litellm_langfuse_host: ""` in the litellm vars file and re-run the litellm role.
 
-To check it's working, make any request through litellm ( e.g. the `curl` test under [ollama](SETUP-LLM-BACKEND.md#ollama) ) and look under Tracing in the langfuse UI. 
+To check it's working, make any request through litellm ( e.g. the `curl` test under [ollama](SETUP-LLM-BE-OLLAMA.md) ) and look under Tracing in the langfuse UI. 
 To split the results by frontend, filter on the user or key alias; the pi / opencode / open-webui / openhands virtual keys each show up separately.
 
 ### Sessions
