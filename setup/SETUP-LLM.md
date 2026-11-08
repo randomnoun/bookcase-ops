@@ -7,7 +7,11 @@ These docs go through the LLM setup for bookcase-ops, it's still in a bit of flu
 | [SETUP-LLM-ARCHITECTURE.md](SETUP-LLM-ARCHITECTURE.md) | The diagram of how the pieces connect |
 | [SETUP-LLM-KUBERNETES.md](SETUP-LLM-KUBERNETES.md) | Creating and configuring the GPU kubernetes node `bnenod05` |
 | [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md) | `langfuse`, `litellm` and `searxng` |
-| [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar`, `tabbyapi` and `ninfer` |
+| [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar`, `tabbyapi` and `ninfer`, and how to switch between them and their models |
+| [SETUP-LLM-BE-OLLAMA.md](SETUP-LLM-BE-OLLAMA.md) | Setting up `ollama` |
+| [SETUP-LLM-BE-SONAR.md](SETUP-LLM-BE-SONAR.md) | Setting up `sonar`, including building it |
+| [SETUP-LLM-BE-TABBYAPI.md](SETUP-LLM-BE-TABBYAPI.md) | Setting up `tabbyapi` |
+| [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md) | Setting up `ninfer` |
 | [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md) | `open-webui`, `pi`, `opencode` and `openhands` |
 
 To simplify configuration, all the frontends talk to `litellm`, which then connects to models running on the various backends.

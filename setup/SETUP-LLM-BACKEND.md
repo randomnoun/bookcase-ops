@@ -10,25 +10,25 @@ The backend engines run the models:
    * is the easiest one to get going. It can swap models in and out on demand so it doesn't have a model registry in this project's source code
    * developed by Ollama Inc
    * built on llama.cpp, written by ggerganov ( Georgi Gerganov )
-   * setup: [SETUP-LLM-BE-OLLAMA.md](SETUP-LLM-BE-OLLAMA.md)
+   * [SETUP-LLM-BE-OLLAMA.md](SETUP-LLM-BE-OLLAMA.md)
 * `sonar` ( EXL3 )
    * has the most features: batching, Prometheus, and flags for tool-call and reasoning parsers.
    * developed by dphnAI
    * built on the 'Aphrodite Engine' fork of vLLM, written at UC Berkeley   
    * it needs a docker image to be built ( takes 7+ hours ), and to get MTP working might have to manually patch the downloaded models
    * use llm.py to manage the model registry 
-   * setup: [SETUP-LLM-BE-SONAR.md](SETUP-LLM-BE-SONAR.md)
+   * [SETUP-LLM-BE-SONAR.md](SETUP-LLM-BE-SONAR.md)
 * `tabbyapi` ( EXL3 )
    * is the simplest way to run EXL3. MTP worked first time
    * developed by the-royal-lab
    * built on ExLlamaV3, written by turboderp
    * also has a model registry managed by llm.py ( we can swap models at runtime, but it's a bit fiddly )
-   * setup: [SETUP-LLM-BE-TABBYAPI.md](SETUP-LLM-BE-TABBYAPI.md)
+   * [SETUP-LLM-BE-TABBYAPI.md](SETUP-LLM-BE-TABBYAPI.md)
 * `ninfer` ( custom .ninfer format )
    * runs on one GPU, fastest so far, but uses lower quantisation to fit in the VRAM, so not an apples-to-apples comparison
    * developed by by Neroued
    * also has a model registry managed by llm.py
-   * setup: [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md)
+   * [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md)
 
 All four are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
 
