@@ -13,15 +13,14 @@ The backend engines run the models:
 * `sonar` ( EXL3 )
    * has the most features: batching, Prometheus, and flags for tool-call and reasoning parsers.
    * developed by dphnAI
-   * built on the 'Aphrodite Engine' fork of vLLM, written UC Berkeley   
+   * built on the 'Aphrodite Engine' fork of vLLM, written at UC Berkeley   
    * it needs a docker image to be built ( takes 7+ hours ), and to get MTP working might have to manually patch the downloaded models
    * use llm.py to manage the model registry 
 * `tabbyapi` ( EXL3 )
    * is the simplest way to run EXL3. MTP worked first time
    * developed by the-royal-lab
    * built on ExLlamaV3, written by turboderp
-   * it has no metrics, so you read its logs.
-   * can swap models at runtime, but I use llm.py to manage models in the source as well
+   * also has a model registry managed by llm.py ( we can swap models at runtime, but it's a bit fiddly )
 * `ninfer` ( custom .ninfer format )
    * runs on one GPU, fastest so far, but uses lower quantisation to fit in the VRAM, so not an apples-to-apples comparison
    * developed by by Neroued
@@ -33,6 +32,8 @@ All four are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by 
 They all need the `nvidia-device-plugin` component to access the GPU and `local-path-provisioner` to read/write large models on the locally-attached NVMe drive.
 
 ## The models
+
+Models are mostly hosted on huggingface, get an account there as it can speed up downloads. 
 
 Some things affect model speed / quality:
 
@@ -50,7 +51,8 @@ Some things affect model speed / quality:
 * Model file format
    * How the weights are stored in files, which is separate from how many bits each weight has ( see Quantisation, below ). Each engine may only support a subset of these formats.
    * **safetensors**: the usual way the upstream models are published. 
-      * A container that stores tensors safely (unlike older pickle-based `.bin` files, which can run code when loaded) and loads fast (it can be memory-mapped). 
+      * A container that stores tensors safely (unlike older pickle-based `.bin` files, which can run code when loaded) and loads fast (it can be memory-mapped).
+      * A 'tensor' is a named array of numbers. Most are the model's weights, usually with 1 or 2 dimensions ( a 1D vector for a norm layer, a 2D matrix for a projection ), although some, like a vision tower's patches or a quantised weight's packed data, have more dimensions. 
       * It holds weights of any precision, so the BF16 original and the EXL3 quants are both safetensors; the format doesn't say how many bits the weights use.
       * A safetensors model is a **folder** of files, not one file: several weight shards (`model-00001-of-00002.safetensors`, ...), an index of which tensor is in which shard, and the config, tokenizer and chat template as separate files. 
         The Swift quant on tabbyapi is 19 files. Engines load the folder, which is why tabbyapi's `folder` is a directory name and the downloads are repo-sized.
@@ -66,26 +68,42 @@ Some things affect model speed / quality:
       * The larger models ( Flash-Next, GLM ) are split across an entry file plus part files that must sit beside it.
 * Quantisation
    * Different engines support different model formats, which then support different quantisations. 
-   * Model is usually published as BF16 ( 16-bit weights ), but to cram it onto 2x 3090s we need to reduce the number of bits
-      * 'BF16' stands for 'Brain Floating Point' (after 'Google Brain' who created the format). 16 bits is split across 8 bits exponent (magnitude), 7 bits fraction/mantissa (precision).
-      * 'FP16' (floating point) is also 16-bit weights but has lower range: 5 bits exponent (magnitude), 10 bits fraction/mantissa (precision).
-   * Fewer bits per weight means less memory to read for every token, so faster decoding, and room for a larger context, at some cost in accuracy. 
-     The 27B Qwen3.8 model is about 54GB at BF16 and 17-20GB at 4-5 bits, which is how it can fit on one 24GB card.
-   * Some standard quantisations, from the least to the most compressed. Sizes are for the 27B model and are my arithmetic ( bits per weight x 27B parameters / 8 ), not measured files, and real files differ a little because some tensors keep more bits. 
-     The bits per weight are llama.cpp's measured figures for Llama-3.1-8B, and they're a property of the format, so they carry over to other models.
-      * **FP16 / BF16** ( 16 bits, ~54GB ): the unquantised model. The reference everything else is judged against.
+   * Model is usually published as `BF16` ( 16-bit weights ), but to cram it onto 2x 3090s we need to reduce the number of bits
+      * **BF16** stands for 'Brain Floating Point' (after 'Google Brain' who created the format). 16 bits is split across 8 bits exponent (magnitude), 7 bits fraction/mantissa (precision).
+      * **FP16** (floating point) is also 16-bit weights but has lower range: 5 bits exponent (magnitude), 10 bits fraction/mantissa (precision).
+   * Fewer bits per weight means less memory to read for every token, so faster decoding, and room for a larger context, at some cost in accuracy.
+   * The 27B Qwen3.8 model is about 54GB at BF16 and 17-20GB at 4-5 bits, which is how it can fit on one 24GB card.
+   * What you want to do is to minimise **Mean KL**, which is the average KL divergence between the quantised model's predicted next-token probabilities and the unquantised BF16 model's, given the same inputs.
+      * 0 means identical, and lower is closer to the original.
+      * A lot of the "model cards" on huggingface have charts showing KL on a vertical axis and bits per weight (or memory use) on the horizontal axis.
+   * Some standard quantisations, from the least to the most compressed. 
+      * Sizes below are the actual GGUF file sizes for Qwen3.8-27B, as listed on [bartowski's Hugging Face repo](https://huggingface.co/bartowski/Qwen3.8-27B-GGUF). 
+        Other quantisers' files, such as unsloth's, differ a little in size.
+      * **"file bpw"** is bits per weight for the whole file: the file size in bits divided by the number of weights, so it includes everything in the file. Not to be confused with **"bpw"** as it appears in a quant's name or an EXL3 target ( `5.00bpw` ), which is a setting, not a measurement.
+         * These are the "File bits/weight" figures on the same page ( its "bpw" column ), which imply about 27.8 billion weights.
+         * It's higher than the number in the quant's name for two reasons: the K-quant blocks also store scale values ( llama.cpp's `Q4_K` is 4.5 bpw, not 4 ), and the `_M` and `_S` names are mixtures that give some tensors a higher-precision type ( llama.cpp's notes say `Q4_K_M` uses `Q6_K` for half of the attention-value and feed-forward-down tensors ).
+      * **FP16 / BF16** ( 54.7GB, 16 file bpw ): the unquantised model. The reference everything else is judged against.
       * **GGUF** ( ollama, sonar ), llama.cpp's quantisations, stored in a GGUF file. Named like `Q4_K_M`: the number is the rough bits per weight, `K` means the "K-quant" scheme, and `S` / `M` / `L` is small, medium or large mix of which tensors keep more bits. 
         The `IQ` ones are "I-quants", which use a lookup table to get better quality at very low bit rates but decode more slowly on a CPU.
-         * `Q8_0`: 8.5 bits, ~29GB. Close to lossless, and too big for one 3090 with any context.
-         * `Q6_K`: 6.56 bits, ~22GB. Very close to the original.
-         * `Q5_K_M`: 5.70 bits, ~19GB.
-         * `Q4_K_M`: 4.89 bits, ~17GB. The usual default for running a model locally.
-         * `IQ4_XS`: 4.46 bits, ~15GB. Slightly smaller than `Q4_K_M` at similar quality.
-         * `Q3_K_M`: 4.00 bits ( despite the name ), ~13.5GB.
-         * `Q2_K` / `IQ2_*`: 2.4 to 3.2 bits, 8 to 11GB. Noticeably degraded; for models that wouldn't otherwise fit.
+         * `Q8_0`: 29.1GB, 8.38 file bpw. Closest to the original ( mean KL 0.0009 ), and too big for one 3090 with any context.
+         * `Q6_K`: 23.9GB, 6.87 file bpw. Mean KL 0.0030.
+         * `Q5_K_M`: 20.9GB, 6.03 file bpw. Mean KL 0.0053.
+         * `Q4_K_M`: 17.4GB, 5.02 file bpw. Mean KL 0.0139; bartowski's recommended default for most users.
+         * `IQ4_XS`: 15.5GB, 4.46 file bpw. Mean KL 0.0188: about 2GB smaller than `Q4_K_M` for a somewhat larger KL.
+         * `Q3_K_M`: 13.4GB, 3.86 file bpw. Mean KL 0.0564.
+         * `Q2_K`: 10.8GB, 3.12 file bpw. Mean KL 0.161. And `IQ2_XXS`: 8.9GB, 2.56 file bpw, is 0.283. These are noticeably degraded, for models that wouldn't otherwise fit.
+         * The KL figures are bartowski's own measurement for these files, on `wiki.test.raw` over 100 chunks, so they're the best like-for-like quality comparison here. They say how close the output probabilities are, not how well the model codes.
       * **EXL3** ( tabbyapi, sonar ), ExLlamaV3's format. Named by bits per weight, to two decimals ( `5.00bpw`, `4.00bpw` ), so any rate in between is possible, not just the ones above.
+         * Unlike the GGUF figures, the number in the name is the converter's *target* average ( `-b` ), not measured from the file. 
+         * The "embedding table" is still stored as BF16 by default ( 2.54GB in the 5.00bpw repo ), and the "output head" has its own bit width ( `head_bits`, 6 there ), so the file is bigger than the name suggests.
+         * I'm using `turboderp/Qwen3.8-27B-exl3` at 5.00bpw ( 19.9GB; sonar and tabbyapi ), and the SC quant of Swift at 4.00bpw ( 16.35GB; tabbyapi ).
+         * By size, the 5.00bpw file sits between `Q5_K_S` ( 19.6GB ) and `Q5_K_M` ( 20.9GB ), and the 4.00bpw Swift file is close to `Q4_K_S` ( 16.4GB ). The GGUF sizes are from the list above, and bartowski's table for `Q5_K_S`. That says how big they are, not how good.
+      * **ninfer** ( ninfer )
+         * The weights use ninfer's own grouped quantisation of 4 to 5 bits ( 64 weights per group, with 6 bits for the output head and 4 for the embedding ), so a model has to be converted for it first.
+         * I'm using `Qwen3.8-27B-NInfer-3090`( about 19GB ), which by size is close to a GGUF `Q5_K_S` ( 19.6GB ). It also carries the vision tower and the speculative-decoding heads.
       * **Others you'll see**, which none of these engines here use: GPTQ and AWQ ( 4-bit, for vLLM-style engines ), FP8 and NVFP4 ( hardware floating-point formats; NVFP4 needs a Blackwell GPU, not a 3090 ), and EXL2 ( EXL3's predecessor ).
-   * I'm trying out EXL3 at 5.00 bits per weight ( sonar, tabbyapi ), a 4.00 bits per weight SC quant of Swift ( tabbyapi ), and ninfer's own mix of 4-5 bits ( 17.7GiB ). Quantisations aren't comparable by bit count alone: how the bits are spread across the weights matters.
+   * File size is the one number that means the same thing in every format, so compare by that. A quant's name, or its bpw, doesn't compare across formats ( and a GGUF's file bpw isn't the same measure as an EXL3's `5.00bpw` target ), and the KL figures above are only for the GGUF files.
+     I haven't measured quality across formats, and sizes aren't quality: the formats spend their bits differently.
 * Size of context window
    * Context windows grow as you converse with the LLM or the LLM produces code, the bigger the window the more tools you can use, and the larger the inputs / outputs you can send.
    * An agent that reads code resends its whole conversation each turn: some sample pi sessions had prompts of 20,000 to 75,000 tokens, so a window below about 64k is quickly full. Qwen3.8 supports up to 262,144.
