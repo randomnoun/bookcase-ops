@@ -51,10 +51,11 @@ I'm also using the mysql virtual machine to run the vault server, so hop on over
 # Notes
 
 * Ubuntu version: 22.04.1 ( live server amd64 install )
-* MySQL version: the version bundled with ubuntu, which is 8.0.something
 * Logs are written to /opt/packer/packer-install.log within the VM
-* The mysql root password is updated as per the version file and downgraded to a `mysql_native_password` password to allow old clients to connect
-* The mysql server is bound to all interfaces (0.0.0.0)
-* clickhouse is installed from the clickhouse apt repository ( for langfuse ), and is also bound to all interfaces. It listens on 8123 ( HTTP ) and 9000 ( native ). 
-  The `default` user has the password above; create a separate database and user for each application, see [SETUP-DATABASE.md](../setup/SETUP-DATABASE.md)
-
+* MySQL version: the version bundled with ubuntu, which is 8.0.something
+   * The mysql root password is updated as per the version file and downgraded to a `mysql_native_password` password to allow old clients to connect
+   * The mysql server is bound to all interfaces (0.0.0.0)
+* clickhouse is installed from the clickhouse apt repository
+   * is bound to all interfaces. It listens on 8123 ( HTTP ) and 9000 ( native ). 
+   * The `default` user has the password above; create a separate database and user for each application, see [SETUP-DATABASE.md](../setup/SETUP-DATABASE.md)
+   * clickhouse's own `system` log tables ( `text_log`, `trace_log`, `part_log`, `metric_log`, `asynchronous_metric_log`, `query_log` ) are configured to expire after 7 days.
