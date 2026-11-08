@@ -73,7 +73,7 @@ It's included with pi as an example, so copy it into the agent's extensions fold
 kubectl -n dev-pi exec deploy/pi -- sh -c 'mkdir -p /root/.pi/agent/extensions && cp -r /usr/local/lib/node_modules/@earendil-works/pi-coding-agent/examples/extensions/plan-mode /root/.pi/agent/extensions/'
 ```
 
-Then `/plan` ( or `Ctrl+Alt+P` ) toggles it, and `/todos` shows progress through the plan. The copy comes from the installed pi package, so after changing `pi_version` it may be worth repeating it to pick up a newer version.
+Then `/plan` ( or `Ctrl+Alt+P` ) toggles it, and `/todos` shows progress through the plan. The copy comes from the installed pi package, so after changing `pi_version` it may be worth repeating it to pick up a newer version. 
 
 ## opencode
 

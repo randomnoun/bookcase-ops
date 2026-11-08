@@ -582,6 +582,12 @@ def tabbyapi_headers(admin=False):
     return {"x-api-key": key, "Authorization": f"Bearer {key}"}
 
 
+def tabbyapi_folders():
+    """The model folders on tabbyapi's PVC. Its /v1/models lists only the model that is loaded, so ask the filesystem."""
+    out = kubectl("-n", ENGINES["tabbyapi"]["ns"], "exec", "deploy/tabbyapi", "-c", "tabbyapi", "--", "ls", "-1", "/app/models")
+    return {line.strip() for line in out.splitlines() if line.strip()}
+
+
 def ninfer_key():
     return vault(f"k8s/{CLUSTER}/secret/dev-ninfer/ninfer", "api_key")
 
@@ -959,7 +965,7 @@ def model_list(engine):
     active, models = catalogue(engine)
     on_disk = None
     if engine == "tabbyapi" and up:
-        on_disk = {m["id"] for m in engine_api("tabbyapi", "GET", "/v1/models", tabbyapi_headers())["data"]}
+        on_disk = tabbyapi_folders()
     for name, e in models.items():
         if engine == "sonar":
             detail = f"{e['model']}@{e.get('revision', '-')}  ctx {e.get('max_model_len', '-')}"
@@ -999,8 +1005,7 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
         raise click.ClickException(f"{name} is not in {engine}_models ( {', '.join(models)} )")
     st = engine_state(engine)
     if engine == "tabbyapi" and st and st["ready"] > 0:
-        folders = {m["id"] for m in engine_api("tabbyapi", "GET", "/v1/models", tabbyapi_headers())["data"]}
-        if models[name]["folder"] not in folders:
+        if models[name]["folder"] not in tabbyapi_folders():
             raise click.ClickException(f"{models[name]['folder']} isn't on the PVC: run `model download {name}` first")
     click.echo(f"{engine}: {active or '-'} -> {name}" if name != active else f"{engine}: {name} is already the active model")
     if dry_run:

@@ -247,6 +247,56 @@ Only requests with >= 100 tokens out are in the bands, not the >= 1000 used abov
 * Not controlled: different weights, one GPU against two, a single run, and I cannot show that these prompts are the same task as the sonar and tabbyapi runs. These are not langfuse end-to-end figures,
   so they are not comparable with the langfuse columns in sections 5 and 6.
 
+### 8. tabbyapi, Swift 4.00bpw SC quant, one GPU
+
+Measured 2026-11-08. The model is `Jon-Nielsen/Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6` ( the Swift 1.5 fine-tune of Qwen3.8-27B; 16.3GB, 4.00 bits per weight on average, 5-bit head, 6-bit vision tower, 4-bit MTP head ),
+registry entry `swift-27b-sc-4bpw-1gpu`. It runs on **one** 3090 with a 6-bit KV cache at 262144 context, the vision tower held in system RAM ( `vision_offload` ), and MTP drafting from the model's own head ( `draft_num_tokens: 4`, dynamic ).
+The log says `Disabling GPU split because one GPU is in use` and `Model loaded in 33.8 s`. GPU 0 was using 22,546 of 24,576 MiB, so it fits at the full window with about 2GiB spare.
+
+Results are tabbyapi's own generation tok/sec from 54 requests with >= 100 tokens out in one tool-calling session ( the conversation grew from about 1k to 80k tokens;
+`python bin/llm.py speed tabbyapi --since 3h --min-out 100` ):
+
+| Prompt tokens | n | Median tok/sec | Range |
+|---|---|---|---|
+| < 15k | 6 | 71.8 | 17.5-93.4 |
+| 15-45k | 21 | 74.5 | 61.8-103.2 |
+| 45-65k | 9 | 72.0 | 59.8-75.8 |
+| > 65k | 18 | 70.2 | 56.2-92.2 |
+
+* **Flat with context.** The median stays at 70-75 tok/sec from 15k to 80k tokens. Individual requests ran 56-103. A 4,735-token reply ran at 59.8.
+* **Draft acceptance** was 52-88% per request, mostly in the 60s. The fastest requests ( 87-95 tok/sec ) were the ones with 80%+ acceptance, as with ninfer.
+* **Prefix cache:** 96-100% hits on nearly every request. First token took about 1-3 s, with an occasional cold one ( 14.2 s on an 82%-cached 57k prompt ).
+* The lowest figures in the < 15k band ( 17.5 ) are the first requests after loading, while the model warms up.
+* Against the 5.00bpw run in the comparison table: long generations are about the same ( 56-75 here against 74-76 ), and short replies are lower ( median ~72 against 95-128 ), but these are agent turns with tool calls, not the short test prompts of the earlier run.
+* Not controlled: one GPU against two, 4.00bpw against 5.00bpw, a 6-bit KV cache against 8-bit, and a different session and prompts. A single run. Quality was not measured, and the quant's author says the bit plan was copied from the base model, not re-measured for the fine-tune.
+
+To compare it with two GPUs on the same model, run the `swift-27b-sc-4bpw-2gpu` registry entry ( tensor parallel, 8-bit KV cache ) through a similar session. Those steps are in [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md#switching-models).
+The result is in section 9.
+
+### 9. tabbyapi, Swift 4.00bpw SC quant, two GPUs ( tensor parallel )
+
+Measured 2026-11-08, shortly after section 8, on registry entry `swift-27b-sc-4bpw-2gpu`: the same model, the same folder on the PVC, tensor parallel across both 3090s, an **8-bit** KV cache ( section 8 used 6-bit ), no vision tower, MTP with `draft_num_tokens: 4`.
+`Model loaded in 30.4 s` ( 33.8 s on one GPU ). After loading, GPU 0 used 13,681 MiB and GPU 1 12,489 MiB, so about 25.6 GiB across the two against 22 GiB on one.
+
+Results are tabbyapi's own generation tok/sec from 47 requests with >= 100 tokens out in a tool-calling session on this pod ( prompts growing from 2k to 70k tokens;
+`python bin/llm.py speed tabbyapi --since 2h --min-out 100` ). The pod was 17 minutes old, so every request in the log is from this entry:
+
+| Prompt tokens | n | Median tok/sec | Range | One GPU ( section 8 ) |
+|---|---|---|---|---|
+| < 15k | 4 | 92.8 | 20.7-143.0 | 71.8 |
+| 15-45k | 23 | 115.7 | 88.9-151.3 | 74.5 |
+| 45-65k | 15 | 99.4 | 83.8-129.4 | 72.0 |
+| > 65k | 2 | 85.8 | 79.3-92.4 | 70.2 |
+| all | 47 | **105.2** ( mean 107.5 ) | | |
+
+* **Faster than one GPU in every band:** the median is +29% below 15k tokens of context ( 4 requests ), +55% at 15-45k, +38% at 45-65k and +22% above 65k ( 2 requests ). The two outer bands have too few requests to lean on.
+  The earlier 5.00bpw run measured 95-128 tok/sec on short replies with tensor parallel, so this lands in the same range.
+* **Draft acceptance** had a median of 66%, in line with section 8's 52-88%.
+* **Time to first token:** a cold prompt took 37.1 s for 2,145 tokens ( the first request, while the model warmed up ), 11.4 s for 7,923 and 15.0 s for 16,272. Requests with >= 90% of the prompt cached ( 42 of 49 ) had a median of **0.95 s**, a 90th percentile of 2.3 s and a worst case of 14.5 s.
+* **Long outputs:** the requests with >= 1000 tokens out ran at 88.9-145.6 tok/sec ( ten of them, including 3,724, 4,716, 6,011, 8,261 and 9,348 tokens out ), so a long reply didn't slow it the way it did on one GPU ( 59.8 for 4,735 tokens ).
+* **Not a clean test:** the KV cache is 8-bit here and 6-bit in section 8, so the gap isn't purely the second GPU. The session is a different one, with different prompts, and I cannot show that the two are the same kind of work. Each is a single run, and the first-band figures are skewed by the warm-up requests.
+  Quality was not compared. Tensor parallel without NVLink works fine here, even with GPU-to-GPU traffic going through host memory.
+
 ## Comparison ( Qwen3.8-27B 5.00bpw, tensor parallel on both 3090s, 262144 context, single stream )
 
 | Setup | Short replies | ~7-8k token generation | 29-59k context, >=1k tokens out | Notes |
@@ -256,6 +306,8 @@ Only requests with >= 100 tokens out are in the bands, not the >= 1000 used abov
 | **tabbyapi + MTP** | 95-128 tok/sec | 74-76 tok/sec | 87-95 tok/sec ( n=3, but 16-23k tokens out; see section 6 ) | acceptance 47-81%; prefix reuse 64-87% on repeat prompts |
 | sonar + MTP, fp8 KV, FlashInfer | 104-112 tok/sec | 69-72 tok/sec | 67-91 tok/sec | acceptance 47.5% ( short test ); needs the PVC config patch |
 | sonar + MTP, int8 KV, Triton | 80-113 tok/sec | 53 tok/sec | 19-31 tok/sec | acceptance 50-63%; much slower, see section 5 |
+| tabbyapi + MTP, Swift 4.00bpw SC, **one** GPU | median ~72 tok/sec in a tool-calling session ( range 17-103 ) | 60 tok/sec ( one 4.7k request ) | 70-75 median at 15-80k context, engine decode, not end-to-end ( n=54; see section 8 ) | acceptance 52-88%; 96-100% of prompt tokens cached; 6-bit KV; different weights ( 4.00bpw ) |
+| tabbyapi + MTP, Swift 4.00bpw SC, **two** GPUs ( tensor parallel ) | median ~105 tok/sec in a tool-calling session ( range 21-151 ) | 89-130 tok/sec ( 10 requests of 1,087-9,348 tokens ) | 86-116 median at 15-70k context, engine decode, not end-to-end ( n=47; see section 9 ) | acceptance median 66%; 8-bit KV; TTFT median 0.95 s on cached prompts, 11-15 s cold |
 | ninfer, DFlash2, **one** GPU | 121-178 tok/sec | 97 tok/sec ( one 6.9k request ) | 116-164 engine decode, not end-to-end ( n=8, median 142; see section 7 ) | acceptance 42%; 96% of prompt tokens cached; different weights ( 4-5 bit, 17 GiB ) |
 
 The first three speed columns are engine-reported decode tok/sec; the 29-59k column is end-to-end tok/sec from langfuse ( output tokens / total latency, includes prefill ), so only compare within it.

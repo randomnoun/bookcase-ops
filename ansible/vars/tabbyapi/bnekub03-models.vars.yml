@@ -8,7 +8,7 @@
 # updates the litellm entry. Or edit it by hand and re-run the role. The model's folder has to be on the PVC first
 # ( `python bin/llm.py model download NAME` ): tabbyapi fails at startup if the folder doesn't exist.
 
-tabbyapi_active_model: "qwen3.8-27b-5bpw"
+tabbyapi_active_model: "swift-27b-sc-4bpw-2gpu"
 
 tabbyapi_models:
 
