@@ -36,17 +36,28 @@ Some things affect model speed / quality:
    * **ninfer** is an engine for the RTX 5090 ( with the NVidia Blackwell architecture `sm_120` ), and ninfer-3090 is a port of it to the 3090 ( `sm_86` ).
       * It handles one request stream on one GPU very fast, but only for the specific models it supports. 
       * Its `.ninfer` files are single self-contained model files ( weights, tokenizer and chat template ) in its own 4-5 bit grouped quantisation, which only NInfer reads, so a model has to be converted for it first.
+* Model file format
+   * How the weights are stored in files, which is separate from how many bits each weight has ( see Quantisation, below ). Each engine reads only some of these.
+   * **safetensors**: the usual way models are published. A container that stores tensors safely (unlike older pickle-based `.bin` files, which can run code when loaded) and loads fast (it can be memory-mapped). 
+     It holds weights of any precision, so the BF16 original and the EXL3 quants are both safetensors; the format doesn't say how many bits the weights use.
+      * A safetensors model is a **folder** of files, not one file: several weight shards (`model-00001-of-00002.safetensors`, ...), an index of which tensor is in which shard, and the config, tokenizer and chat template as separate files. 
+        The Swift quant on tabbyapi is 19 files. Engines load the folder, which is why tabbyapi's `folder` is a directory name and the downloads are repo-sized.
+      * Read by tabbyapi and sonar ( EXL3 and the original models ).
+   * **GGUF**: meant to be a single file. Its spec says the file should need no external files, and it stores the tensors, hyperparameters, tokenizer and chat template together. The exceptions are sidecar files 
+     for some features ( a vision projector `mmproj`, a separate MTP head ), and shards for very large models. Read by ollama and sonar.
+   * **`.ninfer`**: also one file. It bundles the weights, configuration, tokenizer, chat template and extras like the vision tower and speculative-decoding heads. Only NInfer reads it. 
+     The larger models ( Flash-Next, GLM ) are split across an entry file plus part files that must sit beside it.
 * Quantisation
    * Different engines support different model formats, which then support different quantisations. 
    * Model is usually published as BF16 ( 16-bit weights ), but to cram it onto 2x 3090s we need to reduce the number of bits
-      * 'BF' stands for 'Brain Floating Point' (after 'Google Brain' who created the format). 16 bits is split across 8 bits exponent (magnitude), 7 bits fraction/mantissa (precision).
+      * 'BF16' stands for 'Brain Floating Point' (after 'Google Brain' who created the format). 16 bits is split across 8 bits exponent (magnitude), 7 bits fraction/mantissa (precision).
       * 'FP16' (floating point) is also 16-bit weights but has lower range: 5 bits exponent (magnitude), 10 bits fraction/mantissa (precision).
    * Fewer bits per weight means less memory to read for every token, so faster decoding, and room for a larger context, at some cost in accuracy. 
      The 27B Qwen3.8 model is about 54GB at BF16 and 17-20GB at 4-5 bits, which is how it can fit on one 24GB card.
    * Some standard quantisations, from the least to the most compressed. Sizes are for the 27B model and are my arithmetic ( bits per weight x 27B parameters / 8 ), not measured files, and real files differ a little because some tensors keep more bits. 
      The bits per weight are llama.cpp's measured figures for Llama-3.1-8B, and they're a property of the format, so they carry over to other models.
       * **FP16 / BF16** ( 16 bits, ~54GB ): the unquantised model. The reference everything else is judged against.
-      * **GGUF** ( ollama, sonar ), llama.cpp's format. Named like `Q4_K_M`: the number is the rough bits per weight, `K` means the "K-quant" scheme, and `S` / `M` / `L` is small, medium or large mix of which tensors keep more bits. 
+      * **GGUF** ( ollama, sonar ), llama.cpp's quantisations, stored in a GGUF file. Named like `Q4_K_M`: the number is the rough bits per weight, `K` means the "K-quant" scheme, and `S` / `M` / `L` is small, medium or large mix of which tensors keep more bits. 
         The `IQ` ones are "I-quants", which use a lookup table to get better quality at very low bit rates but decode more slowly on a CPU.
          * `Q8_0`: 8.5 bits, ~29GB. Close to lossless, and too big for one 3090 with any context.
          * `Q6_K`: 6.56 bits, ~22GB. Very close to the original.
