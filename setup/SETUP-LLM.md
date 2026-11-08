@@ -39,7 +39,7 @@ You should probably create the containesr in this order. You may need to do some
    * needs postgres, clickhouse and rustfs set up, and secrets in vault; it goes first so litellm has somewhere to send traces
 * litellm ( [middleware](SETUP-LLM-MIDDLEWARE.md#litellm) )
    * and create a user in the web UI
-* ollama ( [backends](SETUP-LLM-BACKEND.md#ollama) )
+* ollama ( [backends](SETUP-LLM-BE-OLLAMA.md) )
    * then install a few models in ollama
    * then configure those models in litellm
 * pi ( [frontends](SETUP-LLM-FRONTEND.md#pi) )
@@ -49,12 +49,12 @@ And then once you've got that going, can try these deployments, which will add w
 
 * searxng ( [middleware](SETUP-LLM-MIDDLEWARE.md#searxng) )
    * then configure searxng in litellm
-* sonar ( [backends](SETUP-LLM-BACKEND.md#sonar) )
+* sonar ( [backends](SETUP-LLM-BE-SONAR.md) )
    * needs an image you build yourself, and starts scaled to 0
-* tabbyapi ( [backends](SETUP-LLM-BACKEND.md#tabbyapi) )
+* tabbyapi ( [backends](SETUP-LLM-BE-TABBYAPI.md) )
    * needs two keys in vault, and starts scaled to 0
    * then download an EXL3 model and configure it in litellm
-* ninfer ( [backends](SETUP-LLM-BACKEND.md#ninfer) )
+* ninfer ( [backends](SETUP-LLM-BE-NINFER.md) )
    * needs an image you build yourself ( [docker/ninfer-3090](../docker/ninfer-3090/README.md) ) and a key in vault, and starts scaled to 0
    * the model is downloaded by an init container the first time it starts
 * open-webui ( [frontends](SETUP-LLM-FRONTEND.md#open-webui) )

@@ -18,7 +18,7 @@ tabbyapi_volume_size_gb: 300
 tabbyapi_image: "ghcr.io/theroyallab/tabbyapi:latest"
 
 # Keys for the API. Required (the role refuses to run without them). Generate with
-# `openssl rand -hex 24` and keep them in vault, see setup/SETUP-LLM-BACKEND.md.
+# `openssl rand -hex 24` and keep them in vault, see setup/SETUP-LLM-BE-TABBYAPI.md.
 #   api_key   - used by litellm for inference
 #   admin_key - needed for /v1/model/load and /v1/download
 tabbyapi_api_key: ""
@@ -36,7 +36,7 @@ tabbyapi_models: {}
 
 # Model to load when the server starts: a directory name under /app/models (the PVC),
 # e.g. "Qwen3-30B-A3B-exl3". Empty = start with nothing loaded, then download and load
-# models through the API (see setup/SETUP-LLM-BACKEND.md). Unlike ollama, tabbyapi serves ONE
+# models through the API (see setup/SETUP-LLM-BE-TABBYAPI.md). Unlike ollama, tabbyapi serves ONE
 # loaded model at a time (loading another unloads the first).
 tabbyapi_model_name: ""
 

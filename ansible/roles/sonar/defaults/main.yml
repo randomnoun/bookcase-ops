@@ -21,7 +21,7 @@ sonar_image: "alpindale/aphrodite-openai:5f1d2611"
 # nexus3's docker-combined.nexus3.dev.randomnoun allows anonymous access, so leave these
 # empty for that. When sonar_registry_username is set, a docker-registry pull secret is
 # created and attached to the pod.
-# (The node's containerd must also trust the registry's certificate - see setup/SETUP-LLM-BACKEND.md)
+# (The node's containerd must also trust the registry's certificate - see setup/SETUP-LLM-BE-SONAR.md)
 sonar_registry_host: ""
 sonar_registry_username: ""
 sonar_registry_password: ""

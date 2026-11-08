@@ -23,7 +23,7 @@ The ones you want are the 'dotdc' dashboards here: https://grafana.com/grafana/d
 
 Gives tokens/sec, latency, queue depth and KV cache usage for the `sonar` backend. 
 
-Prometheus only scrapes it because the `sonar` role creates a `ServiceMonitor` in the `dev-sonar` namespace ( see [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md#sonar) ). Before importing anything, 
+Prometheus only scrapes it because the `sonar` role creates a `ServiceMonitor` in the `dev-sonar` namespace ( see [SETUP-LLM-BE-SONAR.md](SETUP-LLM-BE-SONAR.md#metrics) ). Before importing anything, 
 check that Prometheus has found it: open `https://prometheus.dev.randomnoun/targets` and look for `serviceMonitor/dev-sonar/sonar`, which should be `UP`. 
 If it isn't listed, check that the `dev-sonar` namespace has the `prometheusEnabled=true` label and the ServiceMonitor has the `prometheus: default` label.
 

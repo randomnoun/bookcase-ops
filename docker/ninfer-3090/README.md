@@ -44,7 +44,7 @@ docker login docker-releases.nexus3.dev.randomnoun
 docker push docker-releases.nexus3.dev.randomnoun/ninfer-3090:0.17.1
 ```
 
-If the largest layer times out, push with `skopeo` as for sonar ( see [SETUP-LLM-BACKEND.md](../../setup/SETUP-LLM-BACKEND.md#build-the-image ) ):
+If the largest layer times out, push with `skopeo` as for sonar ( see [SETUP-LLM-BE-SONAR.md](../../setup/SETUP-LLM-BE-SONAR.md#build-the-image ) ):
 
 ```
 docker save -o ninfer-3090.tar docker-releases.nexus3.dev.randomnoun/ninfer-3090:0.17.1

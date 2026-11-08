@@ -56,9 +56,10 @@ Okay so what you've got is:
       * litellm - an LLM proxy
       * searxng - a search proxy for LLMs
    * [SETUP-LLM-BACKEND.md](setup/SETUP-LLM-BACKEND.md) - some backends
-      * ollama - an LLM engine
-      * sonar - another one of those
-      * tabbyapi - another one of those
+      * [ollama](setup/SETUP-LLM-BE-OLLAMA.md) - an LLM engine
+      * [sonar](setup/SETUP-LLM-BE-SONAR.md) - another one of those
+      * [tabbyapi](setup/SETUP-LLM-BE-TABBYAPI.md) - another one of those
+      * [ninfer](setup/SETUP-LLM-BE-NINFER.md) - another one of those, on a single GPU
    * [SETUP-LLM-FRONTEND.md](setup/SETUP-LLM-FRONTEND.md) - some frontends
       * open-webui - a simple frontend to that ( connects to litellm )
       * pi - minimalistic terminal coding harness 
@@ -106,6 +107,7 @@ Anyway once everything's running, you should be able to connect to the following
 * 2026-08: added litellm, searxng
 * 2026-10: added bnellm01, proxmox, bnenod05, ollama, open-webui, pi, opencode, openhands, sonar, tabbyapi, langfuse
    * Have gone a bit LLM-mad, will probably remove some of those as I find out what works and what doesn't
+* 2026-11: added ninfer, llm.py
 
 ## License
 
