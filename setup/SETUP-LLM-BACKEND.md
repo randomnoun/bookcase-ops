@@ -2,8 +2,15 @@
 
 Part of the [LLM setup](SETUP-LLM.md).
 
-The backends run the models: `ollama` ( GGUF ), `sonar` and `tabbyapi` ( both EXL3 ), and `ninfer` ( NInfer's own format, one GPU ). All four are pinned to `bnenod05`, have no Ingress/TLS and are
-consumed only by `litellm`. `ollama`, `sonar` and `tabbyapi` request both GPUs; `ninfer` requests one. They each need the `nvidia-device-plugin` and `local-path-provisioner` system components.
+The backends run the models: 
+
+* `ollama` ( GGUF ), 
+* `sonar` and `tabbyapi` ( both EXL3 ), and 
+* `ninfer` ( NInfer's own format, one GPU ). 
+
+All four are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
+
+`ollama`, `sonar` and `tabbyapi` request both GPUs; `ninfer` requests one. They each need the `nvidia-device-plugin` and `local-path-provisioner` system components.
 
 ## Switching between engines
 
@@ -16,6 +23,7 @@ Switch with `bin/llm.py`. It needs `pip install click pyyaml hvac requests`, `ku
 `requests` doesn't use the OS certificate store, so set `LITELLM_CACERT` to the CA certificate ), and the engines, which have no ingress, are reached through a temporary `kubectl port-forward`:
 
 ```
+. vault-login.sh                           # set env vars to access secrets in vault
 python bin/llm.py engine list              # replicas, pod phase, configured / serving model, litellm models
 python bin/llm.py engine set tabbyapi      # scale the others to 0, wait for their pods to go, scale tabbyapi to 1, wait for the rollout
 ```
@@ -63,7 +71,7 @@ Things to note:
 
 ## ollama 
 
-Unlike the other apps here, `ollama` is pinned to `bnenod05` (`nodeSelector: gpu-vendor=nvidia`) and requests both GPUs (`nvidia.com/gpu: 2`).
+Like the other backend apps, `ollama` is pinned to `bnenod05` (`nodeSelector: gpu-vendor=nvidia`) and requests both GPUs (`nvidia.com/gpu: 2`).
 Ollama needs the `nvidia-device-plugin` and `local-path-provisioner` system components to be installed, and has no Ingress/TLS.
 It's an internal API consumed by other in-cluster services like `litellm`, so uses a plain `LoadBalancer` Service on its native port (11434).
 
