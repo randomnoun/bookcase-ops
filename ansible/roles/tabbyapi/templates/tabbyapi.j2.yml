@@ -9,6 +9,12 @@
 {% if tabbyapi_model_name | length > 0 %}
 {% set _ = tabby_model.update({'model_name': tabbyapi_model_name}) %}
 {% endif %}
+{% if tabbyapi_vision | bool %}
+{% set _ = tabby_model.update({'vision': true}) %}
+{% if tabbyapi_vision_offload | bool %}
+{% set _ = tabby_model.update({'vision_offload': true}) %}
+{% endif %}
+{% endif %}
 {% set tabby_config = {
   'network': {
     'host': '0.0.0.0',

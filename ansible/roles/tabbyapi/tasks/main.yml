@@ -20,6 +20,9 @@
     tabbyapi_draft_mode: "{{ _tabbyapi_entry.draft_mode | default(tabbyapi_draft_mode) }}"
     tabbyapi_draft_num_tokens: "{{ _tabbyapi_entry.draft_num_tokens | default(tabbyapi_draft_num_tokens) }}"
     tabbyapi_dynamic_draft: "{{ _tabbyapi_entry.dynamic_draft | default(tabbyapi_dynamic_draft) }}"
+    tabbyapi_gpu_count: "{{ _tabbyapi_entry.gpu_count | default(tabbyapi_gpu_count) }}"
+    tabbyapi_vision: "{{ _tabbyapi_entry.vision | default(tabbyapi_vision) }}"
+    tabbyapi_vision_offload: "{{ _tabbyapi_entry.vision_offload | default(tabbyapi_vision_offload) }}"
   vars:
     _tabbyapi_entry: "{{ tabbyapi_models[tabbyapi_active_model] }}"
   when: tabbyapi_active_model | length > 0

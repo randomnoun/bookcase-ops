@@ -3,6 +3,12 @@ kube_storageclass_tabbyapi: "bnenod05-local-path"
 
 tabbyapi_volume_size_gb: 300
 
+# Pinned by digest ( the role default, ghcr.io/theroyallab/tabbyapi:latest, moves with every upstream release, and the kubelet
+# deletes unused images when the node's disk fills, so a later pull could silently fetch a different build ).
+# This is what the node pulled on 2026-11-08, and what the 5.00bpw and Swift models were run on. To update it, pull a newer
+# tag, check it loads the models, and replace this digest.
+tabbyapi_image: "ghcr.io/theroyallab/tabbyapi@sha256:0e3385bcc148cff9f8ed8938d7c9779b6a6a5c89ae1868824766acf1ff953261"
+
 tabbyapi_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-tabbyapi/tabbyapi:api_key')}}"
 tabbyapi_admin_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-tabbyapi/tabbyapi:admin_key')}}"
 

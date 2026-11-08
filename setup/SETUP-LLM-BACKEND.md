@@ -29,11 +29,13 @@ Some things affect model speed / quality:
    * After experimenting with a few different models on ollama, I settled on qwen3.5 but might be worth checking again now that I've modified some of the other settings
 * Engine
    * Different engines support different model formats, which support different math operations on the model, which can speed them up.
-   * tabbyapi serves models through ExLlamaV3, the library that defines the EXL3 format, so EXL3 support comes there first.
+   * tabbyapi serves models through ExLlamaV3, the library that defines the EXL3 format, so EXL3 support comes there first. 
+     EXL3 is a quantisation format based on QTIP, a research method for compressing weights to a chosen number of bits each, which ExLlamaV3 converts and loads at fractional bit rates ( 5.00 bpw, 4.00 bpw ) with a custom GPU kernel.
    * sonar is built on vLLM, so it gets continuous batching, and has added EXL3 loading and other formats. 
      Of the four, it's the only one here with batching, which helps when several agents share the model.
    * ninfer is NInfer, an engine for the RTX 5090 ( with the NVidia Blackwell architecture `sm_120` ), and ninfer-3090 is a port of it to the 3090 ( `sm_86` ).
-     It handles one request stream on one GPU very fast, but only for the specific models it supports.
+     It handles one request stream on one GPU very fast, but only for the specific models it supports. 
+     Its `.ninfer` files are single self-contained model files ( weights, tokenizer and chat template ) in its own 4-5 bit grouped quantisation, which only NInfer reads, so a model has to be converted for it first.
 * Quantisation
    * Different engines support different model formats, which then support different quantisations. 
    * BF16 is the 'full' model ( 16-bit weights ), but to cram it onto 2x 3090s we need to reduce the number of bits
@@ -60,8 +62,11 @@ Some things affect model speed / quality:
    * Unrelated to DFlash2, which is the speculative-decoding method in ninfer.
 * EXL-SC model variants
    * EXL3 quants made by community builders rather than turboderp. "SC" appears to mean self-calibrated: the quantiser is calibrated partly on the model's own output and agentic traces, and bits are allocated tensor by tensor. 
-   * The one comparison I found says an SC build had 16% lower KL divergence than a turboderp build at the same bit rate, on one model. The names carry the head bit width ( `H5`, `H6` ), and what `V6` means I couldn't find. 
-   * They may need a newer ExLlamaV3 than tabbyapi ships, and some use a fork. I haven't tried one here.
+   * The one comparison I found says an SC build had 16% lower KL divergence than a turboderp build at the same bit rate, on one model. 
+   * In a name like `SC_4.00bpw_H5_V6`, `4.00bpw` is the average bits per weight, `H5` is a 5-bit output head (`lm_head`), and `V6` is a 6-bit vision tower. That's from the model card for the one I'm using; "SC" itself is not defined there. 
+   * I'm running `Jon-Nielsen/Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6` on tabbyapi, a 4.00 bpw quant of the Swift fine-tune, 16.3GB, with a 4-bit MTP head. See the `swift-27b-sc-4bpw-*` entries in the tabbyapi model registry. 
+     The card says its author tested it on one 3090 with a 262,144 context and a Q6 KV cache, and ran no quality or speed measurements. The bit plan was copied from the base model's published quant, not re-measured for the fine-tune, 
+     so quality is untested. The card says it was verified on ExLlamaV3 1.5.0, and some other SC builds need a newer ExLlamaV3 or a fork.
 
 
 ## Switching between engines

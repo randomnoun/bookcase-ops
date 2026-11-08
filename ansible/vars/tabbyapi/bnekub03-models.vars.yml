@@ -65,3 +65,63 @@ tabbyapi_models:
         reasoning_effort: "xhigh"
         extra_body:
           reasoning_budget_tokens: 8192
+
+  # Swift 1.5 ( a community fine-tune of Qwen3.8-27B ) as an EXL3 4.00bpw quant by Jon-Nielsen: 16.3GB of weights, 5-bit head, 6-bit vision tower, 4-bit MTP head.
+  # It fits on ONE 3090, so this entry runs on one GPU as the quant's author did ( their smoke test: 262144 context, Q6 KV cache, vision tower in host RAM ),
+  # and leaves the other 3090 free. The author ran no quality or speed measurements. The two entries below share the one download.
+  swift-27b-sc-4bpw-1gpu:
+    folder: "Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6"
+    download:
+      repo_id: "Jon-Nielsen/Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6"
+      # the repo has only a main branch; this is its commit on 2026-11-08, so a later push isn't picked up. Use "main" to follow it.
+      revision: "08cbb857368a51dd732b9c1764d66805905e6acc"
+
+    # asks kubernetes for one GPU, so tabby sees one device and doesn't split the model
+    gpu_count: 1
+    tensor_parallel: false
+
+    # The card says "262,144-token window with Q6 KV cache", which I've written as tabby's k_bits,v_bits form. About 15GiB of weights
+    # plus ~6GiB of cache at 6 bits is tight on a 24GB card: if it fails to load with an out-of-memory error, lower max_seq_len first.
+    max_seq_len: 262144
+    cache_mode: "6,6"
+
+    # keeps the vision tower's weights in system RAM instead of VRAM ( the tower is 6-bit ). Drop both lines if you never send images:
+    # without vision the tower isn't loaded at all.
+    vision: true
+    vision_offload: true
+
+    # the card says the 4-bit MTP head is included, so no draft model is needed
+    draft_mode: "mtp"
+    draft_num_tokens: 4
+    dynamic_draft: true
+
+    litellm:
+      public_name: "tabbyapi-swift-qwen3.8:27b-4bpw"
+      # as the entry above. reasoning_effort is copied from it, and I haven't checked that Swift's chat template accepts those values.
+      params:
+        num_ctx: 262144
+        reasoning_effort: "xhigh"
+        extra_body:
+          reasoning_budget_tokens: 8192
+
+  # The same model across both GPUs with tensor parallelism, like the 5.00bpw entry, for comparing with the one-GPU run.
+  # The smaller weights leave more room for the cache, so it keeps the 8-bit KV cache. Vision is off.
+  swift-27b-sc-4bpw-2gpu:
+    folder: "Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6"
+    download:
+      repo_id: "Jon-Nielsen/Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6"
+      revision: "08cbb857368a51dd732b9c1764d66805905e6acc"
+    gpu_count: 2
+    tensor_parallel: true
+    max_seq_len: 262144
+    cache_mode: "8,8"
+    draft_mode: "mtp"
+    draft_num_tokens: 4
+    dynamic_draft: true
+    litellm:
+      public_name: "tabbyapi-swift-qwen3.8:27b-4bpw-tp"
+      params:
+        num_ctx: 262144
+        reasoning_effort: "xhigh"
+        extra_body:
+          reasoning_budget_tokens: 8192

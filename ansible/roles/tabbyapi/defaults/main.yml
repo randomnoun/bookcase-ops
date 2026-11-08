@@ -27,8 +27,9 @@ tabbyapi_admin_key: ""
 # tabbyapi_models is a registry of models, keyed by name, and tabbyapi_active_model is the one loaded at startup.
 # They live in vars/tabbyapi/<cluster>-models.vars.yml, which bin/llm.py reads and edits ( `llm.py model load NAME` ).
 # The role copies the active entry onto tabbyapi_model_name ( the entry's "folder" ), tabbyapi_max_seq_len,
-# tabbyapi_cache_mode, tabbyapi_tensor_parallel, tabbyapi_draft_mode, tabbyapi_draft_num_tokens and
-# tabbyapi_dynamic_draft below ( an entry only needs the keys it changes ). With no active model, those can still be
+# tabbyapi_cache_mode, tabbyapi_tensor_parallel, tabbyapi_draft_mode, tabbyapi_draft_num_tokens,
+# tabbyapi_dynamic_draft, tabbyapi_gpu_count, tabbyapi_vision and tabbyapi_vision_offload below
+# ( an entry only needs the keys it changes ). With no active model, those can still be
 # set directly.
 tabbyapi_active_model: ""
 tabbyapi_models: {}
@@ -49,6 +50,11 @@ tabbyapi_cache_mode: "FP16"
 # is the safest default; true = tensor parallelism (needs the /dev/shm below, and is
 # faster when it works, but verify it with your cards before relying on it).
 tabbyapi_tensor_parallel: false
+
+# Load the model's vision tower ( for a model that has one ), and keep its weights in system RAM instead of VRAM.
+# Off by default: without vision the tower isn't loaded at all.
+tabbyapi_vision: false
+tabbyapi_vision_offload: false
 
 # Speculative decoding, written to tabby's draft_model section. Empty = don't write the section
 # (tabby's default is no drafting). "mtp" uses the model's own multi-token-prediction layer, so it

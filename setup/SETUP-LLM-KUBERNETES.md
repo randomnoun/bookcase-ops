@@ -55,8 +55,8 @@ Create the disk attached to the VM (shutdown the VM first):
 ```
 root@bnellm01:~# qm list
       VMID NAME                       STATUS     MEM(MB)    BOOTDISK(GB) PID
-       100 bnenod05                   running    98304             97.66 3828
-      9000 tpl-ubuntu-kubernetes-node stopped    122880            97.66 0
+       100 bnenod05                   running    98304            292.97 3828
+      9000 tpl-ubuntu-kubernetes-node stopped    122880           292.97 0
 
 root@bnellm01:~# qm set 100 --scsi1 data:1024   # 1TB, thin-provisioned - only consumes real pool space as it's written to
 update VM 100: -scsi1 data:1024
@@ -70,9 +70,9 @@ Then inside bnenod05:
 ```
 knoxg@bnenod05:~$ lsblk  # confirm the new disk shows up
 NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
-sda      8:0    0 97.7G  0 disk
+sda      8:0    0   293G  0 disk
 ├─sda1   8:1    0    1G  0 part /boot/efi
-└─sda2   8:2    0 96.6G  0 part /var/lib/kubelet/pods/425b91c1-2ae5-4cae-be5d-8376735bde4c/volume-subpaths/tigera-ca-bundle/calico-node/7
+└─sda2   8:2    0   292G  0 part /var/lib/kubelet/pods/425b91c1-2ae5-4cae-be5d-8376735bde4c/volume-subpaths/tigera-ca-bundle/calico-node/7
                                 /var/lib/kubelet/pods/e6dcb366-64dc-493d-ab3c-c1f0cbf2bcf0/volume-subpaths/tigera-ca-bundle/calico-typha/1
                                 /
 sdb      8:16   0    1T  0 disk
