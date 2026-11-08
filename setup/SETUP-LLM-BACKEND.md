@@ -127,8 +127,7 @@ Some things affect model speed / quality:
    * Reportedly has a 16% lower KL divergence than a turboderp build at the same bit rate, on one model. 
    * In a name like `SC_4.00bpw_H5_V6`, `4.00bpw` is the average bits per weight, `H5` is a 5-bit output head (`lm_head`), and `V6` is a 6-bit vision tower. 
    * I'm running `Jon-Nielsen/Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6` on tabbyapi, a 4.00 bpw quant of the Swift fine-tune, 16.3GB, with a 4-bit MTP head. See the `swift-27b-sc-4bpw-*` entries in the tabbyapi model registry. 
-     The card says its author tested it on one 3090 with a 262,144 context and a Q6 KV cache, and ran no quality or speed measurements. The bit plan was copied from the base model's published quant, not re-measured for the fine-tune, 
-     so quality is untested. The card says it was verified on ExLlamaV3 1.5.0, and some other SC builds need a newer ExLlamaV3 or a fork.
+     The card says its author tested it on one 3090 with a 262,144 context and a Q6 KV cache, and ran no quality or speed measurements.
 
 
 ## Switching between engines
