@@ -101,13 +101,26 @@ Some things affect model speed / quality:
       * **ninfer** ( ninfer )
          * The weights use ninfer's own grouped quantisation of 4 to 5 bits ( 64 weights per group, with 6 bits for the output head and 4 for the embedding ), so a model has to be converted for it first.
          * I'm using `Qwen3.8-27B-NInfer-3090`( about 19GB ), which by size is close to a GGUF `Q5_K_S` ( 19.6GB ). It also carries the vision tower and the speculative-decoding heads.
-      * **Others you'll see**, which none of these engines here use: GPTQ and AWQ ( 4-bit, for vLLM-style engines ), FP8 and NVFP4 ( hardware floating-point formats; NVFP4 needs a Blackwell GPU, not a 3090 ), and EXL2 ( EXL3's predecessor ).
+      * **Others you'll see**, which none of these engines here use: 
+         * GPTQ and AWQ ( 4-bit, for vLLM-style engines )
+         * FP8 and NVFP4 ( hardware floating-point formats; NVFP4 needs a Blackwell GPU, not a 3090 )
+         * EXL2 ( EXL3's predecessor )
    * File size is the one number that means the same thing in every format, so compare by that. A quant's name, or its bpw, doesn't compare across formats ( and a GGUF's file bpw isn't the same measure as an EXL3's `5.00bpw` target ), and the KL figures above are only for the GGUF files.
-     I haven't measured quality across formats, and sizes aren't quality: the formats spend their bits differently.
+   * Quality can differ across formats, and sizes aren't quality: the formats spend their bits differently.
 * Size of context window
    * Context windows grow as you converse with the LLM or the LLM produces code, the bigger the window the more tools you can use, and the larger the inputs / outputs you can send.
    * An agent that reads code resends its whole conversation each turn: some sample pi sessions had prompts of 20,000 to 75,000 tokens, so a window below about 64k is quickly full. Qwen3.8 supports up to 262,144.
-   * It's measured in tokens and can also be quantised: the KV cache that holds the conversation has its own precision ( `fp8` and 8-bit on sonar and tabbyapi, 4-bit on ninfer ), which trades quality for memory, and for decode speed at long context.
+   * The working state for the tokens in the context window is stored in the "KV cache" (key/value cache); the memory for the cache is reserved up front. It is quantised separately to the model
+      * This trades quality for memory, and for decode speed at long context.
+      * sonar uses `fp8` which uses 8 bits for the key (K) and 8 bits for the value (V).
+        * memory use is (K size + V size) * (# full-attention layers) * (head size) * (# KV heads) / 8
+        * which for qwen3.8 is (8 bits + 8 bits) * (16) * (256) * (4) / 8 = 32KB per token, which = 8GB for the full 262,144-token window.
+      * tabbyapi uses k_bits,v_bits pairs 
+         * 8,8 for the 5.00bpw run = 32KB per token = 8GB window
+         * 6,6 for the one-GPU Swift run = 24KB per token = 6GB window
+         * and 8,8 for two GPUs run = 32KB per token = 8GB window
+      * ninfer's default is rk4v4, which is 4-bit keys and 4-bit values 
+         * is 16KB per token = 4GB for the window; slightly more in practice
    * The window competes with the weights for VRAM. ninfer's log showed it starting at 236,544 tokens, not 262,144, because only part of the card was free.
 * MTP
    * Multi-token prediction. The model has a small extra layer that guesses the next few tokens, and the full model checks the guesses in one pass, keeping the ones that match. It's speculative decoding without a second draft model.
