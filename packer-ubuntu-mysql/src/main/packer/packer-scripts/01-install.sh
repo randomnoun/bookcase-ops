@@ -113,6 +113,22 @@ tee /etc/clickhouse-server/config.d/listen.xml <<EOF
 EOF
 chown clickhouse:clickhouse /etc/clickhouse-server/config.d/listen.xml
 
+echo '>>>> Expiring clickhouse system log tables after 7 days'
+# these have no expiry by default and use the same disk as langfuse's data ( langfuse never reads them ).
+# A ttl here is only applied when clickhouse creates the table, which is at first start, so this has to be written before it.
+# An existing server needs ALTER TABLE system.<table> MODIFY TTL instead, see setup/SETUP-LLM-MIDDLEWARE.md
+tee /etc/clickhouse-server/config.d/system-log-ttl.xml <<EOF
+<clickhouse>
+    <text_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></text_log>
+    <trace_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></trace_log>
+    <part_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></part_log>
+    <metric_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></metric_log>
+    <asynchronous_metric_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></asynchronous_metric_log>
+    <query_log><ttl>event_date + INTERVAL 7 DAY DELETE</ttl></query_log>
+</clickhouse>
+EOF
+chown clickhouse:clickhouse /etc/clickhouse-server/config.d/system-log-ttl.xml
+
 systemctl enable clickhouse-server
 systemctl start clickhouse-server
 

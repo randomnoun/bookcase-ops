@@ -17,7 +17,7 @@
     "builder_numvpus" : "1",
     "builder_numcores" : "24",
     "builder_memsize" : "98304",
-    "builder_disksize" : "100000",
+    "builder_disksize" : "300000",
 
     "_comment": "generated from https://dnschecker.org/mac-address-generator.php with prefix 00:02",
     "builder_ethernet0_mac" : "00:02:C6:B2:CA:9C",

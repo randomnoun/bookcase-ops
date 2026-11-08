@@ -9,6 +9,12 @@
 {% if tabbyapi_model_name | length > 0 %}
 {% set _ = tabby_model.update({'model_name': tabbyapi_model_name}) %}
 {% endif %}
+{% if tabbyapi_vision | bool %}
+{% set _ = tabby_model.update({'vision': true}) %}
+{% if tabbyapi_vision_offload | bool %}
+{% set _ = tabby_model.update({'vision_offload': true}) %}
+{% endif %}
+{% endif %}
 {% set tabby_config = {
   'network': {
     'host': '0.0.0.0',
@@ -18,6 +24,16 @@
   },
   'model': tabby_model,
 } %}
+{% if tabbyapi_draft_mode | length > 0 %}
+{% set tabby_draft = {'draft_mode': tabbyapi_draft_mode} %}
+{% if tabbyapi_draft_num_tokens | int > 0 %}
+{% set _ = tabby_draft.update({'draft_num_tokens': tabbyapi_draft_num_tokens | int}) %}
+{% endif %}
+{% if tabbyapi_dynamic_draft | bool %}
+{% set _ = tabby_draft.update({'dynamic_draft': true}) %}
+{% endif %}
+{% set _ = tabby_config.update({'draft_model': tabby_draft}) %}
+{% endif %}
 {% set tabby_tokens = {
   'api_key': [tabbyapi_api_key],
   'admin_key': tabbyapi_admin_key,

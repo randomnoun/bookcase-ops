@@ -259,6 +259,12 @@ echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/sec
 echo -n "$(openssl rand -hex 24)" | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-tabbyapi/tabbyapi" admin_key=-
 ```
 
+**ninfer** requires an api_key ( for litellm, and for prometheus scraping /metrics )
+
+```
+echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-ninfer/ninfer" api_key=-
+```
+
 **open-webui** needs a secret key to sign login JWTs, and a litellm virtual key.
 
 Create the key in the litellm UI via

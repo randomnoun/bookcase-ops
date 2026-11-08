@@ -1,0 +1,127 @@
+# The models tabbyapi can load, and which one it does load.
+#
+# Plain YAML only ( no jinja ): bin/llm.py reads this file directly. The tabbyapi role copies the active entry
+# onto the flat tabbyapi_* variables ( tabbyapi_model_name, tabbyapi_max_seq_len ... ), so anything an entry leaves
+# out falls back to the role defaults / bnekub03.vars.yml.
+#
+# Switch with `python bin/llm.py model load NAME`, which rewrites tabbyapi_active_model below, re-runs the role and
+# updates the litellm entry. Or edit it by hand and re-run the role. The model's folder has to be on the PVC first
+# ( `python bin/llm.py model download NAME` ): tabbyapi fails at startup if the folder doesn't exist.
+
+tabbyapi_active_model: "swift-27b-sc-4bpw-2gpu"
+
+tabbyapi_models:
+
+  # The same model sonar serves, for a like-for-like comparison.
+  qwen3.8-27b-5bpw:
+    # directory name under /app/models, and what the model is loaded by
+    folder: "Qwen3.8-27B-exl3-5.00bpw"
+    # where `llm.py model download` gets it from
+    download:
+      repo_id: "turboderp/Qwen3.8-27B-exl3"
+      revision: "5.00bpw"
+
+    # Matched to sonar so the two backends are comparable: same context length, and an 8-bit KV cache
+    # ( sonar uses fp8 ). At 8,8 the cache is ~32KiB/token, so 262144 tokens is ~8GiB on top of ~20GB of weights,
+    # which fits in the 48GB across both cards. If the model fails to load with an out-of-memory error, lower
+    # max_seq_len first.
+    max_seq_len: 262144
+    cache_mode: "8,8"
+
+    # false = autosplit ( fills GPU 0, then GPU 1, so only one card works at a time ); true = tensor-parallel across
+    # both cards, as sonar does. Autosplit gave ~34 tokens/sec against sonar's ~52, so this is being tried to close
+    # the gap. Not verified on 3090s without NVLink ( the cards are connected over PCIe only ): if the model fails
+    # to load, or isn't faster, set it back to false.
+    tensor_parallel: true
+
+    # MTP self-speculative decoding: this quant's 5.00bpw branch keeps the model's one MTP layer ( mtp_bits: 4,
+    # mtp.* tensors in model-00003 ), so no draft model is needed. It costs ~0.7GiB of VRAM at 262144 context.
+    # The MTP head is a single layer, so depth beyond 1 reuses it; dynamic_draft backs the length off when
+    # acceptance drops, with draft_num_tokens as the ceiling. If the model fails to load with MTP, set draft_mode to "".
+    draft_mode: "mtp"
+    draft_num_tokens: 4
+    dynamic_draft: true
+
+    # The litellm model that `llm.py model sync` creates for this entry.
+    litellm:
+      public_name: "tabbyapi-qwen3.8:27b-5bpw"
+      # litellm_params, merged over model / api_base / api_key ( the model is the folder name ):
+      #
+      #   num_ctx: so pi / opencode learn the window ( run pi-sync-models after )
+      #   reasoning_effort: tabby's docs say the top-level field is passed to the chat template
+      #       ( the template accepts low / medium / xhigh only )
+      #   extra_body.reasoning_budget_tokens: tabby's own name for the thinking cap ( sonar's thinking_token_budget is an
+      #       alias of it in tabby ). It's used here because litellm masks any key with a "token" segment, such as
+      #       thinking_token_budget, as "****" in /model/info, which stops `llm.py model sync` seeing the value.
+      #       "tokens" is plural, so it isn't masked. It can also be set server-wide with reasoning_budget_tokens in
+      #       tabby's config.yml, which the role doesn't expose yet.
+      #
+      # Tool calls and thinking: tabby's config has tool_format: auto and reasoning: true, and the role leaves
+      # both at their defaults. Unlike sonar there are no flags to set, but I haven't confirmed that "auto"
+      # picks the right parser for this model's <tool_call><function=...> format. If tool calls come back
+      # as plain text in pi, that's the thing to look at.
+      params:
+        num_ctx: 262144
+        reasoning_effort: "xhigh"
+        extra_body:
+          reasoning_budget_tokens: 8192
+
+  # Swift 1.5 ( a community fine-tune of Qwen3.8-27B ) as an EXL3 4.00bpw quant by Jon-Nielsen: 16.3GB of weights, 5-bit head, 6-bit vision tower, 4-bit MTP head.
+  # It fits on ONE 3090, so this entry runs on one GPU as the quant's author did ( their smoke test: 262144 context, Q6 KV cache, vision tower in host RAM ),
+  # and leaves the other 3090 free. The author ran no quality or speed measurements. The two entries below share the one download.
+  swift-27b-sc-4bpw-1gpu:
+    folder: "Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6"
+    download:
+      repo_id: "Jon-Nielsen/Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6"
+      # the repo has only a main branch; this is its commit on 2026-11-08, so a later push isn't picked up. Use "main" to follow it.
+      revision: "08cbb857368a51dd732b9c1764d66805905e6acc"
+
+    # asks kubernetes for one GPU, so tabby sees one device and doesn't split the model
+    gpu_count: 1
+    tensor_parallel: false
+
+    # The card says "262,144-token window with Q6 KV cache", which I've written as tabby's k_bits,v_bits form. About 15GiB of weights
+    # plus ~6GiB of cache at 6 bits is tight on a 24GB card: if it fails to load with an out-of-memory error, lower max_seq_len first.
+    max_seq_len: 262144
+    cache_mode: "6,6"
+
+    # keeps the vision tower's weights in system RAM instead of VRAM ( the tower is 6-bit ). Drop both lines if you never send images:
+    # without vision the tower isn't loaded at all.
+    vision: true
+    vision_offload: true
+
+    # the card says the 4-bit MTP head is included, so no draft model is needed
+    draft_mode: "mtp"
+    draft_num_tokens: 4
+    dynamic_draft: true
+
+    litellm:
+      public_name: "tabbyapi-swift-qwen3.8:27b-4bpw"
+      # as the entry above. reasoning_effort is copied from it, and I haven't checked that Swift's chat template accepts those values.
+      params:
+        num_ctx: 262144
+        reasoning_effort: "xhigh"
+        extra_body:
+          reasoning_budget_tokens: 8192
+
+  # The same model across both GPUs with tensor parallelism, like the 5.00bpw entry, for comparing with the one-GPU run.
+  # The smaller weights leave more room for the cache, so it keeps the 8-bit KV cache. Vision is off.
+  swift-27b-sc-4bpw-2gpu:
+    folder: "Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6"
+    download:
+      repo_id: "Jon-Nielsen/Swift-Qwen3.8-27B-exl3-SC_4.00bpw_H5_V6"
+      revision: "08cbb857368a51dd732b9c1764d66805905e6acc"
+    gpu_count: 2
+    tensor_parallel: true
+    max_seq_len: 262144
+    cache_mode: "8,8"
+    draft_mode: "mtp"
+    draft_num_tokens: 4
+    dynamic_draft: true
+    litellm:
+      public_name: "tabbyapi-swift-qwen3.8:27b-4bpw-tp"
+      params:
+        num_ctx: 262144
+        reasoning_effort: "xhigh"
+        extra_body:
+          reasoning_budget_tokens: 8192

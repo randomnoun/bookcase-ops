@@ -38,11 +38,12 @@ Projects live in `/workspace` and sessions in `/root/.pi/agent`, both on the sam
 
 * **Context window:** the model's `num_ctx` from litellm's model settings, so pi knows when to compact. Ollama models without one get `ollama_context_length`.
 * **Output limit:** pi allows 16384 output tokens per request unless told otherwise. Models behind an `api_base` listed in `pi_max_tokens_rules` ( in the pi vars file ) get a different `maxTokens`; at the moment 
-  that's 32768 for tabbyapi, which doesn't stream a tool call's arguments, so writing a large file produces one long silent response that can use up the whole 16384.
+  that's 32768 for tabbyapi, which doesn't stream a tool call's arguments, so writing a large file produces one long silent response that can use up the whole 16384, and for ninfer, whose thinking
+  ( capped at 8192 by `ninfer_thinking_budget` ) comes out of the same limit as the answer, so a long reply after a full 8192 of thinking ran out at 16384 and pi reported "Response was truncated before completion".
 * **Session id:** every request carries pi's session id as an `x-session-id` header, which litellm passes to langfuse so each pi session appears under Sessions there. 
   See [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md#sessions).
 
-The sync prints these as it writes them, e.g. `local-tabbyapi-qwen3.8:27b-5bpw (ctx 262144, max out 32768)`.
+The sync prints these as it writes them, e.g. `tabbyapi-qwen3.8:27b-5bpw (ctx 262144, max out 32768)`.
 
 ### One-time setup
 
@@ -72,7 +73,7 @@ It's included with pi as an example, so copy it into the agent's extensions fold
 kubectl -n dev-pi exec deploy/pi -- sh -c 'mkdir -p /root/.pi/agent/extensions && cp -r /usr/local/lib/node_modules/@earendil-works/pi-coding-agent/examples/extensions/plan-mode /root/.pi/agent/extensions/'
 ```
 
-Then `/plan` ( or `Ctrl+Alt+P` ) toggles it, and `/todos` shows progress through the plan. The copy comes from the installed pi package, so after changing `pi_version` it may be worth repeating it to pick up a newer version.
+Then `/plan` ( or `Ctrl+Alt+P` ) toggles it, and `/todos` shows progress through the plan. The copy comes from the installed pi package, so after changing `pi_version` it may be worth repeating it to pick up a newer version. 
 
 ## opencode
 
@@ -116,7 +117,7 @@ This role is based on the [helm chart](https://github.com/OpenHands/OpenHands/tr
       * pick **OpenHands**. The choice is per backend, and can be changed under Settings → Agent later
    * **Set up your LLM:** 
       * Choose **Advanced**
-      * Custom Model: `openai/local-qwen3-coder:30b` 
+      * Custom Model: `openai/ollama-qwen3-coder:30b` 
       * Base URL: `http://web.dev-litellm.svc.cluster.local:4000/v1`
       * API Key: the litellm virtual key for openhands ( see [SETUP-DATABASE.md](SETUP-DATABASE.md) )
       

@@ -5,6 +5,28 @@
       - tabbyapi_admin_key | length > 0
     fail_msg: "set tabbyapi_api_key and tabbyapi_admin_key (see setup/SETUP-LLM-BACKEND.md)"
 
+- name: "tabbyapi_active_model must be one of tabbyapi_models"
+  assert:
+    that: tabbyapi_active_model in tabbyapi_models
+    fail_msg: "tabbyapi_active_model '{{ tabbyapi_active_model }}' is not in tabbyapi_models ( {{ tabbyapi_models.keys() | list }} )"
+  when: tabbyapi_active_model | length > 0
+
+- name: "use the active tabbyapi model"
+  set_fact:
+    tabbyapi_model_name: "{{ _tabbyapi_entry.folder }}"
+    tabbyapi_max_seq_len: "{{ _tabbyapi_entry.max_seq_len | default(tabbyapi_max_seq_len) }}"
+    tabbyapi_cache_mode: "{{ _tabbyapi_entry.cache_mode | default(tabbyapi_cache_mode) }}"
+    tabbyapi_tensor_parallel: "{{ _tabbyapi_entry.tensor_parallel | default(tabbyapi_tensor_parallel) }}"
+    tabbyapi_draft_mode: "{{ _tabbyapi_entry.draft_mode | default(tabbyapi_draft_mode) }}"
+    tabbyapi_draft_num_tokens: "{{ _tabbyapi_entry.draft_num_tokens | default(tabbyapi_draft_num_tokens) }}"
+    tabbyapi_dynamic_draft: "{{ _tabbyapi_entry.dynamic_draft | default(tabbyapi_dynamic_draft) }}"
+    tabbyapi_gpu_count: "{{ _tabbyapi_entry.gpu_count | default(tabbyapi_gpu_count) }}"
+    tabbyapi_vision: "{{ _tabbyapi_entry.vision | default(tabbyapi_vision) }}"
+    tabbyapi_vision_offload: "{{ _tabbyapi_entry.vision_offload | default(tabbyapi_vision_offload) }}"
+  vars:
+    _tabbyapi_entry: "{{ tabbyapi_models[tabbyapi_active_model] }}"
+  when: tabbyapi_active_model | length > 0
+
 - name: "kubernetes namespace tabbyapi"
   k8s:
     state: "present"

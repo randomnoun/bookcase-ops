@@ -1,0 +1,14 @@
+kube_context_ninfer: "bnekub03"
+kube_storageclass_ninfer: "bnenod05-local-path"
+
+ninfer_volume_size_gb: 60
+
+# Needs to be built beforehand, see docker/ninfer-3090
+ninfer_image: "docker-combined.nexus3.dev.randomnoun/ninfer-3090:0.17.1"
+
+# Leave empty for no authentication. Otherwise this is the bearer token litellm sends, and the `api_key` field of
+# litellm's entry for ninfer. See setup/SETUP-DATABASE.md
+ninfer_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-ninfer/ninfer:api_key')}}"
+
+# One model per deployment. Which model, its context length, speculation and its litellm settings are in
+# bnekub03-models.vars.yml ( listed after this file in k8s_llm_bnekub03.yml ); `python bin/llm.py model load NAME` switches it.

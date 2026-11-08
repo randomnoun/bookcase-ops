@@ -1,0 +1,73 @@
+# The models sonar can serve, and which one it does serve.
+#
+# Plain YAML only ( no jinja ): bin/llm.py reads this file directly. The sonar role copies the active entry
+# onto the flat sonar_* variables ( sonar_model, sonar_extra_args ... ), so anything an entry leaves out falls back
+# to the role defaults / bnekub03.vars.yml.
+#
+# Switch with `python bin/llm.py model load NAME`, which rewrites sonar_active_model below, re-runs the role and
+# updates the litellm entry. Or edit it by hand and re-run the role.
+
+sonar_active_model: "qwen3.8-27b-5bpw"
+
+sonar_models:
+
+  qwen3.8-27b-5bpw:
+    # Qwen3.8-27B, EXL3 quant at 5.00 bits per weight ( ~19.9GB of weights, split across both 3090s )
+    model: "turboderp/Qwen3.8-27B-exl3"
+    revision: "5.00bpw"
+
+    # 262144 is the model's native maximum. Sonar reserves the KV cache at startup, but the pool size is set
+    # by free VRAM, not by this value: with fp8 KV the cache only costs ~32KiB/token ( just 16 of the 64 layers
+    # use full attention ), and at 98304 sonar reported 438,806 tokens of cache with ~7.4GiB available per GPU.
+    # This only sets the longest single request, so 262144 fits ( ~1.7 full-length requests at once, vs ~4.5
+    # at 98304 ). If sonar fails to start with a "max seq len is larger than the KV cache" error, lower it.
+    # Keep the litellm "num_ctx" for this model equal to this, so pi/opencode see the right window.
+    max_model_len: "262144"
+
+    extra_args:
+      - "--trust-remote-code"
+      # fp8 KV on sm86 leaves FlashInfer as the only usable attention backend. Tried int8_per_token_head + TRITON_ATTN
+      # ( needs --max-num-seqs=64 too ) to get fused MTP drafting and full CUDA graphs: no faster at equal acceptance and ~23% slower on a
+      # long generation, so this stays. See setup/SETUP-LLM-MTP.md
+      - "--kv-cache-dtype=fp8"
+      # the next three are what make tool calls and thinking work through litellm:
+      # without --enable-auto-tool-choice the API rejects "tool_choice: auto" ( HTTP 400 ),
+      # qwen3_coder matches the model's <tool_call><function=...> format,
+      # and the qwen3 reasoning parser splits <think> text out of the answer ( and enables thinking_token_budget )
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser=qwen3_coder"
+      - "--reasoning-parser=qwen3"
+      # MTP self-speculative decoding using the MTP layer in the EXL3 checkpoint ( no "model" key = load it from the
+      # target ). The head is a single layer, so depth beyond 1 reuses it and acceptance drops at later positions;
+      # 3 is the top of sonar's suggested 1-3 range, lower it if the acceptance rate is poor. Costs ~0.7GiB of the
+      # KV pool. The "revision" must repeat the revision above: the speculative config reuses the target's repo id
+      # but not its branch, and the repo's main branch has no config.json ( "Invalid repository ID or local directory" ).
+      # If sonar fails at startup with an MTP error, this sonar version lacks MTP for the architecture
+      # or can't read the EXL3 mtp.* tensors: remove this line.
+      - '--speculative-config={"method":"mtp","num_speculative_tokens":3,"revision":"5.00bpw"}'
+
+    # The litellm model that `llm.py model sync` creates for this entry.
+    litellm:
+      public_name: "sonar-qwen3.8:27b-5bpw"
+      # what sonar serves every model under: must equal sonar_served_model_name
+      upstream: "local-sonar"
+      # litellm_params, merged over model / api_base / api_key:
+      #
+      #   num_ctx: only used so pi / opencode learn the context window. Run `pi-sync-models` after changing it
+      #       ( and restart opencode ). Sonar itself ignores it.
+      #
+      #   reasoning_effort: one of low / medium / xhigh ( the model's chat template rejects "high" and "max"
+      #       with a 400 ). It's written into the prompt, so the model knows to keep its thinking short; xhigh is the default.
+      #
+      #   extra_body.thinking_token_budget: a hard cap on thinking tokens. When it's reached sonar forces the thinking
+      #       to end and the model carries on to its answer ( the thinking is cut mid-sentence ). Without it this model
+      #       can spend its entire output budget thinking and the client reports "Response was truncated". Tested at 50:
+      #       the answer still came back, with ~100 characters of thinking. 8192 is a guess from the longest
+      #       legitimate turn seen so far ( ~5300 tokens ); adjust once you've seen more.
+      #
+      # Don't use max_tokens for this: the model can't see it, so it just truncates the output.
+      params:
+        num_ctx: 262144
+        reasoning_effort: "xhigh"
+        extra_body:
+          thinking_token_budget: 8192
