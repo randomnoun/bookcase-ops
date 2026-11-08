@@ -8,16 +8,23 @@ The backend engines run the models:
 
 * `ollama` ( GGUF )
    * is the easiest one to get going. It can swap models in and out on demand so it doesn't have a model registry in this project's source code
+   * developed by Ollama Inc
+   * built on llama.cpp, written by ggerganov ( Georgi Gerganov )
 * `sonar` ( EXL3 )
-   * has the most features: batching, Prometheus, and flags for tool-call and reasoning parsers. 
+   * has the most features: batching, Prometheus, and flags for tool-call and reasoning parsers.
+   * developed by dphnAI
+   * built on the 'Aphrodite Engine' fork of vLLM, written UC Berkeley   
    * it needs a docker image to be built ( takes 7+ hours ), and to get MTP working might have to manually patch the downloaded models
    * use llm.py to manage the model registry 
 * `tabbyapi` ( EXL3 )
    * is the simplest way to run EXL3. MTP worked first time
+   * developed by the-royal-lab
+   * built on ExLlamaV3, written by turboderp
    * it has no metrics, so you read its logs.
-   * you can swap models at runtime, but I use llm.py to manage models in the source as well
+   * can swap models at runtime, but I use llm.py to manage models in the source as well
 * `ninfer` ( custom .ninfer format )
    * runs on one GPU, fastest so far, but uses lower quantisation to fit in the VRAM, so not an apples-to-apples comparison
+   * developed by by Neroued
    * also has a model registry managed by llm.py
 
 All four are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
@@ -33,7 +40,7 @@ Some things affect model speed / quality:
    * After experimenting with a few different models on ollama, I settled on qwen3.8 but might be worth checking again now that I've modified some of the other settings
 * Engine
    * Different engines support different model formats, which support different math operations on the model, which can speed them up.
-   * **tabbyapi** serves models through ExLlamaV3, the library that defines the EXL3 format, so EXL3 support comes there first. 
+   * **tabbyapi** serves models through ExLlamaV3, the library that defines the EXL3 format, so EXL3 improvements appear here first. 
       * EXL3 is a quantisation format based on QTIP, a research method for compressing weights to a chosen number of bits each, which ExLlamaV3 converts and loads at fractional bit rates ( 5.00 bpw, 4.00 bpw ) with a custom GPU kernel.
    * **sonar** is built on vLLM, so it gets continuous batching, and has added EXL3 loading and other formats. 
      Of the four, it's the only one here with batching, which helps when several agents share the model.
@@ -41,16 +48,22 @@ Some things affect model speed / quality:
       * It handles one request stream on one GPU very fast, but only for the specific models it supports. 
       * Its `.ninfer` files are single self-contained model files ( weights, tokenizer and chat template ) in its own 4-5 bit grouped quantisation, which only NInfer reads, so a model has to be converted for it first.
 * Model file format
-   * How the weights are stored in files, which is separate from how many bits each weight has ( see Quantisation, below ). Each engine reads only some of these.
-   * **safetensors**: the usual way models are published. A container that stores tensors safely (unlike older pickle-based `.bin` files, which can run code when loaded) and loads fast (it can be memory-mapped). 
-     It holds weights of any precision, so the BF16 original and the EXL3 quants are both safetensors; the format doesn't say how many bits the weights use.
+   * How the weights are stored in files, which is separate from how many bits each weight has ( see Quantisation, below ). Each engine may only support a subset of these formats.
+   * **safetensors**: the usual way the upstream models are published. 
+      * A container that stores tensors safely (unlike older pickle-based `.bin` files, which can run code when loaded) and loads fast (it can be memory-mapped). 
+      * It holds weights of any precision, so the BF16 original and the EXL3 quants are both safetensors; the format doesn't say how many bits the weights use.
       * A safetensors model is a **folder** of files, not one file: several weight shards (`model-00001-of-00002.safetensors`, ...), an index of which tensor is in which shard, and the config, tokenizer and chat template as separate files. 
         The Swift quant on tabbyapi is 19 files. Engines load the folder, which is why tabbyapi's `folder` is a directory name and the downloads are repo-sized.
       * Read by tabbyapi and sonar ( EXL3 and the original models ).
-   * **GGUF**: meant to be a single file. Its spec says the file should need no external files, and it stores the tensors, hyperparameters, tokenizer and chat template together. The exceptions are sidecar files 
-     for some features ( a vision projector `mmproj`, a separate MTP head ), and shards for very large models. Read by ollama and sonar.
-   * **`.ninfer`**: also one file. It bundles the weights, configuration, tokenizer, chat template and extras like the vision tower and speculative-decoding heads. Only NInfer reads it. 
-     The larger models ( Flash-Next, GLM ) are split across an entry file plus part files that must sit beside it.
+   * **GGUF**: supposedly the "GPT-Generated Unified Format", but created by Georgi Gerganov (creator of llama.cpp) so that's probably the origin of the 'GG' in 'GGUF'.  
+      * It's meant to be a single file. 
+      * The spec says the file should need no external files, and it stores the tensors, hyperparameters, tokenizer and chat template together. 
+      * The exceptions are sidecar files for some features ( a vision projector `mmproj`, a separate MTP head ), and shards for very large models. 
+      * Read by ollama and sonar.
+   * **`.ninfer`**: an Nvidia-specific file format, also one file.
+      * Only NInfer reads it. 
+      * It bundles the weights, configuration, tokenizer, chat template and extras like the vision tower and speculative-decoding heads.  
+      * The larger models ( Flash-Next, GLM ) are split across an entry file plus part files that must sit beside it.
 * Quantisation
    * Different engines support different model formats, which then support different quantisations. 
    * Model is usually published as BF16 ( 16-bit weights ), but to cram it onto 2x 3090s we need to reduce the number of bits
