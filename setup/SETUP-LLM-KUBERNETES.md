@@ -18,7 +18,7 @@ Clone and rename it to create `bnenod05`, start it, and join the cluster by runn
 
 If you need to regenerate the token, from `bnekub03`, run `kubeadm token create --print-join-command`
 
-If starting the node appears to crash the host (including proxmox), try decreating the memory allocation a bit
+If starting the node appears to crash the host (including proxmox), try decreasing the memory allocation a bit
 
 ## Attach GPUs to bnenod05
 
@@ -48,7 +48,7 @@ The second SSD on bnellm01 is there to hold LLM models; carve out a dedicated th
 
 The disk will be mounted as `/mnt/models` on `bnenod05`.
 
-The `local-path-provisioner` ansible role will provision the backends' PVCs ( ollama, sonar, tabbyapi ) here, one directory each.
+The `local-path-provisioner` ansible role will provision the backends' PVCs ( ollama, sonar, tabbyapi, ninfer ) here, one directory each.
 
 Create the disk attached to the VM (shutdown the VM first):
 
