@@ -1,0 +1,57 @@
+# The models sglang can serve, and which one it does serve.
+#
+# Plain YAML only ( no jinja ): bin/llm.py reads this file directly. The sglang role copies the active entry
+# onto the flat sglang_* variables ( sglang_model, sglang_extra_args ... ), so anything an entry leaves out falls back
+# to the role defaults / bnekub03.vars.yml.
+#
+# Switch with `python bin/llm.py model load NAME`, which rewrites sglang_active_model below, re-runs the role and
+# updates the litellm entry. Or edit it by hand and re-run the role.
+
+sglang_active_model: "qwen3.8-27b-gptq-int4"
+
+sglang_models:
+
+  # The same model the other engines serve. sglang reads AWQ and GPTQ checkpoints but not EXL3 or .ninfer, so this is a
+  # 4-bit GPTQ quant ( ~16GB of weights, split across both 3090s ). The 3090s are sm_86, which has no FP8 or FP4 tensor
+  # cores, so the FP8 and NVFP4 checkpoints in sglang's own Qwen3.8 recipe don't apply here.
+  qwen3.8-27b-gptq-int4:
+    # palmfuture's quant uses a uniform group_size of 32 "for full vLLM/SGLang compatibility" and carries the MTP head.
+    # Other 4-bit quants of this model exist ( bernhardbrieger/Qwen3.8-27B-GPTQ-Int4, TelperionAI/Qwen3.8-27B-INT4-AWQ-GPTQ ).
+    # I haven't run any of them on 3090s.
+    model: "palmfuture/Qwen3.8-27B-GPTQ-Int4"
+
+    # 262144 is the model's native maximum. sglang sizes the KV pool from what's left after the weights
+    # ( --mem-fraction-static ), so this only sets the longest single request. Keep the litellm "num_ctx" equal to it.
+    context_length: "262144"
+
+    extra_args:
+      - "--trust-remote-code"
+      # fp8 KV cache: half the memory of bf16. It works on sm_86 as a storage format, but I haven't checked the speed.
+      - "--kv-cache-dtype=fp8_e4m3"
+      # tool calls and thinking through litellm: the qwen3_coder parser matches the model's <tool_call><function=...>
+      # format, and the qwen3 reasoning parser splits the <think> text out of the answer. These are the parser names
+      # sglang lists; check them against `python3 -m sglang.launch_server --help` for the image you pin.
+      - "--tool-call-parser=qwen3_coder"
+      - "--reasoning-parser=qwen3"
+      # MTP, using the head in the checkpoint: sglang's recipe for this model is these four flags ( EAGLE is the algorithm
+      # sglang runs MTP through ). The recipe is written for Blackwell cards; if the server fails at startup on the 3090s, the
+      # attention backend may need setting ( --attention-backend triton ), or remove these four lines.
+      - "--speculative-algorithm=EAGLE"
+      - "--speculative-num-steps=3"
+      - "--speculative-eagle-topk=1"
+      - "--speculative-num-draft-tokens=4"
+
+    # The litellm model that `llm.py model sync` creates for this entry.
+    litellm:
+      public_name: "sglang-qwen3.8:27b-gptq-int4"
+      # what sglang serves the model under: must equal sglang_served_model_name
+      upstream: "local-sglang"
+      # litellm_params, merged over model / api_base / api_key:
+      #
+      #   num_ctx: only used so pi / opencode learn the context window. Run `pi-sync-models` after changing it
+      #       ( and restart opencode ). sglang itself ignores it.
+      #
+      # There is no thinking cap set here. sglang has a thinking-budget feature ( see its docs ) but it needs a server flag
+      # I haven't worked out; without one this model can spend its whole output budget thinking.
+      params:
+        num_ctx: 262144

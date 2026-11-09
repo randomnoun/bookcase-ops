@@ -1,0 +1,70 @@
+kube_context_sglang: ""
+kube_namespace_sglang: "dev-sglang"
+kube_storageclass_sglang: ""
+
+# Replica count the FIRST time the deployment is created. 0 because ollama, sonar, tabbyapi, mistralrs and sglang
+# each want every GPU on the node, so only one can run at a time: start the one you want with
+# `python bin/llm.py engine set sglang`. After the first run the role keeps whatever the deployment is currently
+# scaled to, so re-running it doesn't undo that.
+sglang_initial_replicas: 0
+
+sglang_volume_size_gb: 300
+
+# The official image from Docker Hub. 'latest' moves with every release: IfNotPresent below stops a pod restart pulling a
+# new one, but a fresh node will. Pin a version tag ( see hub.docker.com/r/lmsysorg/sglang/tags ) or a digest once you
+# have one that works on the 3090s ( sm_86 ).
+sglang_image: "lmsysorg/sglang:latest"
+
+# sglang_models is a registry of models, keyed by name, and sglang_active_model is the one deployed. They live in
+# vars/sglang/<cluster>-models.vars.yml, which bin/llm.py reads and edits ( `llm.py model load NAME` ). The role copies
+# the active entry onto sglang_model, sglang_model_revision, sglang_quantization, sglang_context_length and
+# sglang_extra_args below ( an entry only needs the keys it changes ). With no active model, those can still be set directly.
+sglang_active_model: ""
+sglang_models: {}
+
+# A HuggingFace repo id, or a path under /root/.cache ( the PVC mount ) for a model you've copied in yourself.
+# Empty = the role deploys nothing.
+sglang_model: ""
+
+# the name sglang serves the model under ( --served-model-name ); the litellm entry's "upstream" has to match
+sglang_served_model_name: "local-sglang"
+
+# HF branch, tag or commit. Empty = the default branch.
+sglang_model_revision: ""
+
+# --quantization. Leave empty: sglang reads it from the checkpoint's config ( AWQ, GPTQ, FP8 ... ). Set it only to override.
+sglang_quantization: ""
+
+# --context-length. Empty = the model's own maximum.
+sglang_context_length: ""
+
+# optional HuggingFace token, for gated repos. Empty = none.
+sglang_hf_token: ""
+
+# any further `sglang.launch_server` flags, one list item each, e.g.
+#   - "--kv-cache-dtype=fp8_e4m3"
+#   - "--tool-call-parser=qwen3_coder"
+sglang_extra_args: []
+
+# --mem-fraction-static: the share of each GPU's memory for the weights and the KV cache pool. Lower it if the server
+# runs out of memory while it starts or during a long prefill.
+sglang_mem_fraction_static: "0.88"
+
+# --tp-size: shards the model across this many GPUs; normally equal to sglang_gpu_count
+sglang_tensor_parallel_size: 2
+
+sglang_gpu_node_selector_key: "gpu-vendor"
+sglang_gpu_node_selector_value: "nvidia"
+# NB: ollama, sonar, tabbyapi and mistralrs also request both GPUs, so only one of them can run at a time.
+sglang_gpu_count: 2
+# must match the RuntimeClass name registered by the nvidia-device-plugin role
+sglang_gpu_runtime_class_name: "nvidia"
+
+sglang_cpu_request: "4"
+sglang_cpu_limit: "8"
+sglang_memory_request: "16Gi"
+sglang_memory_limit: "64Gi"
+
+# sglang's processes talk to each other through /dev/shm; docker's 64Mi default is far too small ( sglang's docs say to set it
+# for docker and kubernetes ). Only consumes memory for what's actually written.
+sglang_shm_size: "16Gi"

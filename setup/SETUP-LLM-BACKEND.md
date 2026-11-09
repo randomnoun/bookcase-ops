@@ -29,10 +29,22 @@ The backend engines run the models:
    * developed by by Neroued
    * also has a model registry managed by llm.py
    * [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md)
+* `mistralrs` ( safetensors, GGUF, UQFF )
+   * a Rust engine that quantizes the original weights as it loads them, so nothing needs converting. Official image, nothing to build
+   * developed by Eric Buehler
+   * also has a model registry managed by llm.py
+   * not yet run on the 3090s, see the page for what's unconfirmed
+   * [SETUP-LLM-BE-MISTRALRS.md](SETUP-LLM-BE-MISTRALRS.md)
+* `sglang` ( safetensors: AWQ, GPTQ, FP8 )
+   * a Python engine like sonar's vLLM base, with batching, a radix-tree prefix cache and tool-call and reasoning parsers. Official image, nothing to build
+   * developed by LMSYS
+   * also has a model registry managed by llm.py
+   * not yet run on the 3090s, see the page for what's unconfirmed
+   * [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md)
 
-All four are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
+All six are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
 
-`ollama` and `sonar` request both GPUs; `ninfer` requests one, and `tabbyapi` can request 1 or 2 depending on the model. 
+`ollama`, `sonar`, `mistralrs` and `sglang` request both GPUs; `ninfer` requests one, and `tabbyapi` can request 1 or 2 depending on the model. 
 They all need the `nvidia-device-plugin` component to access the GPU and `local-path-provisioner` to read/write large models on the locally-attached NVMe drive.
 
 ## The models
@@ -48,7 +60,8 @@ Some things affect model speed / quality:
    * **tabbyapi** serves models through ExLlamaV3, the library that defines the EXL3 format, so EXL3 improvements appear here first. 
       * EXL3 is a quantisation format based on QTIP, a research method for compressing weights to a chosen number of bits each, which ExLlamaV3 converts and loads at fractional bit rates ( 5.00 bpw, 4.00 bpw ) with a custom GPU kernel.
    * **sonar** is built on vLLM, so it gets continuous batching, and has added EXL3 loading and other formats. 
-     Of the four, it's the only one here with batching, which helps when several agents share the model.
+     Of the first four, it's the only one here with batching, which helps when several agents share the model.
+   * **sglang** also batches continuously, and reads AWQ and GPTQ quants of the original model. **mistralrs** quantizes the original weights itself as it loads them.
    * **ninfer** is an engine for the RTX 5090 ( with the NVidia Blackwell architecture `sm_120` ), and ninfer-3090 is a port of it to the 3090 ( `sm_86` ).
       * It handles one request stream on one GPU very fast, but only for the specific models it supports. 
       * Its `.ninfer` files are single self-contained model files ( weights, tokenizer and chat template ) in its own 4-5 bit grouped quantisation, which only NInfer reads, so a model has to be converted for it first.
@@ -149,7 +162,7 @@ Some things affect model speed / quality:
 
 ## Switching between engines
 
-`ollama`, `sonar` and `tabbyapi` usually request both GPUs, so only one can run at a time. 
+`ollama`, `sonar`, `tabbyapi`, `mistralrs` and `sglang` usually request both GPUs, so only one can run at a time. 
 `ninfer` needs only one GPU, so it could in principle run beside another one-GPU pod, but for now `engine set` still scales everything else down for it.
 
 Switch with `bin/llm.py`. It needs `pip install click pyyaml hvac requests`, `kubectl`, and `. vault-login.sh` first for the verbs that call APIs: secrets are read from vault with
@@ -170,12 +183,13 @@ kubectl -n dev-tabbyapi scale deploy/tabbyapi --replicas=1
 kubectl -n dev-tabbyapi rollout status deploy/tabbyapi --timeout=15m
 ```
 
-( swap the namespace and name for `dev-sonar` / `sonar` or `dev-ollama` / `ollama` ). Check what's running with `kubectl get deploy -A | grep -E 'ollama|sonar|tabbyapi'`.
+( swap the namespace and name for `dev-sonar` / `sonar`, `dev-mistralrs` / `mistralrs`, `dev-sglang` / `sglang` or `dev-ollama` / `ollama` ). Check what's running with `kubectl get deploy -A | grep -E 'ollama|sonar|tabbyapi|ninfer|mistralrs|sglang'`.
 
 ### Switching models
 
-`sonar` and `tabbyapi` each have a model registry, in `ansible/vars/<engine>/bnekub03-models.vars.yml`: a `<engine>_models` map, and `<engine>_active_model` naming the one that's deployed.
-Each entry holds the engine settings for that model ( sonar: model, revision, context length, flags; tabbyapi: folder, context length, cache, tensor-parallel, MTP ) and a `litellm:` block with its litellm
+Every engine but `ollama` has a model registry, in `ansible/vars/<engine>/bnekub03-models.vars.yml`: a `<engine>_models` map, and `<engine>_active_model` naming the one that's deployed.
+Each entry holds the engine settings for that model ( sonar: model, revision, context length, flags; tabbyapi: folder, context length, cache, tensor-parallel, MTP; mistralrs: model, quant, context length, flags;
+sglang: model, revision, context length, flags ) and a `litellm:` block with its litellm
 name and params. The roles copy the active entry onto their usual variables, so the choice survives pod restarts and re-running the role.
 
 ```
@@ -186,11 +200,11 @@ python3 ../bin/llm.py model sync --dry-run           # show what would change in
 python3 ../bin/llm.py model unload                   # tabbyapi / ollama only; not persistent
 ```
 
-"Current engine" is whichever of ollama, sonar and tabbyapi is scaled up; pass `--engine` to pick one. `model load` leaves a one-line change in the registry file for you to commit. Run it from WSL,
+"Current engine" is whichever engine is scaled up; pass `--engine` to pick one. `model load` leaves a one-line change in the registry file for you to commit. Run it from WSL,
 since it runs `ansible-playbook` ( or use `--no-apply` and run the printed command yourself ).
 
 `model sync` makes litellm match the active models: it creates or updates one litellm model per engine and deletes the ones it created for entries that are no longer active ( sonar serves every model under
-the same name, so a stale entry would answer with the wrong model ). It marks its models with a `bookcase-ops` entry in `model_info` ( `{"engine": ..., "ansible-model": ...}`, the engine and the registry entry it was built from ) and leaves everything else alone, so models you added in the litellm UI are untouched. 
+the same name, as does sglang, so a stale entry would answer with the wrong model ). It marks its models with a `bookcase-ops` entry in `model_info` ( `{"engine": ..., "ansible-model": ...}`, the engine and the registry entry it was built from ) and leaves everything else alone, so models you added in the litellm UI are untouched. 
 Ollama's models aren't synced; add them in the UI. After a sync that changes `num_ctx`, run `pi-sync-models` and restart opencode as before.
 
 Re-running a role does **not** reset the replica count: it reads the current value from the cluster and keeps it, so `initial_replicas` only applies
@@ -212,3 +226,5 @@ Each engine has its own page, covering deployment, model installation, the litel
 * [SETUP-LLM-BE-SONAR.md](SETUP-LLM-BE-SONAR.md) - `sonar`, including building its image
 * [SETUP-LLM-BE-TABBYAPI.md](SETUP-LLM-BE-TABBYAPI.md) - `tabbyapi`
 * [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md) - `ninfer`
+* [SETUP-LLM-BE-MISTRALRS.md](SETUP-LLM-BE-MISTRALRS.md) - `mistralrs`
+* [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md) - `sglang`

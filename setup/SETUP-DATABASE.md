@@ -245,6 +245,13 @@ vault kv get -mount=secret -field=init_user_password "k8s/bnekub03/secret/dev-la
 echo -n "hf_put-the-token-here" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-sonar/sonar" hf_token=-
 ```
 
+**mistralrs** and **sglang** read a HuggingFace token the same way ( the playbook fails if the secret is missing, even though public repos don't need it ):
+
+```
+echo -n "hf_put-the-token-here" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-mistralrs/mistralrs" hf_token=-
+echo -n "hf_put-the-token-here" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-sglang/sglang" hf_token=-
+```
+
 **searxng** needs a secret key for CSRF/session signing:
 
 ```

@@ -1,0 +1,126 @@
+# k8s yaml for the official image, see https://docs.sglang.io/docs/get-started/install ( Method 3: Using Docker )
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sglang-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_sglang }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ sglang_volume_size_gb }}Gi"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sglang
+spec:
+  replicas: {{ sglang_replicas }}
+  # with every GPU on the node requested, a RollingUpdate's new pod could never
+  # schedule while the old one still holds them (same reasoning as ollama)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sglang-web
+  template:
+    metadata:
+      labels:
+        app: sglang-web
+    spec:
+      nodeSelector:
+        {{ sglang_gpu_node_selector_key }}: "{{ sglang_gpu_node_selector_value }}"
+      runtimeClassName: "{{ sglang_gpu_runtime_class_name }}"
+      containers:
+        - name: sglang
+          image: "{{ sglang_image }}"
+          imagePullPolicy: IfNotPresent
+          command: ["python3", "-m", "sglang.launch_server"]
+          args:
+            - "--model-path={{ sglang_model }}"
+            - "--served-model-name={{ sglang_served_model_name }}"
+            - "--host=0.0.0.0"
+            - "--port=30000"
+            - "--tp-size={{ sglang_tensor_parallel_size }}"
+            - "--mem-fraction-static={{ sglang_mem_fraction_static }}"
+            - "--enable-metrics"
+{% if sglang_model_revision | length > 0 %}
+            - "--revision={{ sglang_model_revision }}"
+{% endif %}
+{% if sglang_quantization | length > 0 %}
+            - "--quantization={{ sglang_quantization }}"
+{% endif %}
+{% if sglang_context_length | string | length > 0 %}
+            - "--context-length={{ sglang_context_length }}"
+{% endif %}
+{% for arg in sglang_extra_args %}
+            - {{ arg | to_json }}
+{% endfor %}
+          ports:
+            - containerPort: 30000
+          env:
+            # keeps downloaded weights on the PVC
+            - name: HF_HOME
+              value: /root/.cache/huggingface
+{% if sglang_hf_token | length > 0 %}
+            - name: HF_TOKEN
+              value: "{{ sglang_hf_token }}"
+{% endif %}
+          # downloading ( the first time ) and loading a 27b model takes many minutes: 90 x 20s = 30 minutes before kubernetes gives up.
+          # I haven't checked what /health returns while the model is still loading: if the pod goes Ready too early,
+          # or never, swap these for tcpSocket checks as tabbyapi does.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 30000
+            periodSeconds: 20
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 30000
+            periodSeconds: 15
+          resources:
+            limits:
+              cpu: "{{ sglang_cpu_limit }}"
+              memory: "{{ sglang_memory_limit }}"
+              nvidia.com/gpu: "{{ sglang_gpu_count }}"
+            requests:
+              cpu: "{{ sglang_cpu_request }}"
+              memory: "{{ sglang_memory_request }}"
+              nvidia.com/gpu: "{{ sglang_gpu_count }}"
+          volumeMounts:
+            - mountPath: /root/.cache
+              name: models
+            - mountPath: /dev/shm
+              name: shm
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: sglang-pvc
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "{{ sglang_shm_size }}"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  # the ServiceMonitor selects on this label
+  labels:
+    app: sglang-web
+spec:
+  selector:
+    app: sglang-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 30000
+      targetPort: 30000
+  type: LoadBalancer

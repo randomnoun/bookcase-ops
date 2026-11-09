@@ -105,7 +105,7 @@ The initial set of applications are:
 * atuin
 * wakapi
 
-The LLM-related applications ( langfuse, litellm, ollama, sonar, tabbyapi, ninfer, open-webui, pi, opencode, openhands and searxng ) are deployed
+The LLM-related applications ( langfuse, litellm, ollama, sonar, tabbyapi, ninfer, mistralrs, sglang, open-webui, pi, opencode, openhands and searxng ) are deployed
 by a separate playbook, `k8s_llm_bnekub03.yml`; see [LLM applications](#llm-applications) below.
 
 what I would suggest you do is to restrict to a specific app using `-e app=xxxxx` (see cmdline below), and deploy a single application at a time, 
@@ -151,7 +151,7 @@ deployment.apps/xwiki scaled
 
 ### Here be dragons 
 
-The LLM-looking containers ( langfuse, litellm, ollama, sonar, tabbyapi, ninfer, open-webui, pi, opencode, openhands and searxng ) live in their own playbook.
+The LLM-looking containers ( langfuse, litellm, ollama, sonar, tabbyapi, ninfer, mistralrs, sglang, open-webui, pi, opencode, openhands and searxng ) live in their own playbook.
 Head over to [SETUP-LLM.md](../setup/SETUP-LLM.md) because it's all a bit fiddly and things need to be created
 and configured in the right order.  
 

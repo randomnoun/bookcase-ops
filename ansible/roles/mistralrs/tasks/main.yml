@@ -1,0 +1,63 @@
+- name: "mistralrs_active_model must be one of mistralrs_models"
+  assert:
+    that: mistralrs_active_model in mistralrs_models
+    fail_msg: "mistralrs_active_model '{{ mistralrs_active_model }}' is not in mistralrs_models ( {{ mistralrs_models.keys() | list }} )"
+  when: mistralrs_active_model | length > 0
+
+- name: "use the active mistralrs model"
+  set_fact:
+    mistralrs_model: "{{ _mistralrs_entry.model }}"
+    mistralrs_quant: "{{ _mistralrs_entry.quant | default(mistralrs_quant) }}"
+    mistralrs_max_model_len: "{{ _mistralrs_entry.max_model_len | default(mistralrs_max_model_len) }}"
+    mistralrs_extra_args: "{{ _mistralrs_entry.extra_args | default(mistralrs_extra_args) }}"
+  vars:
+    _mistralrs_entry: "{{ mistralrs_models[mistralrs_active_model] }}"
+  when: mistralrs_active_model | length > 0
+
+- name: "mistralrs skipped, no mistralrs model is set"
+  debug:
+    msg: "set mistralrs_active_model in vars/mistralrs/<cluster>-models.vars.yml ( or mistralrs_model ) to deploy mistralrs"
+  when: mistralrs_model | length == 0
+
+- name: "kubernetes namespace mistralrs"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_mistralrs }}"
+    wait: true
+    definition: "{{ lookup('template', 'mistralrs-namespace.j2.yml')  }}"
+  when: mistralrs_model | length > 0
+
+- name: "look up current mistralrs replicas"
+  k8s_info:
+    context: "{{ kube_context_mistralrs }}"
+    api_version: apps/v1
+    kind: Deployment
+    name: mistralrs
+    namespace: "{{ kube_namespace_mistralrs }}"
+  register: _mistralrs_existing
+  when: mistralrs_model | length > 0
+
+- name: "work out mistralrs replicas"
+  set_fact:
+    mistralrs_replicas: "{{ _mistralrs_existing.resources[0].spec.replicas if (_mistralrs_existing.resources | length > 0) else mistralrs_initial_replicas }}"
+  when: mistralrs_model | length > 0
+
+- name: "kubernetes deployment mistralrs"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_mistralrs }}"
+    namespace: "{{ kube_namespace_mistralrs }}"
+    # nothing to wait for when scaled to 0
+    wait: "{{ mistralrs_replicas | int > 0 }}"
+    # the model is downloaded on first start, and quantized as it loads
+    wait_timeout: 1800
+    definition: "{{ lookup('template', 'mistralrs.j2.yml')  }}"
+  when: mistralrs_model | length > 0
+
+- name: "kubernetes servicemonitor mistralrs"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_mistralrs }}"
+    namespace: "{{ kube_namespace_mistralrs }}"
+    definition: "{{ lookup('template', 'mistralrs-servicemonitor.j2.yml')  }}"
+  when: mistralrs_model | length > 0

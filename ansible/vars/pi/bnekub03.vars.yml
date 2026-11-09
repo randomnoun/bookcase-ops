@@ -19,3 +19,6 @@ pi_default_model: "ollama-qwen3-coder:30b"
 pi_max_tokens_rules:
   - { api_base_contains: "web.dev-tabbyapi", max_tokens: 32768 }
   - { api_base_contains: "web.dev-ninfer", max_tokens: 32768 }
+  # mistralrs and sglang have no thinking cap set, so a long think leaves less of the default 16384 for the answer
+  - { api_base_contains: "web.dev-mistralrs", max_tokens: 32768 }
+  - { api_base_contains: "web.dev-sglang", max_tokens: 32768 }

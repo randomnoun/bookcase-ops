@@ -1,0 +1,64 @@
+- name: "sglang_active_model must be one of sglang_models"
+  assert:
+    that: sglang_active_model in sglang_models
+    fail_msg: "sglang_active_model '{{ sglang_active_model }}' is not in sglang_models ( {{ sglang_models.keys() | list }} )"
+  when: sglang_active_model | length > 0
+
+- name: "use the active sglang model"
+  set_fact:
+    sglang_model: "{{ _sglang_entry.model }}"
+    sglang_model_revision: "{{ _sglang_entry.revision | default(sglang_model_revision) }}"
+    sglang_quantization: "{{ _sglang_entry.quantization | default(sglang_quantization) }}"
+    sglang_context_length: "{{ _sglang_entry.context_length | default(sglang_context_length) }}"
+    sglang_extra_args: "{{ _sglang_entry.extra_args | default(sglang_extra_args) }}"
+  vars:
+    _sglang_entry: "{{ sglang_models[sglang_active_model] }}"
+  when: sglang_active_model | length > 0
+
+- name: "sglang skipped, no sglang model is set"
+  debug:
+    msg: "set sglang_active_model in vars/sglang/<cluster>-models.vars.yml ( or sglang_model ) to deploy sglang"
+  when: sglang_model | length == 0
+
+- name: "kubernetes namespace sglang"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_sglang }}"
+    wait: true
+    definition: "{{ lookup('template', 'sglang-namespace.j2.yml')  }}"
+  when: sglang_model | length > 0
+
+- name: "look up current sglang replicas"
+  k8s_info:
+    context: "{{ kube_context_sglang }}"
+    api_version: apps/v1
+    kind: Deployment
+    name: sglang
+    namespace: "{{ kube_namespace_sglang }}"
+  register: _sglang_existing
+  when: sglang_model | length > 0
+
+- name: "work out sglang replicas"
+  set_fact:
+    sglang_replicas: "{{ _sglang_existing.resources[0].spec.replicas if (_sglang_existing.resources | length > 0) else sglang_initial_replicas }}"
+  when: sglang_model | length > 0
+
+- name: "kubernetes deployment sglang"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_sglang }}"
+    namespace: "{{ kube_namespace_sglang }}"
+    # nothing to wait for when scaled to 0
+    wait: "{{ sglang_replicas | int > 0 }}"
+    # the model is downloaded on first start, which can take far longer than the default 120s wait
+    wait_timeout: 1800
+    definition: "{{ lookup('template', 'sglang.j2.yml')  }}"
+  when: sglang_model | length > 0
+
+- name: "kubernetes servicemonitor sglang"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_sglang }}"
+    namespace: "{{ kube_namespace_sglang }}"
+    definition: "{{ lookup('template', 'sglang-servicemonitor.j2.yml')  }}"
+  when: sglang_model | length > 0
