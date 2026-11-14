@@ -33,7 +33,7 @@ The backend engines run the models:
    * a Rust engine that quantizes the original weights as it loads them, so nothing needs converting. Official image, nothing to build
    * developed by Eric Buehler
    * also has a model registry managed by llm.py
-   * not yet run on the 3090s, see the page for what's unconfirmed
+   * runs on both 3090s at about 37 tok/sec with MTP on short requests, with no prefix caching; slow so far, see the page
    * [SETUP-LLM-BE-MISTRALRS.md](SETUP-LLM-BE-MISTRALRS.md)
 * `sglang` ( safetensors: AWQ, GPTQ, FP8 )
    * a Python engine like sonar's vLLM base, with batching, a radix-tree prefix cache and tool-call and reasoning parsers. Official image, nothing to build

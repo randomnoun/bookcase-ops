@@ -6,7 +6,7 @@ This is all claude-written, I'll rewrite this whole doc at some stage once I've 
 
 Notes from 2026-10-29, enabling MTP self-speculative decoding for `turboderp/Qwen3.8-27B-exl3` (5.00bpw) on both EXL3 backends.
 See [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) for how the engines are deployed and switched.
-Section 7 adds `ninfer` ( 2026-11-07 ), which is a different engine with its own speculative decoding. Section 13 adds `sglang` ( 2026-11-14 ).
+Section 7 adds `ninfer` ( 2026-11-07 ), which is a different engine with its own speculative decoding. Section 13 adds `sglang` and section 14 `mistralrs` ( both 2026-11-14 ).
 
 ## Background
 
@@ -418,6 +418,46 @@ Results are sglang's own `gen throughput` from its once-a-second `Decode batch` 
 * **What may limit it, untested:** the log says custom all-reduce is off because the 3090s lack peer access, so tensor-parallel traffic goes over PCIe; the Gated DeltaNet kernels run through Triton; and the draft length is fixed at 3 steps while the average accepted is 2.89 of 4. A static `--speculative-num-steps=2` and `--speculative-adaptive` haven't been tried.
 * **Not measured:** output quality, langfuse end-to-end figures, per-request time to first token, and whether the 8192 thinking cap is actually enforced. The generation lengths are estimated from how far the context grew, and the times are UTC.
 
+### 14. mistralrs ( MTP, two GPUs, q4k quantized at load )
+
+Measured 2026-11-14 14:02-14:12 UTC, a few test prompts from pi and one long generation, on mistral.rs 0.9.5 ( the `cuda128-sm86-latest` image, CUDA 12.8 on a driver that supports 13.0, FlashAttention v2 ). The weights are the original `Qwen/Qwen3.8-27B` BF16 files, quantized to **`q4k`** ( sensitive tensors at `q6k` )
+every time the server starts, over **both** 3090s with tensor parallelism ( NCCL, picked by mistralrs itself ). Speculation is the model's built-in MTP head ( `--mtp` ), with an fp8 KV cache, `--max-seqs=2` and a 65,536-token `--max-model-len`. This is **9 requests, not a session**: nothing like the 31 in section 13.
+
+**Getting it to start took three changes.**
+- **The download went to the wrong disk.** mistralrs ignores `HF_HOME` and wrote the 52 GB of BF16 weights to `/root/.cache` on the container's own disk, where the 30-minute startup probe was about to kill the container and throw it away. `--hf-cache=/data/hub` puts it on the PVC, the probes allow 2 hours, and 21 GB already downloaded were copied across by hand.
+- **`runtime reservations need 36131 MiB ... only 4904 MiB remains usable`.** The model loaded, but a reservation about twice the size of a card didn't fit. Cutting the context from 262,144 to 65,536 moved it by 0.8% ( 36,131 to 35,856 MiB ), so it wasn't the KV cache. The log line before it was `Recurrent state pool reserved capacity=33`, which is `--max-seqs`' default of 32 for `serve` plus one,
+  and `--max-seqs=2` brought it to `capacity=9` and the start succeeded. I take it that the Gated DeltaNet layers reserve recurrent state per concurrent sequence, which is the same kind of limit as sglang's Mamba cache ( section 13 ), but I haven't confirmed it from the source.
+- **The KV cache is small:** 1,062 MiB per GPU, 63,840 tokens at fp8. The log shows about 9 GiB free on each card afterwards, so it could be bigger ( `--gpu-memory-utilization`, or a fixed `--kv-cache` ), but that isn't tried.
+
+Results are mistralrs's own figures from its `request completed` log line ( `python bin/llm.py speed mistralrs --since 2h --min-out 100` ). TTFT is estimated as prompt tokens over prefill speed, and accept length and rate are means over the engine's 5-second log lines during each request.
+
+| Prompt tokens | n | Decode tok/sec | Prefill tok/sec | Accepted length | Tokens out |
+|---|---|---|---|---|---|
+| 1.5k-3.2k | 5 | 36.8-43.1 | 1,512-1,554 | 2.4-2.75 ( 59-79% ) | 90-299 |
+| 3.5k | 1 | 36.5 | 1,545 | 2.35 ( 67% ) | 84 |
+| 4.8k-5.5k | 3 | 18.0-29.1 | 1,533-1,536 | 2.0-2.5 ( 49-72% ) | 104-6,850 |
+| all ( >= 100 tokens out, n=7 ) | 7 | median **36.8** | | | |
+
+The rows are by prompt size and include the three requests with fewer than 100 tokens out, so the last row's median covers a different set; the 7 that have 100 or more are the ones the rows above it don't separate.
+
+* **Prefill is fine:** a steady 1,510-1,550 tok/sec, so 60k uncached tokens would take about 40 seconds.
+* **Decode is slow and gets slower:** 43 tok/sec at 1.5k tokens, 29 at 5k, and **18.0 for the one long generation** ( 5.5k prompt, 6,850 tokens out, 6.3 minutes ). The slowdown with prompt size is large for such short contexts, and I can't explain it.
+  With the long reply the acceptance also fell to 2.0 accepted per step ( 49% ), against 2.4-2.75 on the short ones, the same pattern as the other engines on long outputs.
+* **Against the others.** The median of 36.8 is about 39% of sglang's 94.6 ( section 13 ) and about 34-36% of ninfer-all's ~102-108, but the prompts are 5k tokens against 4-67k, so this isn't like-for-like. sglang's first, unpatched run decoded at about 40 tok/sec with no speculation working at all, which is the nearest comparison for these short ones.
+* **The prefix cache never hits** ( 0% on every request ). The docs say that with the built-in MTP head, cached prompt prefixes are recomputed. sglang cached 97.5% of prompt tokens in section 13 and ninfer-all 90%+, so on agent work, where every turn re-sends a long prompt, this costs a full prefill every time: about 3 seconds at 5k tokens, but about 40 seconds at 60k.
+* **One hang.** After a request was cancelled mid-generation, the next request was accepted and never ran: one GPU sat at 100% utilisation, the other at 0%, nothing was running or waiting, and the engine logged nothing for 4 minutes while `/health` still answered. The pod was restarted ( I didn't see by whom ), and the next request completed normally.
+  My guess is that the cancel left the two tensor-parallel ranks out of step; I didn't see it happen without a cancel, and it isn't reproduced.
+* **Not measured:** output quality, tool calls and thinking through litellm and pi, langfuse end-to-end figures, whether the model needs a thinking cap ( there is none, and no tool-call or reasoning parser flag ), and any session longer than 9 requests.
+
+**What to try next**, cheapest first. Each is one restart of about 3 minutes ( the re-quantisation ), and none has been tried:
+1. **`--mtp-n-predict=3`.** Left alone it picks 2, 3, 4 or 6 as it runs and mostly chose 2; sglang ran a fixed 3 steps and accepted 2.9. This removes the adaptive logic.
+2. **Drop `--pa-cache-type=f8e4m3`**, and raise `--gpu-memory-utilization` to 0.95 to make up the cache. The warning says the fp8 scales are uncalibrated, and the slowdown with prompt length points at attention. This is my best guess for that slowdown, and only a guess.
+3. **`--mtp` off, as a control.** It shows what speculation is worth here, and it brings the prefix cache back, which may matter more than decode speed for agent work. Decode would probably fall; whether the cached prompts make up for it is the thing to find out.
+4. **Layer mapping instead of tensor parallelism**, `-n "0:32;1:32"`. NCCL all-reduce goes through host memory on these cards, and a pipeline split avoids it, and might also avoid the hang. It usually decodes slower per token on one stream, so it is a trade, not a fix.
+5. **A bigger KV cache** ( `--gpu-memory-utilization 0.95`, or `--kv-cache 6GiB` ): about 136k tokens by my estimate, and the 63,840 now is too small for a real agent session ( sglang's reached 67k, ninfer-all's 104k ). That is about fitting, not speed.
+6. **Save the quantized model as UQFF** ( `mistralrs quantize -m Qwen/Qwen3.8-27B --isq q4k -o <dir>`, then serve it with `--from-uqff` ) so a restart skips the 3 minutes of quantizing. Convenience only.
+7. **A different quant.** I expect most of the gap to sglang to be the `q4k` kernels against GPTQ's Marlin ones, and none of 1-6 changes that, so I'd expect them to give tens of percent, not 2x. I haven't checked whether mistralrs has a Marlin-style 4-bit path.
+
 ## Comparison ( Qwen3.8-27B 5.00bpw, tensor parallel on both 3090s, 262144 context, single stream )
 
 | Setup | Short replies | ~7-8k token generation | 29-59k context, >=1k tokens out | Notes |
@@ -433,6 +473,7 @@ Results are sglang's own `gen throughput` from its once-a-second `Decode batch` 
 | ninfer-all, MTP3, **one** GPU | median ~107 tok/sec in a tool-calling session ( range 85-198 ) | 109 tok/sec ( one 7.2k-token reply ) | 97-180 engine decode, not end-to-end ( n=5, median 153; see section 10 ) | acceptance median 61%; 26 of 33 requests >= 90% cached; two lanes; weights 16.0 GiB |
 | ninfer-all, DFlash2, **one** GPU | median ~102 tok/sec in a tool-calling session ( range 79-182 ) | 90 tok/sec ( one 9.3k-token reply ) | 102-128 engine decode, not end-to-end ( n=5, median 126; see section 11 ) | acceptance median 36% ( seven drafts a round ); one lane; context stepped down to 196,608; weights 18.0 GiB |
 | sglang, MTP via EAGLE, GPTQ 4-bit, **two** GPUs ( tensor parallel ) | median ~95 tok/sec in a tool-calling session ( range 73.5-144 ) | 88.5 and 92.1 tok/sec ( 6.6k and 8.2k tokens out ) | 123 ( 15-45k, n=4 ) and 91 ( 45-65k, n=6 ) median, engine decode, not end-to-end ( see section 13 ) | accept length 2.9 of 4, rate 63%; 97.5% of prompt tokens cached; fp8 KV; needed a patched quantization config for MTP to work at all |
+| mistralrs, MTP, `q4k` quantized at load, **two** GPUs ( tensor parallel ) | median 36.8 tok/sec over 7 requests of 5.5k tokens or less ( range 18.0-43.1 ) | 18.0 tok/sec ( one 6,850-token reply, 5.5k prompt ) | not measured; prompts stopped at 5.5k tokens ( see section 14 ) | accept length 2.0-2.75, rate 49-79%; **0% prefix cache** ( MTP recomputes prefixes ); 63,840-token KV cache; one hang after a cancelled request |
 
 The first three speed columns are engine-reported decode tok/sec; the 29-59k column is end-to-end tok/sec from langfuse ( output tokens / total latency, includes prefill ), so only compare within it.
 All numbers are single runs, not averaged. The short-reply and 7-8k figures used different prompts; the 29-59k column is the same coding task in both sonar rows.
@@ -479,7 +520,7 @@ To compare them properly: one prompt set, run through litellm against each engin
 
 ## The models behind each engine ( are they comparable? )
 
-Every engine serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-14 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang is measured in section 13; mistralrs has not been measured yet.
+Every engine serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-14 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang is measured in section 13 and mistralrs, on 9 requests only, in section 14.
 
 | Engine | Registry entry | Weights | GPUs | Speculation | KV cache | Context | Thinking cap |
 |---|---|---|---|---|---|---|---|
@@ -488,7 +529,7 @@ Every engine serves Qwen3.8-27B, but not the same weights. These are the registr
 | tabbyapi | `swift-27b-sc-4bpw-2gpu` ( active ), `-1gpu` | EXL3 4.00bpw of **Swift**, a fine-tune ( 16.3GB ) | 2 ( tensor parallel ) or 1 | MTP, up to 4 drafts, dynamic | 8-bit ( 6-bit on one GPU ) | 262144 | 8192 |
 | ninfer | `qwen3.8-27b-dflash2` ( active ), `-mtp` | `.ninfer`, own 4-5 bit mix ( 18.0 GiB loaded with DFlash2, 16.0 with MTP ) | **1** | DFlash2 with n-gram copying, or MTP | `rk4v4` ( 4-bit keys and values ) | 196608 ( DFlash2, pinned ), 262144 ( MTP ) | 8192 |
 | sglang | `qwen3.8-27b-gptq-int4` | GPTQ 4-bit, group size 32 ( `palmfuture/Qwen3.8-27B-GPTQ-Int4` ) | 2, tensor parallel | MTP via EAGLE, 3 steps, 4 drafts | fp8 | 262144 | 8192 ( strict thinking ) |
-| mistralrs | `qwen3.8-27b-q4k` | the original BF16 weights, quantized to `q4k` as they load | 2, automatic device mapping | `--mtp` ( support for this model unconfirmed ) | fp8 | 262144 | none |
+| mistralrs | `qwen3.8-27b-q4k` | the original BF16 weights, quantized to `q4k` as they load | 2, tensor parallel ( NCCL ) | `--mtp`, built-in head, adaptive depth | fp8 | 65536 ( 262144 didn't start ) | none |
 
 * **Closest pair.** sonar and tabbyapi `qwen3.8-27b-5bpw` are the only exact match: same EXL3 weights, same context, similar speculation, and they differ in the KV format ( fp8 against 8-bit ) and the engine. Every other row has different weights.
 * **sglang against tabbyapi Swift.** sglang's GPTQ 4-bit is nearest in size to the Swift 4.00bpw quant ( 16.3GB ) on two GPUs with MTP, but Swift is a fine-tune, so the output is not the same model. Against the 5.00bpw rows sglang has about one bit per weight less.

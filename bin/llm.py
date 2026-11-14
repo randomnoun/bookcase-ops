@@ -641,14 +641,95 @@ def sglang_speeds(since, namespace, deployment, min_out, last, file):
     show_bands(recs, min_out, "decode tok/sec")
 
 
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+MISTRALRS_DONE_RE = re.compile(r"^(\d{4}-\d\d-\d\dT)(\d\d:\d\d:\d\d)\.\d+Z\s+INFO\s+mistralrs_server_core::metrics: request completed: (.*)$")
+MISTRALRS_THROUGHPUT_RE = re.compile(r"Prefix cache hitrate ([\d.]+)%(?:, MTP accept ([\d.]+)% \(len ([\d.]+))?")
+
+
+def parse_mistralrs(text):
+    """One record per completed chat request, from mistralrs's 'request completed' line, which carries its own token counts
+    and prefill and decode speeds. The engine's 5-second 'Throughput' lines that fall inside a request supply the draft
+    acceptance, as the mean over those lines, and the prefix-cache hit rate. Requests the client dropped
+    ( outcome=client_disconnected ) have no token counts and are left out. mistralrs colours its log with ANSI escape
+    codes, which kubectl passes through, so they are removed first."""
+    lines = ANSI_RE.sub("", text).splitlines()
+    recs = []
+    for i, line in enumerate(lines):
+        m = MISTRALRS_DONE_RE.match(line.strip())
+        if not m or "route=/v1/chat/completions" not in m.group(3):
+            continue
+        f = dict(re.findall(r"(\w+)=(\S+)", m.group(3)))
+        if f.get("outcome") != "completed" or "completion_tokens" not in f:
+            continue
+        prompt, out = int(f["prompt_tokens"]), int(f["completion_tokens"])
+        decode = float(f["decode_tok_s"]) if f.get("decode_tok_s") else None
+        if not decode:
+            continue
+        # Throughput lines are printed every 5 s while a request runs; take those in the 'duration' before this line
+        end = datetime.datetime.strptime(m.group(1) + m.group(2), "%Y-%m-%dT%H:%M:%S")
+        start = end - datetime.timedelta(seconds=float(f.get("duration_ms", 0)) / 1000 + 5)
+        lens, accepts, hits = [], [], []
+        for other in lines:
+            t = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\.\d+Z\s+INFO\s+mistralrs_core::engine::logger: Throughput .*?(Prefix cache hitrate.*)$", other.strip())
+            if not t:
+                continue
+            when = datetime.datetime.strptime(t.group(1), "%Y-%m-%dT%H:%M:%S")
+            if not start <= when <= end + datetime.timedelta(seconds=5):
+                continue
+            mm = MISTRALRS_THROUGHPUT_RE.search(t.group(2))
+            if mm:
+                hits.append(float(mm.group(1)))
+                if mm.group(2):
+                    accepts.append(float(mm.group(2)))
+                    lens.append(float(mm.group(3)))
+        recs.append({"t": m.group(2), "prompt": prompt, "out": out, "tps": decode,
+                     "prefill": float(f["prefill_tok_s"]) if f.get("prefill_tok_s") else None,
+                     "ttft": prompt / float(f["prefill_tok_s"]) if f.get("prefill_tok_s") and float(f["prefill_tok_s"]) else None,
+                     "cached_pct": statistics.mean(hits) if hits else None,
+                     "accept_rate": statistics.mean(accepts) / 100 if accepts else None,
+                     "accept_len": statistics.mean(lens) if lens else None})
+    return recs
+
+
+@speed_group.command("mistralrs")
+@click.option("--since", default="1h", show_default=True, help="How far back to read the pod log ( kubectl --since ).")
+@click.option("--namespace", "-n", default="dev-mistralrs", show_default=True)
+@click.option("--deployment", default="mistralrs", show_default=True)
+@click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
+@click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
+@FILE_OPT
+def mistralrs_speeds(since, namespace, deployment, min_out, last, file):
+    """Per-request speeds and MTP acceptance from mistralrs's "request completed" log lines.
+
+    Each completed chat request logs its prompt and completion tokens and the engine's own prefill and decode speeds.
+    TTFT is estimated as prompt tokens over the prefill speed. Accept len and rate are the mean of the engine's 5-second
+    Throughput lines during the request, so a request shorter than 5 seconds may have none; cache is the mean prefix-cache
+    hit rate over the same lines ( always 0% with --mtp on, which recomputes cached prefixes ). Requests the client
+    cancelled have no token counts and are skipped. Times are as logged ( UTC ).
+    """
+    recs = parse_mistralrs(cluster_or_file(file, lambda: kubectl("-n", namespace, "logs", f"deploy/{deployment}",
+                                                                 f"--since={since}")))
+    if not recs:
+        raise click.ClickException("no completed chat requests found ( cancelled requests are skipped )")
+    dash = lambda v, fmt: "-" if v is None else format(v, fmt)
+    if last:
+        click.echo(f"{len(recs)} requests, showing the last {min(last, len(recs))}:")
+        show_table(["time", "prompt", "cached", "out", "ttft s", "prefill tok/s", "decode tok/s", "accept len", "accept"],
+                   [[r["t"], f"{r['prompt']:,}", dash(r["cached_pct"], ".0f") + ("" if r["cached_pct"] is None else "%"),
+                     f"{r['out']:,}", dash(r["ttft"], ".1f"), dash(r["prefill"], ",.0f"), f"{r['tps']:.1f}",
+                     dash(r["accept_len"], ".2f"), "-" if r["accept_rate"] is None else f"{r['accept_rate']:.0%}"]
+                    for r in recs[-last:]])
+    show_bands(recs, min_out, "decode tok/sec")
+
+
 @metric_group.command("mistralrs")
 @FILE_OPT
 def mistralrs_metrics(file):
     """Token counts, prefix-cache hit rate and MTP draft acceptance from mistralrs's /metrics.
 
     The counters are cumulative since the pod started, so restart it ( or note the numbers before and after a
-    test ) to measure one run. mistralrs publishes no per-request speed, so there is no `speed mistralrs`. Reads
-    /metrics through a kubectl port-forward.
+    test ) to measure one run. For per-request speeds use `speed mistralrs`. Reads /metrics through a kubectl
+    port-forward.
     """
     t, by_pos = parse_prefixed(cluster_or_file(file, lambda: engine_api("mistralrs", "GET", "/metrics")), "mistralrs_")
     prefill, decode = t.get("prefill_tokens_processed_total", 0), t.get("decode_tokens_processed_total", 0)
