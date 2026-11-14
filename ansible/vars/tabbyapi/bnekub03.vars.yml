@@ -1,6 +1,7 @@
 kube_context_tabbyapi: "bnekub03"
 kube_storageclass_tabbyapi: "bnenod05-local-path"
 
+# nominal, see the role defaults: bnenod05-local-path doesn't enforce it
 tabbyapi_volume_size_gb: 300
 
 # Pinned by digest ( the role default, ghcr.io/theroyallab/tabbyapi:latest, moves with every upstream release, and the kubelet

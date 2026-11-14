@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tools for running and comparing the LLM backends ( ollama, sonar, tabbyapi ) in this repo.
+"""Tools for running and comparing the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang ) in this repo.
 
     python bin/llm.py --help
     python bin/llm.py speed langfuse --help
@@ -99,7 +99,7 @@ CLUSTER = "bnekub03"
 @click.option("--cluster", default=CLUSTER, show_default=True, envvar="LLM_CLUSTER",
               help="Which cluster's vars files ( ansible/vars/*/<cluster>-models.vars.yml ) and vault paths to use.")
 def cli(cluster):
-    """Run and compare the LLM backends ( ollama, sonar, tabbyapi ) in this repo."""
+    """Run and compare the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang ) in this repo."""
     global CLUSTER
     CLUSTER = cluster
 
@@ -116,7 +116,7 @@ def metric_group():
 
 @cli.group("engine")
 def engine_group():
-    """Which engine has the GPUs ( ollama, sonar and tabbyapi can't run at the same time )."""
+    """Which engine has the GPUs ( only one engine runs at a time )."""
 
 
 @cli.group("model")
@@ -517,15 +517,206 @@ def ninfer_metrics(file):
         click.echo(f"prefill: {p_tokens:,.0f} uncached tokens in {p_secs:,.1f}s = {p_tokens / p_secs:,.0f} tok/s")
 
 
+# --- mistralrs and sglang ---------------------------------------------------------------------------------------------
+
+def parse_prefixed(text, prefix):
+    """Sum each `<prefix>name{labels} value` metric over its labels. Returns ( totals, { name: { label value: value } } )
+    where the second holds the `position` label of the per-position counters."""
+    totals, by_pos = {}, {}
+    pattern = re.compile(rf"^{re.escape(prefix)}(\w+)(\{{[^}}]*\}})?\s+(\S+)$")
+    for line in text.splitlines():
+        m = pattern.match(line.strip())
+        if not m or m.group(1).endswith("_created"):
+            continue
+        name, labels, value = m.groups()
+        try:
+            v = float(value)
+        except ValueError:
+            continue
+        pos = re.search(r'position="(\d+)"', labels or "")
+        if pos:
+            by_pos.setdefault(name, {})
+            by_pos[name][int(pos.group(1))] = by_pos[name].get(int(pos.group(1)), 0) + v
+        else:
+            totals[name] = totals.get(name, 0) + v
+    return totals, by_pos
+
+
+SGLANG_LINE_RE = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) TP0\] (Prefill|Decode) batch, (.*)$")
+
+
+def sglang_field(text, name):
+    m = re.search(rf"{re.escape(name)}: ([\d.]+)", text)
+    return float(m.group(1)) if m else None
+
+
+def parse_sglang(text):
+    """One record per generation, rebuilt from sglang's per-second 'Decode batch' lines ( it logs nothing per request ).
+
+    A generation is a run of lines with one request running, from a prefill to the next prefill, a gap of 10s or more, or the
+    context shrinking. Lines with other requests running are skipped, so only single-stream time is measured. The prompt is
+    the context size on the run's first line, out is how far that context grew, and tps is the median of the lines' own
+    "gen throughput". Cached is the share of the prompt the prefill lines before the run report as already cached."""
+    recs, run, prompt, cached = [], None, 0, 0
+
+    def close():
+        nonlocal run
+        if run and len(run["tps"]) >= 2:
+            full = run["full"]
+            step = statistics.median(b - a for a, b in zip(full, full[1:]))
+            lens, rates = run["len"], run["rate"]
+            recs.append({"t": run["t"], "prompt": int(full[0]), "out": int(full[-1] - full[0] + step),
+                         "tps": statistics.median(run["tps"]),
+                         "cached_pct": 100 * run["cached"] / run["prompt_total"] if run["prompt_total"] else None,
+                         "accept_len": statistics.mean(lens) if lens else None,
+                         "accept_rate": statistics.mean(rates) if rates else None})
+        run = None
+
+    for line in text.splitlines():
+        m = SGLANG_LINE_RE.match(line)
+        if not m:
+            continue
+        when = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+        kind, rest = m.group(2), m.group(3)
+        if run and (when - run["last"]).total_seconds() >= 10:
+            close()
+        if kind == "Prefill":
+            new, hit = sglang_field(rest, "#new-token"), sglang_field(rest, "#cached-token")
+            if new is None or hit is None or (new <= 1 and hit == 0):  # /health runs a one-token generation
+                continue
+            close()
+            prompt += new + hit
+            cached += hit
+            continue
+        running, full, tps = sglang_field(rest, "#running-req"), sglang_field(rest, "#full token"), \
+            sglang_field(rest, "gen throughput (token/s)")
+        if running != 1 or full is None or tps is None:
+            continue
+        if run and full < run["full"][-1]:
+            close()
+        if not run:
+            run = {"t": m.group(1)[11:], "full": [], "tps": [], "len": [], "rate": [], "last": when,
+                   "prompt_total": prompt, "cached": cached}
+            prompt = cached = 0
+        run["full"].append(full)
+        run["tps"].append(tps)
+        run["last"] = when
+        for key, name in (("len", "accept len"), ("rate", "accept rate")):
+            value = sglang_field(rest, name)
+            if value is not None:
+                run[key].append(value)
+    close()
+    return recs
+
+
+@speed_group.command("sglang")
+@click.option("--since", default="1h", show_default=True, help="How far back to read the pod log ( kubectl --since ).")
+@click.option("--namespace", "-n", default="dev-sglang", show_default=True)
+@click.option("--deployment", default="sglang", show_default=True)
+@click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
+@click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
+@FILE_OPT
+def sglang_speeds(since, namespace, deployment, min_out, last, file):
+    """Per-generation speeds and MTP acceptance from sglang's "Decode batch" log lines.
+
+    sglang logs nothing per request, so each row is rebuilt from the once-a-second decode lines: a run with one request
+    running, from its prefill to the next one. The figures are approximate. Prompt is the context size when the run began,
+    out is how far it grew, and decode is the median of sglang's own gen throughput for the run. Time spent with two
+    requests running is left out, and prefill speed and time to first token aren't available. Accept len is the average
+    tokens per decode step ( 1.00 = no draft was ever accepted ) and accept rate the share of drafted tokens accepted.
+    Times are as logged ( UTC ).
+    """
+    recs = parse_sglang(cluster_or_file(file, lambda: kubectl("-n", namespace, "logs", f"deploy/{deployment}",
+                                                              f"--since={since}")))
+    if not recs:
+        raise click.ClickException("no single-request 'Decode batch' runs found ( at least two lines in a row )")
+    dash = lambda v, fmt: "-" if v is None else format(v, fmt)
+    if last:
+        click.echo(f"{len(recs)} generations, showing the last {min(last, len(recs))}:")
+        show_table(["time", "prompt", "cached", "out", "accept len", "accept rate", "decode tok/s"],
+                   [[r["t"], f"{r['prompt']:,}", dash(r["cached_pct"], ".0f") + ("" if r["cached_pct"] is None else "%"),
+                     f"{r['out']:,}", dash(r["accept_len"], ".2f"),
+                     "-" if r["accept_rate"] is None else f"{r['accept_rate']:.0%}", f"{r['tps']:.1f}"]
+                    for r in recs[-last:]])
+    show_bands(recs, min_out, "decode tok/sec")
+
+
+@metric_group.command("mistralrs")
+@FILE_OPT
+def mistralrs_metrics(file):
+    """Token counts, prefix-cache hit rate and MTP draft acceptance from mistralrs's /metrics.
+
+    The counters are cumulative since the pod started, so restart it ( or note the numbers before and after a
+    test ) to measure one run. mistralrs publishes no per-request speed, so there is no `speed mistralrs`. Reads
+    /metrics through a kubectl port-forward.
+    """
+    t, by_pos = parse_prefixed(cluster_or_file(file, lambda: engine_api("mistralrs", "GET", "/metrics")), "mistralrs_")
+    prefill, decode = t.get("prefill_tokens_processed_total", 0), t.get("decode_tokens_processed_total", 0)
+    if not (prefill or decode):
+        raise click.ClickException("no mistralrs token counters found ( has it served a request yet? )")
+    click.echo(f"tokens: {prefill:,.0f} prompt   {decode:,.0f} generated")
+    lookups, hits = t.get("prefix_cache_lookups_total", 0), t.get("prefix_cache_hits_total", 0)
+    if lookups:
+        click.echo(f"prefix cache: {hits:,.0f} of {lookups:,.0f} requests reused a cached prefix ( {hits / lookups:.1%} )")
+    drafts, proposed = t.get("speculative_drafts_total", 0), t.get("speculative_draft_tokens_proposed_total", 0)
+    accepted = t.get("speculative_draft_tokens_accepted_total", 0)
+    if drafts and proposed:
+        click.echo(f"speculation: {drafts:,.0f} drafts   proposed {proposed:,.0f}   accepted {accepted:,.0f} ( {accepted / proposed:.1%} )")
+        per_pos = by_pos.get("speculative_draft_tokens_accepted_per_pos_total", {})
+        if per_pos:
+            click.echo("accepted by draft position: " + "   ".join(f"{p + 1}: {per_pos[p] / drafts:.1%}" for p in sorted(per_pos)))
+        click.echo(f"tokens per forward pass: {1 + accepted / drafts:.2f}   ( 1 + accepted / drafts )")
+    else:
+        click.echo("no speculative-decoding counters found ( is --mtp on? )")
+    preempted = t.get("paged_preemptions_total", 0)
+    if preempted:
+        click.echo(f"preemptions: {preempted:,.0f} requests were paused because the KV cache ran out")
+
+
+@metric_group.command("sglang")
+@FILE_OPT
+def sglang_metrics(file):
+    """Token counts, latency averages and cache hit rate from sglang's /metrics.
+
+    The token and latency figures are cumulative since the pod started, so restart it ( or note the numbers before and
+    after a test ) to measure one run. gen_throughput is a gauge of the speed right now, so read it while a request is
+    running. For per-generation speeds use `speed sglang`. Reads /metrics through a kubectl port-forward ( the server
+    is started with --enable-metrics ).
+    """
+    t, _ = parse_prefixed(cluster_or_file(file, lambda: engine_api("sglang", "GET", "/metrics")), "sglang:")
+    prompt, gen = t.get("prompt_tokens_total", 0), t.get("generation_tokens_total", 0)
+    if not (prompt or gen):
+        raise click.ClickException("no sglang token counters found ( has it served a request yet? )")
+    click.echo(f"tokens: {prompt:,.0f} prompt   {gen:,.0f} generated")
+    if t.get("gen_throughput"):
+        click.echo(f"generation throughput now: {t['gen_throughput']:.1f} tok/s")
+    for label, name in (("time to first token", "time_to_first_token_seconds"), ("request latency", "e2e_request_latency_seconds"),
+                        ("time per output token", "request_time_per_output_token_seconds")):
+        count = t.get(f"{name}_count", 0)
+        if count:
+            click.echo(f"mean {label}: {t.get(f'{name}_sum', 0) / count:.2f}s over {count:,.0f} requests")
+    if "cache_hit_rate" in t:
+        click.echo(f"prefix cache hit rate: {t['cache_hit_rate']:.1%}   ( sglang's gauge )")
+    # sglang's acceptance metrics are not in the docs I read, so they are shown only when the server emits them
+    for name in sorted(n for n in t if n.startswith("spec_") and n not in ("spec_num_steps", "spec_num_draft_tokens")):
+        click.echo(f"{name}: {t[name]:g}")
+    if t.get("spec_num_steps"):
+        click.echo(f"speculation: {t['spec_num_steps']:.0f} steps, {t.get('spec_num_draft_tokens', 0):.0f} draft tokens")
+
+
 # --- engines ----------------------------------------------------------------------------------------------------------
 
-ANSIBLE = Path(__file__).resolve().parent.parent / "ansible"
+ANSIBLE =Path(__file__).resolve().parent.parent / "ansible"
 ENGINES = {"ollama": {"ns": "dev-ollama", "port": 11434},
            "sonar": {"ns": "dev-sonar", "port": 2242},
            "tabbyapi": {"ns": "dev-tabbyapi", "port": 5000},
-           "ninfer": {"ns": "dev-ninfer", "port": 8080}}
+           "ninfer": {"ns": "dev-ninfer", "port": 8080},
+           "mistralrs": {"ns": "dev-mistralrs", "port": 1234},
+           "sglang": {"ns": "dev-sglang", "port": 30000}}
 # the engines with a model registry ( ansible/vars/<engine>/<cluster>-models.vars.yml ); ollama manages its own
-CATALOGUED = ("sonar", "tabbyapi", "ninfer")
+CATALOGUED = ("sonar", "tabbyapi", "ninfer", "mistralrs", "sglang")
+# the engines that serve one model per process, with no key, and list it at /v1/models
+SINGLE_MODEL = ("sonar", "mistralrs", "sglang")
 # the model_info key on the litellm models this script creates ( holding {"engine", "ansible-model"} ), so
 # `model sync` never touches ones made in the UI
 TAG = "bookcase-ops"
@@ -617,7 +808,7 @@ def ninfer_headers():
 
 
 def engine_api_key(engine):
-    """The key litellm sends to the engine ( sonar has none, but litellm wants a non-empty string )."""
+    """The key litellm sends to the engine ( sonar, mistralrs and sglang have none, but litellm wants a non-empty string )."""
     if engine == "tabbyapi":
         return tabbyapi_key("api_key")
     if engine == "ninfer":
@@ -701,8 +892,8 @@ def serving(engine):
     """What the engine says it is serving, asked from its own API."""
     if engine == "ollama":
         return [m["name"] for m in engine_api("ollama", "GET", "/api/ps")["models"]]
-    if engine == "sonar":
-        return [m["id"] for m in engine_api("sonar", "GET", "/v1/models")["data"]]
+    if engine in SINGLE_MODEL:
+        return [m["id"] for m in engine_api(engine, "GET", "/v1/models")["data"]]
     if engine == "ninfer":
         return [m["id"] for m in engine_api("ninfer", "GET", "/v1/models", ninfer_headers())["data"]]
     try:
@@ -777,7 +968,8 @@ def desired_models():
         lit = entry.get("litellm")
         if not lit:
             continue
-        upstream = entry["folder"] if engine == "tabbyapi" else lit.get("upstream", {"sonar": "local-sonar"}.get(engine, engine))
+        upstream = entry["folder"] if engine == "tabbyapi" else lit.get(
+            "upstream", {"sonar": "local-sonar", "sglang": "local-sglang", "mistralrs": entry.get("model")}.get(engine, engine))
         out[engine] = {
             "model_name": lit["public_name"],
             "litellm_params": {"model": f"openai/{upstream}", "api_base": f"{service_url(engine)}/v1",
@@ -931,17 +1123,15 @@ def engine_list():
 def engine_set(engine, timeout, dry_run):
     """Give the GPUs to ENGINE: scale the others to 0, wait for their pods to go, scale ENGINE to 1, wait for the rollout.
 
-    ollama, sonar and tabbyapi each request both GPUs, and a GPU stays held until the old pod has finished
-    terminating, so the others have to be gone before the new pod can schedule. ninfer asks for one GPU, but the
-    others are scaled down for it too: it's only run on its own, and a second engine would cut into its memory.
+    ollama, sonar, tabbyapi, mistralrs and sglang each request both GPUs, and a GPU stays held until the old pod has
+    finished terminating, so the others have to be gone before the new pod can schedule. ninfer asks for one GPU, but
+    the others are scaled down for it too: it's only run on its own, and a second engine would cut into its memory.
     """
     target = engine_state(engine)
     if not target:
         raise click.ClickException(f"{engine} isn't deployed: run `ansible-playbook -e deployments={CLUSTER} -e app={engine} k8s_llm_{CLUSTER}.yml` first")
-    if engine == "sonar" and not catalogue("sonar")[0]:
-        raise click.ClickException("sonar has no active model, so its role deploys nothing: set sonar_active_model")
-    if engine == "ninfer" and not catalogue("ninfer")[0]:
-        raise click.ClickException("ninfer has no active model, so its role deploys nothing: set ninfer_active_model")
+    if engine in CATALOGUED and engine != "tabbyapi" and not catalogue(engine)[0]:
+        raise click.ClickException(f"{engine} has no active model, so its role deploys nothing: set {engine}_active_model")
     if engine == "tabbyapi" and not catalogue("tabbyapi")[0]:
         click.echo("note: tabbyapi has no active model, so it will start with nothing loaded")
     others = [e for e in ENGINES if e != engine and (engine_state(e) or {}).get("replicas", 0) > 0]
@@ -969,7 +1159,7 @@ def engine_set(engine, timeout, dry_run):
 @model_group.command("list")
 @ENGINE_OPT
 def model_list(engine):
-    """The models of the current engine: the registry entries ( sonar, tabbyapi ) or what's pulled ( ollama )."""
+    """The models of the current engine: the registry entries ( every engine but ollama ) or what's pulled ( ollama )."""
     engine = current_engine(engine)
     st = engine_state(engine)
     up = bool(st and st["ready"] > 0)
@@ -989,6 +1179,10 @@ def model_list(engine):
     for name, e in models.items():
         if engine == "sonar":
             detail = f"{e['model']}@{e.get('revision', '-')}  ctx {e.get('max_model_len', '-')}"
+        elif engine == "mistralrs":
+            detail = f"{e['model']}  quant {e.get('quant', '-')}  ctx {e.get('max_model_len', '-')}"
+        elif engine == "sglang":
+            detail = f"{e['model']}@{e.get('revision', '-')}  ctx {e.get('context_length', '-')}"
         elif engine == "ninfer":
             detail = f"{e['profile']}  {e.get('spec', 'default spec')}  ctx {e.get('context', 'fit to free memory')}"
         else:
@@ -1045,7 +1239,7 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
 def model_unload(engine):
     """Unload the current model from VRAM. Not persistent: tabbyapi loads its active model again when its pod restarts."""
     engine = current_engine(engine)
-    if engine in ("sonar", "ninfer"):
+    if engine in ("sonar", "ninfer", "mistralrs", "sglang"):
         raise click.ClickException(f"{engine} serves one model per process and can't unload it: use `engine set` to scale it down")
     if engine == "tabbyapi":
         engine_api("tabbyapi", "POST", "/v1/model/unload", tabbyapi_headers(admin=True), {})
@@ -1083,7 +1277,7 @@ def model_download(name, timeout):
 @model_group.command("sync")
 @click.option("--dry-run", is_flag=True, help="Show what would change in litellm.")
 def model_sync(dry_run):
-    """Make litellm's models match the active model of each registered engine ( sonar, tabbyapi ).
+    """Make litellm's models match the active model of each registered engine ( every engine but ollama ).
 
     Creates or updates one litellm model per engine from the active entry's `litellm:` block, and deletes the
     models this script made for entries that are no longer active ( sonar serves every model under one name, so a

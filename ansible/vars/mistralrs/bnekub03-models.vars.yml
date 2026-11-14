@@ -1,0 +1,52 @@
+# The models mistralrs can serve, and which one it does serve.
+#
+# Plain YAML only ( no jinja ): bin/llm.py reads this file directly. The mistralrs role copies the active entry
+# onto the flat mistralrs_* variables ( mistralrs_model, mistralrs_quant ... ), so anything an entry leaves out falls
+# back to the role defaults / bnekub03.vars.yml.
+#
+# Switch with `python bin/llm.py model load NAME`, which rewrites mistralrs_active_model below, re-runs the role and
+# updates the litellm entry. Or edit it by hand and re-run the role.
+
+mistralrs_active_model: "qwen3.8-27b-q4k"
+
+mistralrs_models:
+
+  # The same model the other engines serve, for a like-for-like comparison. mistralrs reads the original safetensors
+  # weights and quantizes them as they load ( ISQ ), so nothing needs converting, but the first start takes a while.
+  # It doesn't read EXL3 or the .ninfer format.
+  qwen3.8-27b-q4k:
+    model: "Qwen/Qwen3.8-27B"
+
+    # --quant: q4k is a 4-bit k-quant, which for a 27B model is around 15-16GB of weights. Use 5 or 6 for more quality,
+    # or "auto" to let mistralrs pick what fits. If a UQFF file exists for the repo it is used instead of quantizing.
+    quant: "q4k"
+
+    # 262144 is the model's native maximum. mistralrs sizes the KV cache from what is left after the weights
+    # ( --gpu-memory-utilization ), so this only sets the longest single request. If the server fails to start because the
+    # cache is too small, lower it. Keep the litellm "num_ctx" for this model equal to this.
+    max_model_len: "262144"
+
+    extra_args:
+      # 8-bit float KV cache, about half the memory of the default
+      - "--pa-cache-type=f8e4m3"
+      # MTP self-speculative decoding with the draft head that is part of the checkpoint. I haven't confirmed that
+      # this mistralrs release supports MTP for the Qwen3.8 architecture: if the server fails at startup with an MTP
+      # error, remove this line. --mtp-n-predict fixes the draft length; leaving it out lets mistralrs adapt it.
+      - "--mtp"
+
+    # The litellm model that `llm.py model sync` creates for this entry.
+    litellm:
+      public_name: "mistralrs-qwen3.8:27b-q4k"
+      # the model name litellm sends. I expect mistralrs to name the model by its repo id, but haven't checked: compare
+      # with `python bin/llm.py engine list` ( SERVING column ) once it is running, and change this if it differs.
+      upstream: "Qwen/Qwen3.8-27B"
+      # litellm_params, merged over model / api_base / api_key:
+      #
+      #   num_ctx: only used so pi / opencode learn the context window. Run `pi-sync-models` after changing it
+      #       ( and restart opencode ). mistralrs itself ignores it.
+      #
+      # Tool calls and thinking: mistralrs has no tool-call parser or reasoning parser flags. I haven't confirmed that it
+      # splits this model's <think> text or <tool_call><function=...> format out for a client. If tool calls come back as
+      # plain text in pi, that's the thing to look at. There is no thinking budget set here either.
+      params:
+        num_ctx: 262144

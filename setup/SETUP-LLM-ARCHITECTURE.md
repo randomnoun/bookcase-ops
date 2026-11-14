@@ -14,5 +14,5 @@ This should keep most of the LLM config is centralised somewhere, and should mak
 Each frontend has a different litellm virtual API key, so I can see what's going where.
 
 The backends are pinned to `bnenod05` ( they need the GPUs to operate). 
-`ollama`, `sonar` and `tabbyapi` each request both GPUs, so only one can run at a time; `ninfer` requests one, but `llm.py engine set` still scales the others down for it. 
+`ollama`, `sonar`, `tabbyapi`, `mistralrs` and `sglang` each request both GPUs, so only one can run at a time; `ninfer` requests one, but `llm.py engine set` still scales the others down for it. 
 `ollama` runs by default and the rest start scaled to 0, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).

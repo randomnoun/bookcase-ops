@@ -1,0 +1,14 @@
+kube_context_sglang: "bnekub03"
+kube_storageclass_sglang: "bnenod05-local-path"
+
+# nominal, see the role defaults: bnenod05-local-path doesn't enforce it
+sglang_volume_size_gb: 300
+
+# The role default is the moving 'latest' tag. Once a release has been run on the node, pin it ( or its digest ) here.
+# sglang_image: "lmsysorg/sglang:vX.Y.Z"
+
+sglang_hf_token: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-sglang/sglang:hf_token')}}"
+sglang_served_model_name: "local-sglang"
+
+# One model per deployment. Which model, its flags and its litellm settings are in bnekub03-models.vars.yml
+# ( listed after this file in k8s_llm_bnekub03.yml ); `python bin/llm.py model load NAME` switches it.

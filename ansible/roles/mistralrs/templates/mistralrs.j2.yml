@@ -1,0 +1,121 @@
+# k8s yaml for the official image, see https://docs.mistralrs.dev/guides/deploy/docker/
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mistralrs-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_mistralrs }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ mistralrs_volume_size_gb }}Gi"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mistralrs
+spec:
+  replicas: {{ mistralrs_replicas }}
+  # with every GPU on the node requested, a RollingUpdate's new pod could never
+  # schedule while the old one still holds them (same reasoning as ollama)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mistralrs-web
+  template:
+    metadata:
+      labels:
+        app: mistralrs-web
+    spec:
+      nodeSelector:
+        {{ mistralrs_gpu_node_selector_key }}: "{{ mistralrs_gpu_node_selector_value }}"
+      runtimeClassName: "{{ mistralrs_gpu_runtime_class_name }}"
+      containers:
+        - name: mistralrs
+          image: "{{ mistralrs_image }}"
+          imagePullPolicy: IfNotPresent
+          # the image's ENTRYPOINT is the mistralrs binary, so these are its subcommand and arguments
+          args:
+            - "serve"
+            - "--model-id={{ mistralrs_model }}"
+            - "--host=0.0.0.0"
+            - "--port=1234"
+            - "--no-ui"
+            - "--gpu-memory-utilization={{ mistralrs_gpu_memory_utilization }}"
+{% if mistralrs_quant | string | length > 0 %}
+            - "--quant={{ mistralrs_quant }}"
+{% endif %}
+{% if mistralrs_max_model_len | string | length > 0 %}
+            - "--max-model-len={{ mistralrs_max_model_len }}"
+{% endif %}
+{% for arg in mistralrs_extra_args %}
+            - {{ arg | to_json }}
+{% endfor %}
+          ports:
+            - containerPort: 1234
+          env:
+            - name: HF_HOME
+              value: /data
+{% if mistralrs_hf_token | length > 0 %}
+            - name: HF_TOKEN
+              value: "{{ mistralrs_hf_token }}"
+{% endif %}
+          # Downloading and quantizing a big model takes many minutes: 90 x 20s = 30 minutes before kubernetes gives up.
+          # I haven't checked what /health returns while the model is still loading: if the pod goes Ready too early,
+          # or never, swap these for tcpSocket checks as tabbyapi does.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 1234
+            periodSeconds: 20
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 1234
+            periodSeconds: 15
+          resources:
+            limits:
+              cpu: "{{ mistralrs_cpu_limit }}"
+              memory: "{{ mistralrs_memory_limit }}"
+              nvidia.com/gpu: "{{ mistralrs_gpu_count }}"
+            requests:
+              cpu: "{{ mistralrs_cpu_request }}"
+              memory: "{{ mistralrs_memory_request }}"
+              nvidia.com/gpu: "{{ mistralrs_gpu_count }}"
+          volumeMounts:
+            - mountPath: /data
+              name: models
+            - mountPath: /dev/shm
+              name: shm
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: mistralrs-pvc
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "{{ mistralrs_shm_size }}"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  # the ServiceMonitor selects on this label
+  labels:
+    app: mistralrs-web
+spec:
+  selector:
+    app: mistralrs-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 1234
+      targetPort: 1234
+  type: LoadBalancer

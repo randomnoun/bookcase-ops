@@ -22,6 +22,12 @@
         - name: ninfer-bnekub03
           role: ninfer
           var_files: [bnekub03, bnekub03-models]
+        - name: mistralrs-bnekub03
+          role: mistralrs
+          var_files: [bnekub03, bnekub03-models]
+        - name: sglang-bnekub03
+          role: sglang
+          var_files: [bnekub03, bnekub03-models]
         - name: open-webui-bnekub03
           role: open-webui
           var_files: [bnekub03]

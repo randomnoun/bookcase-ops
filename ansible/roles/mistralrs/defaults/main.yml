@@ -1,0 +1,63 @@
+kube_context_mistralrs: ""
+kube_namespace_mistralrs: "dev-mistralrs"
+kube_storageclass_mistralrs: ""
+
+# Replica count the FIRST time the deployment is created. 0 because ollama, sonar, tabbyapi, mistralrs and sglang
+# each want every GPU on the node, so only one can run at a time: start the one you want with
+# `python bin/llm.py engine set mistralrs`. After the first run the role keeps whatever the deployment is currently
+# scaled to, so re-running it doesn't undo that.
+mistralrs_initial_replicas: 0
+
+# holds the Hugging Face cache ( the image's HF_HOME is /data ), so a model is only downloaded once.
+# Nominal: bnenod05-local-path neither enforces this size nor allows expansion, so changing it on an existing PVC fails the apply.
+mistralrs_volume_size_gb: 1000
+
+# The image tag is cuda<CUDA version>-sm<compute capability>-<release>. sm86 is the RTX 3090; pick the CUDA version the node's
+# driver supports ( `nvidia-smi` shows it ). 'latest' moves with every release: IfNotPresent below stops a pod restart pulling
+# a new one, but a fresh node will. Pin a release ( cuda128-sm86-X.Y.Z ) or a digest once you have one that works.
+mistralrs_image: "ghcr.io/ericlbuehler/mistral.rs:cuda128-sm86-latest"
+
+# mistralrs_models is a registry of models, keyed by name, and mistralrs_active_model is the one deployed. They live in
+# vars/mistralrs/<cluster>-models.vars.yml, which bin/llm.py reads and edits ( `llm.py model load NAME` ). The role copies
+# the active entry onto mistralrs_model, mistralrs_quant, mistralrs_max_model_len and mistralrs_extra_args below
+# ( an entry only needs the keys it changes ). With no active model, those can still be set directly.
+mistralrs_active_model: ""
+mistralrs_models: {}
+
+# A Hugging Face repo id, or a path under /data for a model you've copied in yourself. Empty = the role deploys nothing.
+mistralrs_model: ""
+
+# --quant: a bit width ( 2, 3, 4, 5, 6, 8 ), a named type ( q4k, fp8 ... ) or auto. It uses a prebuilt UQFF file when the repo
+# has one, otherwise it quantizes the weights as they load ( ISQ ), so the first start of a big model is slow. Empty = no
+# quantization, the weights are loaded as they are.
+mistralrs_quant: ""
+
+# --max-model-len: the most tokens ( prompt plus output ) one request may use. Empty = whatever the model and the KV cache allow.
+mistralrs_max_model_len: ""
+
+# optional HuggingFace token, for gated repos. Empty = none.
+mistralrs_hf_token: ""
+
+# any further `mistralrs serve` flags, one list item each, e.g.
+#   - "--pa-cache-type=f8e4m3"
+#   - "--mtp"
+mistralrs_extra_args: []
+
+# fraction of each GPU's memory mistralrs may use for the weights, activations and KV cache
+mistralrs_gpu_memory_utilization: "0.90"
+
+mistralrs_gpu_node_selector_key: "gpu-vendor"
+mistralrs_gpu_node_selector_value: "nvidia"
+# The model is spread over the GPUs the pod can see, by mistralrs's automatic device mapping. ollama, sonar, tabbyapi and
+# sglang also request both GPUs, so only one of them can run at a time.
+mistralrs_gpu_count: 2
+# must match the RuntimeClass name registered by the nvidia-device-plugin role
+mistralrs_gpu_runtime_class_name: "nvidia"
+
+mistralrs_cpu_request: "4"
+mistralrs_cpu_limit: "8"
+mistralrs_memory_request: "16Gi"
+mistralrs_memory_limit: "64Gi"
+
+# /dev/shm, which docker sizes at 64Mi by default. Only consumes memory for what's actually written.
+mistralrs_shm_size: "8Gi"

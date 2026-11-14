@@ -48,7 +48,7 @@ The second SSD on bnellm01 is there to hold LLM models; carve out a dedicated th
 
 The disk will be mounted as `/mnt/models` on `bnenod05`.
 
-The `local-path-provisioner` ansible role will provision the backends' PVCs ( ollama, sonar, tabbyapi, ninfer ) here, one directory each.
+The `local-path-provisioner` ansible role will provision the backends' PVCs ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang ) here, one directory each.
 
 Create the disk attached to the VM (shutdown the VM first):
 

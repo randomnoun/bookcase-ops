@@ -19,3 +19,7 @@ pi_default_model: "ollama-qwen3-coder:30b"
 pi_max_tokens_rules:
   - { api_base_contains: "web.dev-tabbyapi", max_tokens: 32768 }
   - { api_base_contains: "web.dev-ninfer", max_tokens: 32768 }
+  # mistralrs has no thinking cap, so a long think leaves less of the default 16384 for the answer. sglang's is capped at 8192,
+  # which comes out of the same limit as the answer, as for ninfer.
+  - { api_base_contains: "web.dev-mistralrs", max_tokens: 32768 }
+  - { api_base_contains: "web.dev-sglang", max_tokens: 32768 }

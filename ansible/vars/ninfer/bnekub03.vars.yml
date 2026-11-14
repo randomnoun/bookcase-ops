@@ -1,6 +1,7 @@
 kube_context_ninfer: "bnekub03"
 kube_storageclass_ninfer: "bnenod05-local-path"
 
+# nominal, see the role defaults: bnenod05-local-path doesn't enforce it
 ninfer_volume_size_gb: 60
 
 # Published by ninfer-all to ghcr.io, nothing to build. Trying the CUDA 13 build of the same commit ( the driver reports
