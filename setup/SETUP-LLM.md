@@ -7,18 +7,19 @@ These docs go through the LLM setup for bookcase-ops, it's still in a bit of flu
 | [SETUP-LLM-ARCHITECTURE.md](SETUP-LLM-ARCHITECTURE.md) | The diagram of how the pieces connect |
 | [SETUP-LLM-KUBERNETES.md](SETUP-LLM-KUBERNETES.md) | Creating and configuring the GPU kubernetes node `bnenod05` |
 | [SETUP-LLM-MIDDLEWARE.md](SETUP-LLM-MIDDLEWARE.md) | `langfuse`, `litellm` and `searxng` |
-| [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar`, `tabbyapi`, `ninfer`, `mistralrs` and `sglang`, and how to switch between them and their models |
+| [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) | The engines that run the models: `ollama`, `sonar`, `tabbyapi`, `ninfer`, `mistralrs`, `sglang` and `strata`, and how to switch between them and their models |
 | [SETUP-LLM-BE-OLLAMA.md](SETUP-LLM-BE-OLLAMA.md) | Setting up `ollama` |
 | [SETUP-LLM-BE-SONAR.md](SETUP-LLM-BE-SONAR.md) | Setting up `sonar`, including building it |
 | [SETUP-LLM-BE-TABBYAPI.md](SETUP-LLM-BE-TABBYAPI.md) | Setting up `tabbyapi` |
 | [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md) | Setting up `ninfer` |
 | [SETUP-LLM-BE-MISTRALRS.md](SETUP-LLM-BE-MISTRALRS.md) | Setting up `mistralrs` |
 | [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md) | Setting up `sglang` |
+| [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md) | Setting up `strata` |
 | [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md) | `open-webui`, `pi`, `opencode` and `openhands` |
 
 To simplify configuration, all the frontends talk to `litellm`, which then connects to models running on the various backends.
 
-Currently, only one of `ollama`, `sonar`, `tabbyapi`, `ninfer`, `mistralrs` and `sglang` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
+Currently, only one of `ollama`, `sonar`, `tabbyapi`, `ninfer`, `mistralrs`, `sglang` and `strata` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
 
 Once everything's up and running there's a `llm.py` which can be used for switching engines and models, and keeping litellm's models in step with them. 
 
@@ -67,6 +68,9 @@ And then once you've got that going, can try these deployments, which will add w
    * uses the official image, needs a HuggingFace token in vault, and starts scaled to 0
 * sglang ( [backends](SETUP-LLM-BE-SGLANG.md) )
    * uses the official image, needs a HuggingFace token in vault, and starts scaled to 0
+* strata ( [backends](SETUP-LLM-BE-STRATA.md) )
+   * uses the official image and needs an API key in vault ( no HuggingFace token ), and starts scaled to 0
+   * runs the 125B Qwen3.8-Flash-Next, so it needs 50-60 GB of the node's RAM and downloads 70-80 GB the first time
 * open-webui ( [frontends](SETUP-LLM-FRONTEND.md#open-webui) )
    * will connect to litellm (not ollama directly), create a litellm key first
 * opencode ( [frontends](SETUP-LLM-FRONTEND.md#opencode) )
@@ -74,6 +78,6 @@ And then once you've got that going, can try these deployments, which will add w
 * openhands ( [frontends](SETUP-LLM-FRONTEND.md#openhands) )
    * will connect to litellm (not ollama directly), create a litellm key first
 
-Only one of `ollama`, `sonar`, `tabbyapi`, `ninfer`, `mistralrs` and `sglang` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
+Only one of `ollama`, `sonar`, `tabbyapi`, `ninfer`, `mistralrs`, `sglang` and `strata` can use the GPUs at a time, see [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
 
 Metrics and dashboards for these ( sonar's tokens/sec, GPU load ) are in [SETUP-GRAFANA.md](SETUP-GRAFANA.md).

@@ -1,0 +1,147 @@
+# k8s yaml for the official image, see https://github.com/Niko1221/Strata/blob/main/docs/DOCKER.md
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: strata-pvc
+spec:
+  storageClassName: "{{ kube_storageclass_strata }}"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: "{{ strata_volume_size_gb }}Gi"
+
+---
+# not in the Deployment because it holds the API key; the ServiceMonitor reads it too
+apiVersion: v1
+kind: Secret
+metadata:
+  name: strata-api-key
+data:
+  api_key: "{{ strata_api_key | b64encode }}"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: strata
+spec:
+  replicas: {{ strata_replicas }}
+  # the GPUs stay held until the old pod has finished terminating, so a RollingUpdate's new pod could
+  # never schedule while the old one is still running ( same reasoning as ollama )
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: strata-web
+  template:
+    metadata:
+      labels:
+        app: strata-web
+    spec:
+      terminationGracePeriodSeconds: {{ strata_stop_grace_seconds }}
+      nodeSelector:
+        {{ strata_gpu_node_selector_key }}: "{{ strata_gpu_node_selector_value }}"
+      runtimeClassName: "{{ strata_gpu_runtime_class_name }}"
+      containers:
+        - name: strata
+          image: "{{ strata_image }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: FAMILY
+              value: "{{ strata_family }}"
+            - name: MODEL
+              value: "{{ strata_model }}"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: strata-api-key
+                  key: api_key
+{% if strata_context | string | length > 0 %}
+            - name: CONTEXT
+              value: "{{ strata_context }}"
+{% endif %}
+{% if strata_parallel | string | length > 0 %}
+            - name: PARALLEL
+              value: "{{ strata_parallel }}"
+{% endif %}
+{% if strata_kv | string | length > 0 %}
+            - name: KV
+              value: "{{ strata_kv }}"
+{% endif %}
+{% if strata_vision | string | length > 0 %}
+            - name: VISION
+              value: "{{ strata_vision }}"
+{% endif %}
+{% if strata_set | length > 0 %}
+            - name: STRATA_SET
+              value: {{ strata_set | map('string') | join(' ') | to_json }}
+{% endif %}
+{% for name, value in strata_env.items() %}
+            - name: {{ name }}
+              value: {{ value | string | to_json }}
+{% endfor %}
+          securityContext:
+            capabilities:
+              # docker's --ulimit memlock=-1:-1, which lets the engine pin the RAM it holds the model's experts in. Kubernetes has no ulimit setting
+              # and the runtime's default here is 8MB; this capability lifts the limit. I haven't confirmed that it is enough for Strata.
+              add: ["IPC_LOCK"]
+          # GET /health needs no key. During the first download the image's own health check reports "starting", but I haven't checked what
+          # /health returns while the model downloads or loads: if the pod goes Ready too early, or never, swap these for tcpSocket checks.
+          # The first start downloads 70-80GB at about 16-19MB/s, so the window is 360 x 30s = 3 hours.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 360
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            # no memory or cpu limit, see the role defaults
+            limits:
+              nvidia.com/gpu: "{{ strata_gpu_count }}"
+            requests:
+              cpu: "{{ strata_cpu_request }}"
+              memory: "{{ strata_memory_request }}"
+              nvidia.com/gpu: "{{ strata_gpu_count }}"
+          volumeMounts:
+            - mountPath: /data
+              name: data
+            - mountPath: /dev/shm
+              name: shm
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: strata-pvc
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "{{ strata_shm_size }}"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  # the ServiceMonitor selects on this label
+  labels:
+    app: strata-web
+spec:
+  selector:
+    app: strata-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: LoadBalancer

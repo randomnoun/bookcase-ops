@@ -41,10 +41,16 @@ The backend engines run the models:
    * also has a model registry managed by llm.py
    * runs on both 3090s at about 95 tok/sec with MTP, after a fix to the checkpoint's quantization config; see the page
    * [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md)
+* `strata` ( GGUF )
+   * built for large mixture-of-experts models: it keeps the experts in system RAM and on the SSD, and the dense layers and hot experts on the GPUs. The registry has Qwen3.8-Flash-Next ( 125B ), not the 27B the others serve, so its speeds aren't comparable
+   * developed by Niko1221
+   * also has a model registry managed by llm.py
+   * not yet run here, see the page for what's unconfirmed
+   * [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md)
 
-All six are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
+All seven are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
 
-`ollama`, `sonar`, `mistralrs` and `sglang` request both GPUs; `ninfer` requests one, and `tabbyapi` can request 1 or 2 depending on the model. 
+`ollama`, `sonar`, `mistralrs`, `sglang` and `strata` request both GPUs; `ninfer` requests one, and `tabbyapi` can request 1 or 2 depending on the model. 
 They all need the `nvidia-device-plugin` component to access the GPU and `local-path-provisioner` to read/write large models on the locally-attached NVMe drive.
 
 ## The models
@@ -164,7 +170,7 @@ Some things affect model speed / quality:
 
 ## Switching between engines
 
-`ollama`, `sonar`, `tabbyapi`, `mistralrs` and `sglang` usually request both GPUs, so only one can run at a time. 
+`ollama`, `sonar`, `tabbyapi`, `mistralrs`, `sglang` and `strata` usually request both GPUs, so only one can run at a time. 
 `ninfer` needs only one GPU, so it could in principle run beside another one-GPU pod, but for now `engine set` still scales everything else down for it.
 
 Switch with `bin/llm.py`. It needs `pip install click pyyaml hvac requests`, `kubectl`, and `. vault-login.sh` first for the verbs that call APIs: secrets are read from vault with
@@ -185,13 +191,13 @@ kubectl -n dev-tabbyapi scale deploy/tabbyapi --replicas=1
 kubectl -n dev-tabbyapi rollout status deploy/tabbyapi --timeout=15m
 ```
 
-( swap the namespace and name for `dev-sonar` / `sonar`, `dev-mistralrs` / `mistralrs`, `dev-sglang` / `sglang` or `dev-ollama` / `ollama` ). Check what's running with `kubectl get deploy -A | grep -E 'ollama|sonar|tabbyapi|ninfer|mistralrs|sglang'`.
+( swap the namespace and name for `dev-sonar` / `sonar`, `dev-mistralrs` / `mistralrs`, `dev-sglang` / `sglang`, `dev-strata` / `strata` or `dev-ollama` / `ollama` ). Check what's running with `kubectl get deploy -A | grep -E 'ollama|sonar|tabbyapi|ninfer|mistralrs|sglang|strata'`.
 
 ### Switching models
 
 Every engine but `ollama` has a model registry, in `ansible/vars/<engine>/bnekub03-models.vars.yml`: a `<engine>_models` map, and `<engine>_active_model` naming the one that's deployed.
 Each entry holds the engine settings for that model ( sonar: model, revision, context length, flags; tabbyapi: folder, context length, cache, tensor-parallel, MTP; mistralrs: model, quant, context length, flags;
-sglang: model, revision, context length, flags ) and a `litellm:` block with its litellm
+sglang: model, revision, context length, flags; strata: family, model, context length ) and a `litellm:` block with its litellm
 name and params. The roles copy the active entry onto their usual variables, so the choice survives pod restarts and re-running the role.
 
 ```
@@ -230,3 +236,4 @@ Each engine has its own page, covering deployment, model installation, the litel
 * [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md) - `ninfer`
 * [SETUP-LLM-BE-MISTRALRS.md](SETUP-LLM-BE-MISTRALRS.md) - `mistralrs`
 * [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md) - `sglang`
+* [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md) - `strata`

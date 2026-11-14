@@ -1,0 +1,60 @@
+kube_context_strata: ""
+kube_namespace_strata: "dev-strata"
+kube_storageclass_strata: ""
+
+# Replica count the FIRST time the deployment is created. 0 because ollama, sonar, tabbyapi, mistralrs, sglang and strata
+# each want every GPU on the node, so only one can run at a time: start the one you want with
+# `python bin/llm.py engine set strata`. After the first run the role keeps whatever the deployment is currently
+# scaled to, so re-running it doesn't undo that.
+strata_initial_replicas: 0
+
+# holds the model files and the prepared pack ( 66-76GB for the three smaller Qwen3.8-Flash-Next sizes, plus about 6GB for the draft layer )
+# Nominal: bnenod05-local-path neither enforces this size nor allows expansion, so changing it on an existing PVC fails the apply.
+strata_volume_size_gb: 1000
+
+# Published by the project to ghcr.io as <version>-<flavor>. cuda13 needs NVIDIA driver 580 or newer on the node ( bnenod05 has 580.178.04 );
+# cuda12 is for older cards and drivers 575-579. The image holds the engine, so updating means pulling a new tag.
+strata_image: "ghcr.io/niko1221/strata:0.2.13-cuda13"
+
+# The key clients must send ( Authorization: Bearer <key> ). Required: Strata won't serve beyond the machine without one, and 16
+# characters or more. Generate with `openssl rand -hex 24` and keep it in vault, see setup/SETUP-DATABASE.md. GET /health needs no key.
+strata_api_key: ""
+
+# strata_models is a registry of models, keyed by name, and strata_active_model is the one deployed. They live in
+# vars/strata/<cluster>-models.vars.yml, which bin/llm.py reads and edits ( `llm.py model load NAME` ). The role copies
+# the active entry onto strata_family, strata_model, strata_context, strata_parallel, strata_kv, strata_vision, strata_set
+# and strata_env below ( an entry only needs the keys it changes ). With no active model, those can still be set directly.
+strata_active_model: ""
+strata_models: {}
+
+# FAMILY and MODEL: qwen / IQ3_XXS and so on, see https://github.com/Niko1221/Strata/blob/main/docs/MODELS.md. Empty model = the role deploys nothing.
+strata_family: ""
+strata_model: ""
+
+# The rest become the environment variables the image reads ( docs/DOCKER.md ). Only set when non-empty, so Strata's own choice applies otherwise.
+strata_context: ""     # CONTEXT: 32k, 64k, 128k, 256k or a number of tokens. Empty = the largest that fits
+strata_parallel: ""    # PARALLEL: requests answered at the same time, 1 to 8. Empty = fitted to the cards
+strata_kv: ""          # KV: int8 ( default ), q4_0 ( half the memory ), k8v4, fp16
+strata_vision: ""      # VISION: off ( default ), on, gpu, cpu. Pictures cost about 0.9GB more to download
+strata_set: []         # STRATA_SET, one engine setting per item, e.g. "prefill=65536" or "STRATA_PIN_BY_NEED=1"
+strata_env: {}         # any other environment variable the image reads, name: value
+
+# docker's --stop-timeout 120: on SIGTERM the container runs `strata launch --stop` so the engine releases its memory, and the default 30s is too short for a big model
+strata_stop_grace_seconds: 120
+
+strata_gpu_node_selector_key: "gpu-vendor"
+strata_gpu_node_selector_value: "nvidia"
+# Strata splits the model's layers across the cards it can see ( no NVLink or peer access needed ). ollama, sonar, tabbyapi, mistralrs and sglang
+# also request both GPUs, so only one of them can run at a time.
+strata_gpu_count: 2
+# must match the RuntimeClass name registered by the nvidia-device-plugin role
+strata_gpu_runtime_class_name: "nvidia"
+
+# Strata's CPU pool computes the experts that no card holds, so a CPU limit would throttle the model; there isn't one.
+strata_cpu_request: "12"
+# Strata plans from the whole machine's RAM and holds the experts there ( 34-50GB for the Qwen3.8-Flash-Next sizes ), and its docs say not to put
+# a memory limit on the container, so there isn't one. This request only reserves room when it is scheduled.
+strata_memory_request: "48Gi"
+
+# docker's --shm-size 2g
+strata_shm_size: "2Gi"

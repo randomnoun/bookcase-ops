@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tools for running and comparing the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang ) in this repo.
+"""Tools for running and comparing the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang, strata ) in this repo.
 
     python bin/llm.py --help
     python bin/llm.py speed langfuse --help
@@ -99,7 +99,7 @@ CLUSTER = "bnekub03"
 @click.option("--cluster", default=CLUSTER, show_default=True, envvar="LLM_CLUSTER",
               help="Which cluster's vars files ( ansible/vars/*/<cluster>-models.vars.yml ) and vault paths to use.")
 def cli(cluster):
-    """Run and compare the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang ) in this repo."""
+    """Run and compare the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang, strata ) in this repo."""
     global CLUSTER
     CLUSTER = cluster
 
@@ -704,6 +704,48 @@ def sglang_metrics(file):
         click.echo(f"speculation: {t['spec_num_steps']:.0f} steps, {t.get('spec_num_draft_tokens', 0):.0f} draft tokens")
 
 
+@metric_group.command("strata")
+@FILE_OPT
+def strata_metrics(file):
+    """Speed, cache hit rate, speculation and load from strata's /metrics ( Prometheus text, vLLM's metric names ).
+
+    Strata's docs name only some of its metrics, so this prints those ( requests running, KV cache use, prefix-cache
+    hits, draft acceptance, live tok/s, GPU and RAM use, tool-call repairs ) and then any token counters and
+    time histograms it finds, as means. Counters are cumulative since the pod started. Reads /metrics through a
+    kubectl port-forward, with the API key from vault.
+    """
+    text = cluster_or_file(file, lambda: engine_api("strata", "GET", "/metrics?format=prometheus", strata_headers()))
+    if not isinstance(text, str):
+        raise click.ClickException("strata returned JSON, not Prometheus text ( /metrics?format=prometheus )")
+    v, _ = parse_prefixed(text, "vllm:")
+    s, _ = parse_prefixed(text, "strata:")
+    if not (v or s):
+        raise click.ClickException("no vllm: or strata: metrics found ( has the model loaded? )")
+    if "live_tok_s" in s:
+        click.echo(f"speed now: {s['live_tok_s']:.1f} tok/s")
+    if "num_requests_running" in v:
+        usage = f"   KV cache {v['kv_cache_usage_perc']:.1%} used" if "kv_cache_usage_perc" in v else ""
+        click.echo(f"requests running: {v['num_requests_running']:.0f}{usage}")
+    for name in sorted(n for n in v if n.endswith("tokens_total") and "spec_decode" not in n):
+        click.echo(f"{name}: {v[name]:,.0f}")
+    queries, hits = v.get("prefix_cache_queries_total", 0), v.get("prefix_cache_hits_total", 0)
+    if queries:
+        click.echo(f"prefix cache: {hits:,.0f} of {queries:,.0f} queries hit ( {hits / queries:.1%} )")
+    if "last_hit_rate" in s:
+        click.echo(f"last request's cache hit rate: {s['last_hit_rate']:.1%}")
+    drafted, accepted = v.get("spec_decode_num_draft_tokens_total", 0), v.get("spec_decode_num_accepted_tokens_total", 0)
+    if drafted:
+        click.echo(f"speculation: drafted {drafted:,.0f}   accepted {accepted:,.0f} ( {accepted / drafted:.1%} )")
+    for base in sorted(n[:-4] for n in v if n.endswith("_sum") and n[:-4].endswith("_seconds") and v.get(n[:-4] + "_count")):
+        click.echo(f"mean {base}: {v[base + '_sum'] / v[base + '_count']:.3f}s over {v[base + '_count']:,.0f}")
+    load = [f"GPU {s['gpu_util']:.0f}%" if "gpu_util" in s else "", f"RAM {s['ram_used_bytes'] / 2**30:.1f} GiB" if "ram_used_bytes" in s else ""]
+    if any(load):
+        click.echo("load: " + "   ".join(x for x in load if x))
+    repaired, unread = s.get("tool_args_repaired_total", 0), s.get("tool_calls_unread_total", 0)
+    if repaired or unread:
+        click.echo(f"tool calls: {repaired:,.0f} had their arguments repaired, {unread:,.0f} blocks could not be read")
+
+
 # --- engines ----------------------------------------------------------------------------------------------------------
 
 ANSIBLE =Path(__file__).resolve().parent.parent / "ansible"
@@ -712,9 +754,10 @@ ENGINES = {"ollama": {"ns": "dev-ollama", "port": 11434},
            "tabbyapi": {"ns": "dev-tabbyapi", "port": 5000},
            "ninfer": {"ns": "dev-ninfer", "port": 8080},
            "mistralrs": {"ns": "dev-mistralrs", "port": 1234},
-           "sglang": {"ns": "dev-sglang", "port": 30000}}
+           "sglang": {"ns": "dev-sglang", "port": 30000},
+           "strata": {"ns": "dev-strata", "port": 8080}}
 # the engines with a model registry ( ansible/vars/<engine>/<cluster>-models.vars.yml ); ollama manages its own
-CATALOGUED = ("sonar", "tabbyapi", "ninfer", "mistralrs", "sglang")
+CATALOGUED = ("sonar", "tabbyapi", "ninfer", "mistralrs", "sglang", "strata")
 # the engines that serve one model per process, with no key, and list it at /v1/models
 SINGLE_MODEL = ("sonar", "mistralrs", "sglang")
 # the model_info key on the litellm models this script creates ( holding {"engine", "ansible-model"} ), so
@@ -807,12 +850,22 @@ def ninfer_headers():
     return {"Authorization": f"Bearer {ninfer_key()}"}
 
 
+def strata_key():
+    return vault(f"k8s/{CLUSTER}/secret/dev-strata/strata", "api_key")
+
+
+def strata_headers():
+    return {"Authorization": f"Bearer {strata_key()}"}
+
+
 def engine_api_key(engine):
     """The key litellm sends to the engine ( sonar, mistralrs and sglang have none, but litellm wants a non-empty string )."""
     if engine == "tabbyapi":
         return tabbyapi_key("api_key")
     if engine == "ninfer":
         return ninfer_key()
+    if engine == "strata":
+        return strata_key()
     return "none"
 
 
@@ -896,6 +949,8 @@ def serving(engine):
         return [m["id"] for m in engine_api(engine, "GET", "/v1/models")["data"]]
     if engine == "ninfer":
         return [m["id"] for m in engine_api("ninfer", "GET", "/v1/models", ninfer_headers())["data"]]
+    if engine == "strata":
+        return [m["id"] for m in engine_api("strata", "GET", "/v1/models", strata_headers())["data"]]
     try:
         return [engine_api("tabbyapi", "GET", "/v1/model", tabbyapi_headers())["id"]]
     except click.ClickException as e:
@@ -1123,7 +1178,7 @@ def engine_list():
 def engine_set(engine, timeout, dry_run):
     """Give the GPUs to ENGINE: scale the others to 0, wait for their pods to go, scale ENGINE to 1, wait for the rollout.
 
-    ollama, sonar, tabbyapi, mistralrs and sglang each request both GPUs, and a GPU stays held until the old pod has
+    ollama, sonar, tabbyapi, mistralrs, sglang and strata each request both GPUs, and a GPU stays held until the old pod has
     finished terminating, so the others have to be gone before the new pod can schedule. ninfer asks for one GPU, but
     the others are scaled down for it too: it's only run on its own, and a second engine would cut into its memory.
     """
@@ -1185,6 +1240,8 @@ def model_list(engine):
             detail = f"{e['model']}@{e.get('revision', '-')}  ctx {e.get('context_length', '-')}"
         elif engine == "ninfer":
             detail = f"{e['profile']}  {e.get('spec', 'default spec')}  ctx {e.get('context', 'fit to free memory')}"
+        elif engine == "strata":
+            detail = f"{e.get('family', '-')}/{e['model']}  ctx {e.get('context', 'largest that fits')}"
         else:
             detail = f"{e['folder']}  ctx {e.get('max_seq_len', '-')}"
             if on_disk is not None and e["folder"] not in on_disk:
@@ -1239,7 +1296,7 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
 def model_unload(engine):
     """Unload the current model from VRAM. Not persistent: tabbyapi loads its active model again when its pod restarts."""
     engine = current_engine(engine)
-    if engine in ("sonar", "ninfer", "mistralrs", "sglang"):
+    if engine in ("sonar", "ninfer", "mistralrs", "sglang", "strata"):
         raise click.ClickException(f"{engine} serves one model per process and can't unload it: use `engine set` to scale it down")
     if engine == "tabbyapi":
         engine_api("tabbyapi", "POST", "/v1/model/unload", tabbyapi_headers(admin=True), {})

@@ -62,6 +62,7 @@ Okay so what you've got is:
       * [ninfer](setup/SETUP-LLM-BE-NINFER.md) - another one of those, on a single GPU
       * [mistralrs](setup/SETUP-LLM-BE-MISTRALRS.md) - another one of those, written in Rust
       * [sglang](setup/SETUP-LLM-BE-SGLANG.md) - another one of those, from LMSYS
+      * [strata](setup/SETUP-LLM-BE-STRATA.md) - another one of those, for running a 125B model out of system RAM
    * [SETUP-LLM-FRONTEND.md](setup/SETUP-LLM-FRONTEND.md) - some frontends
       * open-webui - a simple frontend to that ( connects to litellm )
       * pi - minimalistic terminal coding harness 
@@ -109,7 +110,7 @@ Anyway once everything's running, you should be able to connect to the following
 * 2026-08: added litellm, searxng
 * 2026-10: added bnellm01, proxmox, bnenod05, ollama, open-webui, pi, opencode, openhands, sonar, tabbyapi, langfuse
    * Have gone a bit LLM-mad, will probably remove some of those as I find out what works and what doesn't
-* 2026-11: added ninfer, llm.py, mistralrs, sglang; moved ninfer from ninfer-3090 to ninfer-all
+* 2026-11: added ninfer, llm.py, mistralrs, sglang, strata; moved ninfer from ninfer-3090 to ninfer-all
 
 ## License
 

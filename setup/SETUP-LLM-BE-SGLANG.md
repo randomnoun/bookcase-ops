@@ -13,7 +13,8 @@ APIs, one model per process here.
 
 ## Install it
 
-1. Check the image. The role defaults to `lmsysorg/sglang:latest`, which moves; this setup was run on 0.5.23, which is what `latest` and `v0.5.23` pointed to on 2026-11-14, so pin `sglang_image: "lmsysorg/sglang:v0.5.23"` in `vars/sglang/bnekub03.vars.yml` ( not done yet ).
+1. Check the image. The role default is `lmsysorg/sglang:latest`, which moves, so `vars/sglang/bnekub03.vars.yml` pins `sglang_image` to `lmsysorg/sglang:v0.5.23` by digest: sglang 0.5.23, the CUDA 13.0 build, which is what everything on this page and in
+   [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md) section 13 was run on ( on 2026-11-14 Docker Hub's `v0.5.23`, `v0.5.23-cu130`, `latest` and `latest-cu130` all pointed at it ). To move to a newer one, pull it, check that the server still starts and that MTP still accepts drafts, and replace the pin.
    The image is 16 GB and took about 7 minutes to pull. Check the node can pull it: `sudo ctr -n k8s.io images pull lmsysorg/sglang:v0.5.23`.
 
 2. Put the HuggingFace token in vault ( see [SETUP-DATABASE.md](SETUP-DATABASE.md) ). It's read as `sglang_hf_token`; the playbook fails if the secret is missing, even though a public repo doesn't need the token.

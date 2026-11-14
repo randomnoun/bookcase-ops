@@ -1,0 +1,72 @@
+- name: "strata_api_key must be set, 16 characters or more"
+  assert:
+    that: strata_api_key | length >= 16
+    fail_msg: "set strata_api_key, 16 characters or more ( see setup/SETUP-DATABASE.md ): Strata won't serve beyond the machine without a key"
+
+- name: "strata_active_model must be one of strata_models"
+  assert:
+    that: strata_active_model in strata_models
+    fail_msg: "strata_active_model '{{ strata_active_model }}' is not in strata_models ( {{ strata_models.keys() | list }} )"
+  when: strata_active_model | length > 0
+
+- name: "use the active strata model"
+  set_fact:
+    strata_family: "{{ _strata_entry.family | default(strata_family) }}"
+    strata_model: "{{ _strata_entry.model }}"
+    strata_context: "{{ _strata_entry.context | default(strata_context) }}"
+    strata_parallel: "{{ _strata_entry.parallel | default(strata_parallel) }}"
+    strata_kv: "{{ _strata_entry.kv | default(strata_kv) }}"
+    strata_vision: "{{ _strata_entry.vision | default(strata_vision) }}"
+    strata_set: "{{ _strata_entry.set | default(strata_set) }}"
+    strata_env: "{{ _strata_entry.env | default(strata_env) }}"
+  vars:
+    _strata_entry: "{{ strata_models[strata_active_model] }}"
+  when: strata_active_model | length > 0
+
+- name: "strata skipped, no strata model is set"
+  debug:
+    msg: "set strata_active_model in vars/strata/<cluster>-models.vars.yml ( or strata_model ) to deploy strata"
+  when: strata_model | length == 0
+
+- name: "kubernetes namespace strata"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_strata }}"
+    wait: true
+    definition: "{{ lookup('template', 'strata-namespace.j2.yml')  }}"
+  when: strata_model | length > 0
+
+- name: "look up current strata replicas"
+  k8s_info:
+    context: "{{ kube_context_strata }}"
+    api_version: apps/v1
+    kind: Deployment
+    name: strata
+    namespace: "{{ kube_namespace_strata }}"
+  register: _strata_existing
+  when: strata_model | length > 0
+
+- name: "work out strata replicas"
+  set_fact:
+    strata_replicas: "{{ _strata_existing.resources[0].spec.replicas if (_strata_existing.resources | length > 0) else strata_initial_replicas }}"
+  when: strata_model | length > 0
+
+- name: "kubernetes deployment strata"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_strata }}"
+    namespace: "{{ kube_namespace_strata }}"
+    # nothing to wait for when scaled to 0
+    wait: "{{ strata_replicas | int > 0 }}"
+    # the first start downloads 70-80GB at about 16-19MB/s ( anonymous Hugging Face ) and prepares a pack, which takes hours
+    wait_timeout: 14400
+    definition: "{{ lookup('template', 'strata.j2.yml')  }}"
+  when: strata_model | length > 0
+
+- name: "kubernetes servicemonitor strata"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_strata }}"
+    namespace: "{{ kube_namespace_strata }}"
+    definition: "{{ lookup('template', 'strata-servicemonitor.j2.yml')  }}"
+  when: strata_model | length > 0

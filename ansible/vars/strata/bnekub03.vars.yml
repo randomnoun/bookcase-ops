@@ -1,0 +1,15 @@
+kube_context_strata: "bnekub03"
+kube_storageclass_strata: "bnenod05-local-path"
+
+# nominal, see the role defaults: bnenod05-local-path doesn't enforce it
+strata_volume_size_gb: 1000
+
+# Pinned to the release the docs were read at ( 2026-11-14 ). The image holds the engine, so a newer tag is how you update; check that it still
+# loads the model before changing this.
+strata_image: "ghcr.io/niko1221/strata:0.2.13-cuda13"
+
+strata_api_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-strata/strata:api_key')}}"
+
+# One model per deployment. Which model, its context and its litellm settings are in bnekub03-models.vars.yml
+# ( listed after this file in k8s_llm_bnekub03.yml ); `python bin/llm.py model load NAME` switches it.
+# Strata downloads anonymously: it does not read or send a Hugging Face token.

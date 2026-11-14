@@ -252,6 +252,12 @@ echo -n "hf_put-the-token-here" | vault kv put -mount=secret "k8s/bnekub03/secre
 echo -n "hf_put-the-token-here" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-sglang/sglang" hf_token=-
 ```
 
+**strata** requires an api_key ( for litellm, and for prometheus scraping /metrics; 16 characters or more ). It has no HuggingFace token:
+
+```
+echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-strata/strata" api_key=-
+```
+
 **searxng** needs a secret key for CSRF/session signing:
 
 ```

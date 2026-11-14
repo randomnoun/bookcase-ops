@@ -4,8 +4,10 @@ kube_storageclass_sglang: "bnenod05-local-path"
 # nominal, see the role defaults: bnenod05-local-path doesn't enforce it
 sglang_volume_size_gb: 300
 
-# The role default is the moving 'latest' tag. Once a release has been run on the node, pin it ( or its digest ) here.
-# sglang_image: "lmsysorg/sglang:vX.Y.Z"
+# Pinned to the v0.5.23 release ( CUDA 13.0 build ) by digest, which is the image the node pulled on 2026-11-14 and ran the MTP and speed
+# tests on ( Docker Hub's v0.5.23, v0.5.23-cu130, latest and latest-cu130 all pointed at it then ). The role default, 'latest', moves with every release.
+# To update it, pull a newer tag, check that it still loads the model and that MTP still accepts drafts ( setup/SETUP-LLM-MTP.md section 13 ), and replace this.
+sglang_image: "lmsysorg/sglang:v0.5.23@sha256:f832b5c39559c9caa900b22ad37c76fcce66470676855c42052102c537812f1f"
 
 sglang_hf_token: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/dev-sglang/sglang:hf_token')}}"
 sglang_served_model_name: "local-sglang"

@@ -1,0 +1,76 @@
+# The models strata can serve, and which one it does serve.
+#
+# Plain YAML only ( no jinja ): bin/llm.py reads this file directly. The strata role copies the active entry
+# onto the flat strata_* variables ( strata_family, strata_model ... ), so anything an entry leaves out falls back
+# to the role defaults / bnekub03.vars.yml.
+#
+# Switch with `python bin/llm.py model load NAME`, which rewrites strata_active_model below, re-runs the role and
+# updates the litellm entry. Or edit it by hand and re-run the role.
+#
+# Strata is built around one model, Qwen3.8-Flash-Next ( 125B parameters, a mixture of experts ), and runs it from GGUF files by keeping the experts in RAM
+# and the dense layers and the hottest experts on the GPUs, so it is not the same model as the 27B the other engines serve and the speeds
+# aren't comparable. Sizes, RAM needs and providers are in https://github.com/Niko1221/Strata/blob/main/docs/MODELS.md. bnenod05 has about 94GB of
+# RAM and 2 x 24GB of VRAM; the "RAM for the experts + about 10GB" rule in those docs leaves room for every ISTA-DASLab size.
+# Once it is scaled up, `kubectl -n dev-strata exec deploy/strata -- strata launch --plan --family qwen --model IQ3_XXS --context 128k`
+# prints what a choice would download, where the model goes and whether it fits ( it needs a running pod, so there is no way to ask before the first start ).
+
+strata_active_model: "flash-next-iq3-xxs"
+
+strata_models:
+
+  # ISTA-DASLab's original IQ3_XXS pack: 47GB of RAM + VRAM for the model ( experts in shard 1: 43GB ), 66-76GB to download. Listed as "great"
+  # quality, one step below IQ3_S, "best; matches the full model on the published tests", and one above IQ2_XS.
+  flash-next-iq3-xxs:
+    family: "qwen"
+    model: "IQ3_XXS"
+
+    # 128k is my choice, not Strata's: left empty it takes the largest that fits, and then litellm's num_ctx below wouldn't be known. Check the
+    # startup log for the context it settled on and keep num_ctx equal to it. If it doesn't fit, lower this ( 64k ).
+    context: "128k"
+
+    # The litellm model that `llm.py model sync` creates for this entry.
+    litellm:
+      public_name: "strata-qwen3.8-flash-next:iq3_xxs"
+      # Strata serves any model name it is sent, and lists the loaded one at /v1/models ( `engine list` shows it ): the name is only a label.
+      upstream: "strata"
+      # litellm_params, merged over model / api_base / api_key:
+      #
+      #   num_ctx: only used so pi / opencode learn the context window. Run `pi-sync-models` after changing it
+      #       ( and restart opencode ). Strata itself ignores it. Keep it equal to the context the server starts with.
+      #
+      #   extra_body.reasoning_budget_tokens: Strata's thinking cap. Its docs list it as a server-side config key and say a request's own value wins;
+      #       I haven't found a way to set it server-wide in the Docker image ( its environment variables don't include it ), so it is sent with every
+      #       request instead, as the tabbyapi entry does. Without a cap Strata's `answer_room` ( on by default ) wraps up the thinking of a request
+      #       with max_tokens of 1024 or more when a quarter of the cap is left. The name has "tokens" in plural so litellm doesn't mask it in /model/info.
+      #
+      #   reasoning_effort: left unset. The model's template defaults to thinking on at xhigh, which is what the other engines set.
+      params:
+        num_ctx: 131072
+        extra_body:
+          reasoning_budget_tokens: 8192
+
+  # The smallest and fastest ISTA-DASLab size: 37.6GB of RAM + VRAM ( experts in shard 1: 34GB ), "good" quality.
+  flash-next-q2-0:
+    family: "qwen"
+    model: "Q2_0"
+    context: "128k"
+    litellm:
+      public_name: "strata-qwen3.8-flash-next:q2_0"
+      upstream: "strata"
+      params:
+        num_ctx: 131072
+        extra_body:
+          reasoning_budget_tokens: 8192
+
+  # The largest: 54.8GB of RAM + VRAM ( experts in shard 1: 50GB ), the slowest, and the one the docs say matches the full model on their tests.
+  flash-next-iq3-s:
+    family: "qwen"
+    model: "IQ3_S"
+    context: "128k"
+    litellm:
+      public_name: "strata-qwen3.8-flash-next:iq3_s"
+      upstream: "strata"
+      params:
+        num_ctx: 131072
+        extra_body:
+          reasoning_budget_tokens: 8192
