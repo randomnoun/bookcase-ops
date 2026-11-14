@@ -49,7 +49,7 @@ Some things affect model speed / quality:
       * EXL3 is a quantisation format based on QTIP, a research method for compressing weights to a chosen number of bits each, which ExLlamaV3 converts and loads at fractional bit rates ( 5.00 bpw, 4.00 bpw ) with a custom GPU kernel.
    * **sonar** is built on vLLM, so it gets continuous batching, and has added EXL3 loading and other formats. 
      Of the four, it's the only one here with batching, which helps when several agents share the model.
-   * **ninfer** is an engine for the RTX 5090 ( with the NVidia Blackwell architecture `sm_120` ), and ninfer-3090 is a port of it to the 3090 ( `sm_86` ).
+   * **ninfer** is an engine for the RTX 5090 ( with the NVidia Blackwell architecture `sm_120` ), and ninfer-all is a continuation of its RTX 3090 port ( `sm_86` ) that covers Volta to Blackwell.
       * It handles one request stream on one GPU very fast, but only for the specific models it supports. 
       * Its `.ninfer` files are single self-contained model files ( weights, tokenizer and chat template ) in its own 4-5 bit grouped quantisation, which only NInfer reads, so a model has to be converted for it first.
 * Model file format
@@ -104,7 +104,8 @@ Some things affect model speed / quality:
          * By size, the 5.00bpw file sits between `Q5_K_S` ( 19.6GB ) and `Q5_K_M` ( 20.9GB ), and the 4.00bpw Swift file is close to `Q4_K_S` ( 16.4GB ). The GGUF sizes are from the list above, and bartowski's table for `Q5_K_S`. That says how big they are, not how good.
       * **ninfer** ( ninfer )
          * The weights use ninfer's own grouped quantisation of 4 to 5 bits ( 64 weights per group, with 6 bits for the output head and 4 for the embedding ), so a model has to be converted for it first.
-         * I'm using `Qwen3.8-27B-NInfer-3090`( about 19GB ), which by size is close to a GGUF `Q5_K_S` ( 19.6GB ). It also carries the vision tower and the speculative-decoding heads.
+         * On ninfer-all, I'm using `neroued/Qwen3.8-27B-NInfer` ( 19.0 GiB ), which by size is close to a GGUF `Q5_K_S` ( 19.6GB ). It also carries the vision tower and the speculative-decoding heads.
+         * Previously on ninfer-3090, this was `WarlaxZ/Qwen3.8-27B-NInfer-3090`, about 17.7 GiB.
       * **Others you'll see**, which none of these engines here use: 
          * GPTQ and AWQ ( 4-bit, for vLLM-style engines )
          * FP8 and NVFP4 ( hardware floating-point formats; NVFP4 needs a Blackwell GPU, not a 3090 )
@@ -125,11 +126,11 @@ Some things affect model speed / quality:
          * and 8,8 for two GPUs run = 32KB per token = 8GB window
       * ninfer's default is rk4v4, which is 4-bit keys and 4-bit values 
          * is 16KB per token = 4GB for the window; slightly more in practice
-   * The window competes with the weights for VRAM. ninfer's log showed it starting at 236,544 tokens, not 262,144, because only part of the card was free.
+   * The window competes with the weights for VRAM. With ninfer-3090, ninfer's log showed it starting at 236,544 tokens, not 262,144, because only part of the card was free. ninfer-all's `run.sh` steps the context down instead ( see [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md) ).
 * MTP
    * Multi-token prediction. The model has a small extra layer that guesses the next few tokens, and the full model checks the guesses in one pass, keeping the ones that match. It's speculative decoding without a second draft model.
    * It roughly doubled decode speed on tabbyapi and sonar ( see [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md) ), but only if the quant kept the MTP layer. The gain depends on how often the guesses are right.
-   * ninfer has its own variant: DFlash2 ( the default, fastest here ), MTP, and n-gram copying, which drafts text the model has just read.
+   * ninfer has its own variant: DFlash2 ( run.sh's default; ahead of MTP at shallow context, not here in an agent session ), MTP, and n-gram copying, which drafts text the model has just read.
 * MoE model variants
    * Mixture of experts. Only some of the model's weights are active for each token, so a 35B-A3B model has 35B parameters in memory but about 3B doing the work per token, which makes it much faster than a dense 27B. 
    * All the experts still have to be stored, so VRAM use follows the total size. The trade is memory for speed, and usually somewhat lower quality than a dense model of the same total size.

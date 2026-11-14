@@ -5,7 +5,7 @@ Part of the [LLM setup](SETUP-LLM.md).
 A maze of twisty little components, all alike:
 
 
-![Physical / virtual machines and kubernetes deployments](image/llm-architecture-2.png)
+![Physical / virtual machines and kubernetes deployments](image/llm-architecture-3.png)
 
 So the plan is that whilst I'm still working out how this is supposed to work, I'll have a few different frontends / UIs, and a few different backends.
 
