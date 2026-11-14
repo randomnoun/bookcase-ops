@@ -59,7 +59,7 @@ And then once you've got that going, can try these deployments, which will add w
    * needs two keys in vault, and starts scaled to 0
    * then download an EXL3 model and configure it in litellm
 * ninfer ( [backends](SETUP-LLM-BE-NINFER.md) )
-   * uses the published `ghcr.io/iamwavecut/ninfer-all` image, needs a key in vault, and starts scaled to 0
+   * needs a key in vault, and starts scaled to 0
    * the model is downloaded by an init container the first time it starts
 * open-webui ( [frontends](SETUP-LLM-FRONTEND.md#open-webui) )
    * will connect to litellm (not ollama directly), create a litellm key first

@@ -104,8 +104,8 @@ Some things affect model speed / quality:
          * By size, the 5.00bpw file sits between `Q5_K_S` ( 19.6GB ) and `Q5_K_M` ( 20.9GB ), and the 4.00bpw Swift file is close to `Q4_K_S` ( 16.4GB ). The GGUF sizes are from the list above, and bartowski's table for `Q5_K_S`. That says how big they are, not how good.
       * **ninfer** ( ninfer )
          * The weights use ninfer's own grouped quantisation of 4 to 5 bits ( 64 weights per group, with 6 bits for the output head and 4 for the embedding ), so a model has to be converted for it first.
-         * I'm using `neroued/Qwen3.8-27B-NInfer` ( 19.0 GiB, fetched by ninfer-all's `download-model.sh` ), which by size is close to a GGUF `Q5_K_S` ( 19.6GB ). It also carries the vision tower and the speculative-decoding heads.
-           ( Before ninfer-all this was `WarlaxZ/Qwen3.8-27B-NInfer-3090`, about 17.7 GiB. )
+         * On ninfer-all, I'm using `neroued/Qwen3.8-27B-NInfer` ( 19.0 GiB ), which by size is close to a GGUF `Q5_K_S` ( 19.6GB ). It also carries the vision tower and the speculative-decoding heads.
+         * Previously on ninfer-3090, this was `WarlaxZ/Qwen3.8-27B-NInfer-3090`, about 17.7 GiB.
       * **Others you'll see**, which none of these engines here use: 
          * GPTQ and AWQ ( 4-bit, for vLLM-style engines )
          * FP8 and NVFP4 ( hardware floating-point formats; NVFP4 needs a Blackwell GPU, not a 3090 )

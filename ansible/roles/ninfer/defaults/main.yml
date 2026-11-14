@@ -11,10 +11,8 @@ ninfer_initial_replicas: 0
 # the model ( ~19GB ) is downloaded onto this volume by an init container
 ninfer_volume_size_gb: 60
 
-# Published by https://github.com/iamwavecut/ninfer-all. cuda12.9 rather than cuda13.4: both images contain the RTX 3090's
-# sm_86, and the release notes point CUDA 12 driver environments at 12.9. I haven't checked whether 13.4 runs on
-# bnenod05's driver. The floating cuda12.9 tag moves with every commit to master, so this is the tag for one commit:
-# bdc1b8d8970a is the 2026-11-09.1 release.
+# Published by https://github.com/iamwavecut/ninfer-all. 
+# Both the cuda12.9 and cuda13.4 images contain the RTX 3090's sm_86. 
 ninfer_image: "ghcr.io/iamwavecut/ninfer-all:cuda12.9-bdc1b8d8970a"
 
 # Bearer token for the API ( and for /metrics ). Empty = no authentication, which on a LoadBalancer service means anyone

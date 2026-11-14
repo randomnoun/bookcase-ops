@@ -3,7 +3,7 @@
 ---
 # run.sh ( the launcher ) has no setting for --api-key, --model-id or --default-thinking-budget, and passes no extra
 # arguments to the server, so NINFER_SERVER points at this wrapper, which adds them from the environment and then
-# runs the real binary. The launcher's step-down on out-of-memory still works because it only sees the server's output.
+# runs the real binary.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -64,8 +64,7 @@ spec:
       runtimeClassName: "{{ ninfer_gpu_runtime_class_name }}"
       initContainers:
         # the release's own downloader: resumable, and it checks the size and SHA-256 of the file. It does nothing
-        # but verify it when the model is already on the volume. ( A file that fails the check, such as the v2 file
-        # an older ninfer-3090 release left here, is downloaded again. )
+        # but verify it when the model is already on the volume.
         - name: model
           image: "{{ ninfer_image }}"
           imagePullPolicy: IfNotPresent
@@ -87,8 +86,7 @@ spec:
         - name: ninfer
           image: "{{ ninfer_image }}"
           imagePullPolicy: IfNotPresent
-          # the image's ENTRYPOINT picks a build and runs run.sh; running run.sh directly ( the image only has the
-          # multi-architecture build ) lets NINFER_SERVER below take effect, which the entrypoint's `run` would override
+          # override the image's ENTRYPOINT so NINFER_SERVER env var below takes effect
           command: ["/opt/ninfer/run.sh"]
           args: ["{{ ninfer_profile }}"]
           ports:

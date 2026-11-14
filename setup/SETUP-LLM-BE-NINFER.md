@@ -3,13 +3,13 @@
 Part of the [LLM backends](SETUP-LLM-BACKEND.md).
 
 [NInfer](https://github.com/Neroued/ninfer) is a single-GPU C++/CUDA engine that runs a few specific models from its own `.ninfer` files, and `ninfer-serve` is its server. Upstream targets Blackwell
-GPUs. This uses [iamwavecut/ninfer-all](https://github.com/iamwavecut/ninfer-all), which continues the RTX 3090 port ( ashalliants/ninfer-3090, used here until 2026-11-09 ) and covers Volta to consumer Blackwell
-and more models. It serves OpenAI and Anthropic APIs, one model per process.
+GPUs. 
+
+I tried out ninfer-3090 initially, then discovered [iamwavecut/ninfer-all](https://github.com/iamwavecut/ninfer-all), which covers Volta to consumer Blackwell and more models. 
+It serves OpenAI and Anthropic APIs, one model per process.
 
 * **One GPU**, unlike the others here ( `ninfer_gpu_count: 1` ). It is fast because it doesn't split the model across the cards.
 * **It starts scaled to 0.** See [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
-* **Published image, nothing to build.** The role pulls `ghcr.io/iamwavecut/ninfer-all:cuda12.9-<commit12>`, pinned to one commit ( the floating `cuda12.9` tag moves with every commit to master ). 
-  The `cuda12.9` image holds `sm_86` ( the 3090 ) as well as Volta to Ada; `cuda13.4` does too, but I haven't checked it against bnenod05's driver.
 * **A small wrapper for the server.** ninfer-all's `run.sh` has no setting for `--api-key`, `--model-id` or `--default-thinking-budget`, so the role mounts a ConfigMap script ( `NINFER_SERVER` ) that adds them from `NINFER_API_KEY`, 
   `NINFER_MODEL_ID` and `NINFER_DEFAULT_THINKING_BUDGET` and then runs `/opt/ninfer/multi/ninfer-serve`. The container runs `/opt/ninfer/run.sh` directly, not the image's `entrypoint.sh`, whose `run` command would overwrite `NINFER_SERVER`.
 
@@ -35,9 +35,6 @@ and more models. It serves OpenAI and Anthropic APIs, one model per process.
    The first start has an init container, `model`, download the model ( about 19GB ) onto the volume with the release's own `download-model.sh`; it resumes if interrupted and checks the size and SHA-256.
    `kubectl -n dev-ninfer logs -f deploy/ninfer -c model` shows it. The container then loads the model, which took about half a minute on ninfer-3090.
    
-   If the volume still holds the ninfer-3090 model ( `WarlaxZ/Qwen3.8-27B-NInfer-3090` ), the downloader sees it fails the size and SHA-256 check for ninfer-all's pinned `neroued/Qwen3.8-27B-NInfer` and downloads that beside it, replacing it once the new file has verified. 
-   Both files are on the disk for a while, which doesn't matter on the dedicated models disk.
-
 The model and its settings are in the registry, `vars/ninfer/bnekub03-models.vars.yml`; switch with `python bin/llm.py model load NAME` ( see [Switching models](SETUP-LLM-BACKEND.md#switching-models) ). Each entry names a `profile`
 ( `qwen38-27b` or `qwen36-35b-a3b` ), which is the model `run.sh` serves and the artifact the init container downloads, a `spec` ( `dflash2` is the fastest at one stream, `mtp` gives two lanes ), and
 optionally `context`, `concurrency`, `draft_tokens`, `kv_dtype`, `thinking_budget` and `env` for any other `NINFER_*` variable. They become the environment variables that `run.sh` reads, 
