@@ -15,18 +15,27 @@ ninfer_models:
   # downloaded by the init container, pinned to a revision inside the release's download-model.sh. It loads as 16.0GiB
   # with mtp and 18.0GiB with dflash2 ( run.sh's notes say the dflash2 set carries draft weights and can't use --lm-head-q6 ).
   # On this card the mtp entry below started at the full 262144, but this dflash2 entry stepped down twice ( 2026-11-14 ),
-  # to 196608 ( prefill chunk 2048, 16 host state slots ), which adds about 90s to every start for the two failed loads.
+  # to 196608 ( prefill chunk 2048, 16 host state slots ), which added about 90s to every start for the two failed loads.
+  # So this entry pins those settings, below.
   qwen3.8-27b-dflash2:
     # run.sh's model profile: qwen38-27b or qwen36-35b-a3b. This also picks the artifact to download.
     profile: "qwen38-27b"
 
     # NINFER_SPEC: dflash2 runs one lane with run.sh's rk4v4 KV cache ( the artifact carries the MTP weights too ). ninfer-all's
     # own 3090 numbers have it ahead of mtp on short chat, at 1k and at 32k tokens, level at 8k and behind from 65k, and in an agent
-    # session here it was no faster overall ( setup/SETUP-LLM-MTP.md sections 10 and 11 ). Leaving context
-    # unset keeps run.sh's step-down: it retries with an eighth less context, and from the second step a smaller prefill
-    # chunk and fewer host state slots. Don't pin `context: 196608` to skip the retries: that turns the step-down off, and
-    # the chunk and slot settings that made 196608 fit would go with it.
+    # session here it was no faster overall ( setup/SETUP-LLM-MTP.md sections 10 and 11 ).
     spec: "dflash2"
+
+    # The settings run.sh's step-down ended on, pinned so the two failed starts are skipped. Setting any of NINFER_CONTEXT,
+    # NINFER_PREFILL_CHUNK, NINFER_HOST_STATE_SLOTS or NINFER_KV_CAPACITY turns the step-down OFF: if this doesn't fit ( a
+    # busier card, a different image ) the server just fails to start, and the fix is to lower these by hand or delete the
+    # three lines to get the step-down back. All three are pinned because that is the combination that has started, on both
+    # the cuda12.9 and cuda13.4 images. Whether the context alone would do is untested ( the chunk is about 0.1GiB of VRAM
+    # and the slots are host RAM ), and fewer host slots mean fewer cached conversation states.
+    context: 196608
+    env:
+      NINFER_PREFILL_CHUNK: 2048
+      NINFER_HOST_STATE_SLOTS: 16
 
     # The model's reasoning cap, server-wide ( NINFER_DEFAULT_THINKING_BUDGET ), so an agent can't burn its whole output
     # on thinking. The same 8192 as the sonar and tabbyapi entries; a request can still override it.

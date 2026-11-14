@@ -366,6 +366,28 @@ Results are engine-reported decode tok/sec from 35 tool-calling requests in one 
 * **Log format:** a request where only DFlash2 drafts ( no n-gram copying ) logs `dflash2 accepted 516/2,009 (25.7%)`, not `mixed speculation accepted ...`; `speed ninfer` handles both.
 * Not controlled: a single session, MTP and DFlash2 sessions that differ in lanes and context, and prompts that are not the same task as the sonar and tabbyapi runs or, as far as I can show, as each other.
 
+### 12. ninfer-all ( DFlash2, one GPU, CUDA 13.4 image )
+
+Measured 2026-11-14, straight after section 11: the same commit ( `bdc1b8d8970a` ), registry entry and weights, but the `cuda13.4` image in place of `cuda12.9` ( `CUDA 13 backend`, `nvcc 13.4.92` in the log ). The driver reports CUDA 13.0, the image's minimum, and it started without complaint.
+Startup was the same as section 11: the same two step-downs to **196,608** ( prefill chunk 2048, 16 host state slots ), 1.26 GiB free against 1.24, weights loading in 41-43 s per attempt, and `engine ready` in 50.5 s against 50.7 s. The toolkit made no visible difference to memory or load time.
+
+Results are engine-reported decode tok/sec from 63 tool-calling requests ( prompts growing from 2k to 104k tokens ), requests with >= 100 tokens out ( 57 of the 63 ):
+
+| Prompt tokens | n | Median decode tok/sec | Range | Section 11 ( CUDA 12.9 ) |
+|---|---|---|---|---|
+| < 15k | 7 | 126.9 | 94.0-164.6 | 152.9 ( n=7 ) |
+| 15-45k | 8 | 100.7 | 91.4-151.0 | 124.2 ( n=5 ) |
+| 45-65k | 15 | 104.9 | 85.6-153.6 | 116.5 ( n=6 ) |
+| > 65k | 27 | 106.3 | 78.8-146.9 | 96.4 ( n=13 ) |
+| all | 57 | **108.5** | | 102.4 ( n=31 ) |
+
+* **No measurable difference between the toolkits.** The overall median is 6% higher, and restricted to the prompts section 11 covered ( up to 76k tokens ) it is 108.8 over 38 requests, but the bands go both ways: lower below 65k ( -17%, -19%, -10% ) and higher above it ( +10% ).
+  Within any one band the requests span about 80-165 tok/sec, and each session was a different piece of agent work, so differences of this size can't be told apart from the sessions' own variation.
+* **The sessions aren't matched.** This one went to 104k tokens against 76k, and 27 of its requests are above 65k, where decode is slowest, against 13. That lifts the CUDA 13 > 65k median relative to section 11's, because most of those requests were short replies to long, fully cached prompts.
+* **Draft acceptance** had a median of 38.9% ( range 26-56%, 63 requests ), against 36.0% in section 11.
+* **Time to first token:** only two requests took 5 s or more ( 5.8 s at 12k tokens and 9.7 s at 20.5k, both cold ), against four in section 11, so this session leans less on prefill, which helps its end-to-end figures more than its decode ones.
+* To tell the toolkits apart, replay one fixed prompt set against each image, rather than comparing two live sessions. I haven't done that.
+
 ## Comparison ( Qwen3.8-27B 5.00bpw, tensor parallel on both 3090s, 262144 context, single stream )
 
 | Setup | Short replies | ~7-8k token generation | 29-59k context, >=1k tokens out | Notes |
