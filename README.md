@@ -109,7 +109,7 @@ Anyway once everything's running, you should be able to connect to the following
 * 2026-08: added litellm, searxng
 * 2026-10: added bnellm01, proxmox, bnenod05, ollama, open-webui, pi, opencode, openhands, sonar, tabbyapi, langfuse
    * Have gone a bit LLM-mad, will probably remove some of those as I find out what works and what doesn't
-* 2026-11: added ninfer, llm.py, mistralrs, sglang
+* 2026-11: added ninfer, llm.py, mistralrs, sglang; moved ninfer from ninfer-3090 to ninfer-all
 
 ## License
 

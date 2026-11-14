@@ -61,7 +61,7 @@ And then once you've got that going, can try these deployments, which will add w
    * needs two keys in vault, and starts scaled to 0
    * then download an EXL3 model and configure it in litellm
 * ninfer ( [backends](SETUP-LLM-BE-NINFER.md) )
-   * needs an image you build yourself ( [docker/ninfer-3090](../docker/ninfer-3090/README.md) ) and a key in vault, and starts scaled to 0
+   * needs a key in vault, and starts scaled to 0
    * the model is downloaded by an init container the first time it starts
 * mistralrs ( [backends](SETUP-LLM-BE-MISTRALRS.md) )
    * uses the official image, needs a HuggingFace token in vault, and starts scaled to 0

@@ -1,3 +1,7 @@
+# Note to humans
+
+This is all claude-written, I'll rewrite this whole doc at some stage once I've got a known set of LLM engines and models.
+
 # MTP ( multi-token prediction ) on tabbyapi and sonar
 
 Notes from 2026-10-29, enabling MTP self-speculative decoding for `turboderp/Qwen3.8-27B-exl3` (5.00bpw) on both EXL3 backends.
@@ -226,7 +230,7 @@ two agree to 0.7-4.6%; on a ~100-token reply with a 1.6 s prefill the engine say
 ### 7. ninfer ( DFlash2, one GPU )
 
 Measured 2026-11-07. This is not the same setup as the rows above: ninfer serves its own 4-5 bit mix of Qwen3.8-27B ( `WarlaxZ/Qwen3.8-27B-NInfer-3090`, 17.0 GiB loaded, against ~20GB for the EXL3 5.00bpw )
-on **one** 3090, not both. It runs the image from `docker/ninfer-3090` ( NInfer-3090 0.17.1 ) with run.sh's default profile: DFlash2 speculation with K=7 and a draft head, n-gram copy drafting, `rk4v4` KV cache, one lane.
+on **one** 3090, not both. It ran the image from `docker/ninfer-3090` ( NInfer-3090 0.17.1; since replaced by ninfer-all, measured in sections 10 and 11 ) with run.sh's default profile: DFlash2 speculation with K=7 and a draft head, n-gram copy drafting, `rk4v4` KV cache, one lane.
 Startup: weights ready in 22.8 s, engine ready in 29.4 s. The log also says `context lowered to 236,544 tokens (asked for 262,144)`: only 6.30 GiB of the card was free beside the model.
 
 Results are engine-reported decode tok/sec from 44 tool-calling requests in one session ( the conversation grew from 2.2k to 73k tokens, `python bin/llm.py speed ninfer --since 6h --min-out 100` ).
@@ -297,6 +301,93 @@ Results are tabbyapi's own generation tok/sec from 47 requests with >= 100 token
 * **Not a clean test:** the KV cache is 8-bit here and 6-bit in section 8, so the gap isn't purely the second GPU. The session is a different one, with different prompts, and I cannot show that the two are the same kind of work. Each is a single run, and the first-band figures are skewed by the warm-up requests.
   Quality was not compared. Tensor parallel without NVLink works fine here, even with GPU-to-GPU traffic going through host memory.
 
+### 10. ninfer-all ( MTP3, one GPU )
+
+Measured 2026-11-14, the first session after moving from ninfer-3090 to [ninfer-all](https://github.com/iamwavecut/ninfer-all) ( image `cuda12.9-bdc1b8d8970a`, build 2026-11-09.1 ), on registry entry `qwen3.8-27b-mtp`:
+run.sh's `tuned` profile with MTP, three drafts and a draft head, a Q6 output head, two lanes, `rk4v4` KV and vision on. The weights are `neroued/Qwen3.8-27B-NInfer` ( 16.0 GiB loaded, against 17.0 GiB for ninfer-3090's ), on **one** 3090.
+It started at the full 262,144 context on its first attempt, with no step-down; GPU 0 used 22,188 of 24,576 MiB and the log said 1.90 GiB free. `engine ready` took 1m 8.6s ( weights 58.4 s ), against 29.4 s on ninfer-3090.
+
+Results are engine-reported decode tok/sec from 33 tool-calling requests in one session ( prompts growing from 2.1k to 65.8k tokens, `python bin/llm.py speed ninfer --since 2h --min-out 100` ).
+The bands are as in section 7, requests with >= 100 tokens out ( 32 of the 33 ), computed from the per-request table:
+
+| Prompt tokens | n | Median decode tok/sec | Range | Tokens out | Section 7 ( ninfer-3090, DFlash2 ) |
+|---|---|---|---|---|---|
+| < 15k | 8 | 115.2 | 84.6-159.9 | 103-4,870 | 131.2 |
+| 15-45k | 7 | 127.9 | 107.6-198.1 | 531-16,384 | 142.4 |
+| 45-65k | 15 | 98.8 | 87.4-167.1 | 111-5,642 | 128.5 |
+| > 65k | 2 | 100.0 | 99.5-100.6 | 573-1,090 | 91.2 |
+| all | 32 | **107.3** | | | |
+
+* **Not directly comparable with section 7.** Every band's median is lower than ninfer-3090's, but that run was DFlash2 with K=7 and one lane, and this is MTP3 with two lanes, in a different session. The ninfer-3090 release notes put MTP about 14% below DFlash2
+  ( 115 against 133 ), but section 11 ran DFlash2 on ninfer-all and it was no faster overall ( ~102 against ~107 ), so MTP against DFlash2 doesn't explain the gap to section 7.
+* **Draft acceptance** had a median of 61.5% ( range 40-81%, 33 requests ). N-gram copy acceptance varied from 7% to 96% per request.
+* **Prefix cache:** 26 of 33 requests had >= 90% of the prompt cached, and the 21 with >= 99% got their first token in 0.1-0.5 s. Cold prompts were slower: 14,375 tokens with nothing cached took 6.7 s ( prefill 2,140 tok/sec ), 14,664 took 7.2 s,
+  and a cold 2.1k one 0.9 s. Partly cached ones took 3.6-4.2 s at 24k, 48k and 56k tokens ( 65%, 85% and 90% cached ).
+* **Langfuse agrees.** `python bin/llm.py speed langfuse --since 2h --model ninfer` ( the model is recorded as `ninfer-qwen3.8:27b-mtp` ) gives end-to-end medians of 87.0, 121.8, 96.6 and 97.1 tok/sec for requests with >= 1000 tokens out,
+  against engine decode of 87.9, 127.9, 97.2 and 100.6 for the same bands ( n = 2, 5, 3, 1 ), so within 0.6-5%. Short cold requests are far lower end to end: 23.5 tok/sec for a cold 14.4k prompt with 186 tokens out, since the 6.7 s prefill dominates.
+  Langfuse still has no first-token time.
+* Not controlled: a single session, a different speculation setup from section 7, and prompts that are not the same task as the sonar and tabbyapi runs.
+
+### 11. ninfer-all ( DFlash2, one GPU )
+
+Measured 2026-11-14, straight after section 10, on registry entry `qwen3.8-27b-dflash2`: the same image and weights file, with run.sh's `tuned` profile using DFlash2 ( seven drafts and a draft head ), one lane, `rk4v4` KV and vision on.
+The weights load as 18.0 GiB, against 16.0 GiB for MTP. It did **not** start at 262,144: `Not enough free GPU memory` at 262,144 ( prefill chunk 4096 ), then at 229,376, and it started at **196,608** with a 2048 chunk and 16 host state slots instead of 32.
+GPU 0 used 22,864 of 24,576 MiB with 1.24 GiB free. Each failed attempt reloaded the weights, so the start took about 2m 15s, against 51 s for the final attempt alone.
+
+Results are engine-reported decode tok/sec from 35 tool-calling requests in one session ( prompts growing from about 3k to 76k tokens, `python bin/llm.py speed ninfer --since 2h --min-out 100` ), requests with >= 100 tokens out ( 31 of the 35 ):
+
+| Prompt tokens | n | Median decode tok/sec | Range | Tokens out | Section 10 ( MTP3 ) |
+|---|---|---|---|---|---|
+| < 15k | 7 | 152.9 | 90.1-182.1 | 107-16,384 | 115.2 ( n=8 ) |
+| 15-45k | 5 | 124.2 | 102.4-127.9 | 2,688-11,952 | 127.9 ( n=7 ) |
+| 45-65k | 6 | 116.5 | 94.2-161.8 | 209-2,053 | 98.8 ( n=15 ) |
+| > 65k | 13 | 96.4 | 78.8-101.8 | 141-1,808 | 100.0 ( n=2 ) |
+| all | 31 | **102.4** | | | 107.3 ( n=32 ) |
+
+* **No faster overall than MTP3 here.** DFlash2's median is 102.4 against 107.3, but the two sessions put their requests in different places: 13 of DFlash2's are above 65k tokens against 2 of MTP's, and 15 of MTP's are at 45-65k against 6.
+  So only the bands with several requests on both sides mean anything, and they disagree: DFlash2 is ahead at < 15k and 45-65k and behind at 15-45k. It also ran one lane at 196,608 tokens, where MTP ran two at 262,144.
+* **ninfer-all's own 3090 figures** ( `docs/performance.md`, Qwen3.8-27B, `rk4v4`, one request, a 258,048 window ) have DFlash2 5 ahead of MTP 3 on short chat ( 115.9 against 95.9 ), at 1k ( 88.5 against 79.0 ) and at 32k ( 93.2 against 89.4 ), level at 8k ( 86.1 against 88.1 ),
+  and behind from 65k ( 70.6 against 77.5; 60.5 against 66.3 at 131k; 54.1 against 61.5 at 196k ). That fits an agent session that spends most of its time deep in context. Our figures at 65-76k ( 96-100 ) are well above theirs, and I haven't worked out why; the n-gram copy drafting
+  that the benchmark may not use is a guess.
+* **Against section 7.** ninfer-3090's DFlash2 session had a median of ~130, against ~102 here. The engine build, the weights file ( 17.0 GiB loaded then, 17.7-18.0 now ), the context ( 236,544 then, 196,608 now ) and the session all differ, so I can't say which accounts for it.
+  It was one GPU in both cases; ninfer has never used two.
+* **Draft acceptance** had a median of 36% ( range 25-56%, 35 requests ), against 61.5% for MTP3's three drafts. DFlash2 proposes seven per round, so the two percentages aren't comparable.
+* **Langfuse reads lower, and the gap is time to first token.** For requests with >= 1000 tokens out, langfuse's end-to-end medians were 97.9, 105.6, 126.3 and 88.8 against engine decode of 101.0, 124.2, 128.2 and 95.1 ( n = 2, 5, 1, 4 ): within 1.5-7% except the 15-45k band, which is 15% lower.
+  That band has two cold or partly cached prompts ( 22,811 tokens with nothing cached took 11.2 s to a first token, 34,796 with 66% cached took 6.0 s ). Estimating end to end as `output / ( output / decode speed + TTFT )` from the pod's log reproduces langfuse's own figures:
+
+  | Prompt | Cached | TTFT | Engine decode | Estimate | Langfuse |
+  |---|---|---|---|---|---|
+  | 14,378 | 0% | 7.2 s | 112.0 | 106.7 | 106.3 |
+  | 22,811 | 0% | 11.2 s | 117.6 | 105.9 | 105.6 |
+  | 34,796 | 66% | 6.0 s | 125.8 | 98.8 | 98.6 |
+  | 43,912 | 100% | 0.2 s | 102.4 | 102.0 | 101.6 |
+
+  So the two measures agree. Langfuse includes prefill, so compare engine with engine or langfuse with langfuse, and expect it to be lower when prompts are cold. Section 10's "within 0.6-5%" held only because that session had fewer cold prompts in those bands.
+* **Log format:** a request where only DFlash2 drafts ( no n-gram copying ) logs `dflash2 accepted 516/2,009 (25.7%)`, not `mixed speculation accepted ...`; `speed ninfer` handles both.
+* Not controlled: a single session, MTP and DFlash2 sessions that differ in lanes and context, and prompts that are not the same task as the sonar and tabbyapi runs or, as far as I can show, as each other.
+
+### 12. ninfer-all ( DFlash2, one GPU, CUDA 13.4 image )
+
+Measured 2026-11-14, straight after section 11: the same commit ( `bdc1b8d8970a` ), registry entry and weights, but the `cuda13.4` image in place of `cuda12.9` ( `CUDA 13 backend`, `nvcc 13.4.92` in the log ). The driver reports CUDA 13.0, the image's minimum, and it started without complaint.
+Startup was the same as section 11: the same two step-downs to **196,608** ( prefill chunk 2048, 16 host state slots ), 1.26 GiB free against 1.24, weights loading in 41-43 s per attempt, and `engine ready` in 50.5 s against 50.7 s. The toolkit made no visible difference to memory or load time.
+
+Results are engine-reported decode tok/sec from 63 tool-calling requests ( prompts growing from 2k to 104k tokens ), requests with >= 100 tokens out ( 57 of the 63 ):
+
+| Prompt tokens | n | Median decode tok/sec | Range | Section 11 ( CUDA 12.9 ) |
+|---|---|---|---|---|
+| < 15k | 7 | 126.9 | 94.0-164.6 | 152.9 ( n=7 ) |
+| 15-45k | 8 | 100.7 | 91.4-151.0 | 124.2 ( n=5 ) |
+| 45-65k | 15 | 104.9 | 85.6-153.6 | 116.5 ( n=6 ) |
+| > 65k | 27 | 106.3 | 78.8-146.9 | 96.4 ( n=13 ) |
+| all | 57 | **108.5** | | 102.4 ( n=31 ) |
+
+* **No measurable difference between the toolkits.** The overall median is 6% higher, and restricted to the prompts section 11 covered ( up to 76k tokens ) it is 108.8 over 38 requests, but the bands go both ways: lower below 65k ( -17%, -19%, -10% ) and higher above it ( +10% ).
+  Within any one band the requests span about 80-165 tok/sec, and each session was a different piece of agent work, so differences of this size can't be told apart from the sessions' own variation.
+* **The sessions aren't matched.** This one went to 104k tokens against 76k, and 27 of its requests are above 65k, where decode is slowest, against 13. That lifts the CUDA 13 > 65k median relative to section 11's, because most of those requests were short replies to long, fully cached prompts.
+* **Draft acceptance** had a median of 38.9% ( range 26-56%, 63 requests ), against 36.0% in section 11.
+* **Time to first token:** only two requests took 5 s or more ( 5.8 s at 12k tokens and 9.7 s at 20.5k, both cold ), against four in section 11, so this session leans less on prefill, which helps its end-to-end figures more than its decode ones.
+* To tell the toolkits apart, replay one fixed prompt set against each image, rather than comparing two live sessions. I haven't done that.
+
 ## Comparison ( Qwen3.8-27B 5.00bpw, tensor parallel on both 3090s, 262144 context, single stream )
 
 | Setup | Short replies | ~7-8k token generation | 29-59k context, >=1k tokens out | Notes |
@@ -308,7 +399,9 @@ Results are tabbyapi's own generation tok/sec from 47 requests with >= 100 token
 | sonar + MTP, int8 KV, Triton | 80-113 tok/sec | 53 tok/sec | 19-31 tok/sec | acceptance 50-63%; much slower, see section 5 |
 | tabbyapi + MTP, Swift 4.00bpw SC, **one** GPU | median ~72 tok/sec in a tool-calling session ( range 17-103 ) | 60 tok/sec ( one 4.7k request ) | 70-75 median at 15-80k context, engine decode, not end-to-end ( n=54; see section 8 ) | acceptance 52-88%; 96-100% of prompt tokens cached; 6-bit KV; different weights ( 4.00bpw ) |
 | tabbyapi + MTP, Swift 4.00bpw SC, **two** GPUs ( tensor parallel ) | median ~105 tok/sec in a tool-calling session ( range 21-151 ) | 89-130 tok/sec ( 10 requests of 1,087-9,348 tokens ) | 86-116 median at 15-70k context, engine decode, not end-to-end ( n=47; see section 9 ) | acceptance median 66%; 8-bit KV; TTFT median 0.95 s on cached prompts, 11-15 s cold |
-| ninfer, DFlash2, **one** GPU | 121-178 tok/sec | 97 tok/sec ( one 6.9k request ) | 116-164 engine decode, not end-to-end ( n=8, median 142; see section 7 ) | acceptance 42%; 96% of prompt tokens cached; different weights ( 4-5 bit, 17 GiB ) |
+| ninfer-3090, DFlash2, **one** GPU | 121-178 tok/sec | 97 tok/sec ( one 6.9k request ) | 116-164 engine decode, not end-to-end ( n=8, median 142; see section 7 ) | acceptance 42%; 96% of prompt tokens cached; different weights ( 4-5 bit, 17 GiB ) |
+| ninfer-all, MTP3, **one** GPU | median ~107 tok/sec in a tool-calling session ( range 85-198 ) | 109 tok/sec ( one 7.2k-token reply ) | 97-180 engine decode, not end-to-end ( n=5, median 153; see section 10 ) | acceptance median 61%; 26 of 33 requests >= 90% cached; two lanes; weights 16.0 GiB |
+| ninfer-all, DFlash2, **one** GPU | median ~102 tok/sec in a tool-calling session ( range 79-182 ) | 90 tok/sec ( one 9.3k-token reply ) | 102-128 engine decode, not end-to-end ( n=5, median 126; see section 11 ) | acceptance median 36% ( seven drafts a round ); one lane; context stepped down to 196,608; weights 18.0 GiB |
 
 The first three speed columns are engine-reported decode tok/sec; the 29-59k column is end-to-end tok/sec from langfuse ( output tokens / total latency, includes prefill ), so only compare within it.
 All numbers are single runs, not averaged. The short-reply and 7-8k figures used different prompts; the 29-59k column is the same coding task in both sonar rows.
@@ -316,6 +409,7 @@ tabbyapi + MTP is the simplest ( no patching ) and at least as fast as sonar whe
 Sonar's advantages are its Prometheus metrics and batching several requests; neither helps a single stream.
 ninfer's decode speed is higher than the other rows, on half the GPUs, but the margin depends on the cell: on short replies its range ( 121-178 ) overlaps tabbyapi's top end ( 95-128 ), and the 7-8k cell is one request.
 The ninfer row is also a different quantisation, a different task and a different measure in its last speed cell ( section 7 ), so read it as "faster", not as a precise ratio.
+The two ninfer-all rows ( sections 10 and 11 ) are closer to the others: their session medians of ~107 ( MTP3 ) and ~102 ( DFlash2 ) tok/sec on one GPU are about the same as tabbyapi's two-GPU Swift run ( ~105, section 9 ), so the figures above describe the ninfer-3090 DFlash2 setup, not ninfer in general.
 
 ## The four engines compared
 
@@ -326,17 +420,17 @@ All four serve models to litellm from `bnenod05`, and only one runs at a time ( 
 | **Model format** | GGUF | EXL3 ( also GGUF ) | EXL3 ( and FP16/BF16 ) | its own `.ninfer`, specific models only |
 | **Models at once** | many, loaded on demand and unloaded after `keep_alive` ( 30m ) | one per process, set in the registry | one; load and unload through the API | one per process |
 | **GPUs** | both ( layer split ) | both ( tensor parallel ) | both ( autosplit, or tensor parallel ) | **one** |
-| **Speed seen, short replies** | not measured | 52 without MTP; 104-112 with | 47-48 without MTP; 95-128 with | 121-178 ( speculation always on ) |
-| **Speed seen, long generations** | not measured | 69-72 with MTP | 74-76 with MTP | 97 ( one 6.9k request ); median ~130 over a 44-request session |
+| **Speed seen, short replies** | not measured | 52 without MTP; 104-112 with | 47-48 without MTP; 95-128 with | 121-178 on ninfer-3090 ( speculation always on ); 79-198 on ninfer-all, session medians ~102-107 |
+| **Speed seen, long generations** | not measured | 69-72 with MTP | 74-76 with MTP | 97 ( one 6.9k request ); median ~130 over a 44-request session on ninfer-3090; 90-109 ( one 7-9k reply each ) on ninfer-all |
 | **Metrics** | none set up | Prometheus `/metrics` | none, logs only | Prometheus `/metrics`, `/health`, and a per-request log line |
-| **Image** | stock | you build it ( the CUDA compile took about 7 hours ) | stock, from ghcr | you build it, but it only wraps a prebuilt release ( `docker/ninfer-3090` ) |
+| **Image** | stock | you build it ( the CUDA compile took about 7 hours ) | stock, from ghcr | stock, from ghcr ( `ninfer-all`; the figures here are from the ninfer-3090 image you had to build ) |
 | **Starts** | scaled up | scaled to 0 | scaled to 0 | scaled to 0 |
 | **Switch model** | `ollama pull`, then add it to litellm by hand | edit the registry, `model load` | registry, `model download`, `model load` | registry, `model load` |
 
 * **ollama** is the flexible one: the only engine that swaps many models in and out on demand, which is why it runs by default. It is also the only one without a model registry or `model sync`.
 * **sonar** has the most features ( batching, Prometheus, tool-call and reasoning parser flags ) but was the hardest to set up; MTP needed a manual patch on the PVC.
 * **tabbyapi** is the simplest way to run EXL3: MTP worked first time and models can be swapped at runtime. No metrics.
-* **ninfer** is the fastest here and uses half the GPUs, at the cost of a narrower, riskier setup: a community port of a Blackwell engine, maintained best-effort, that only runs the models it supports.
+* **ninfer** matched tabbyapi's two-GPU speed on one GPU ( session medians ~102-107 on ninfer-all against ~105 ), with the earlier ninfer-3090 session higher ( ~130 ), at the cost of a narrower, riskier setup: a community port of a Blackwell engine, maintained best-effort, that only runs the models it supports.
 
 ### Qualifications on the speed rows
 
@@ -344,7 +438,7 @@ All four serve models to litellm from `bnenod05`, and only one runs at a time ( 
   is a quality trade, not only a better engine. I have no measurement of how its output compares with EXL3; its model card compares it only with other ninfer and GGUF files.
 * **Different hardware use.** ninfer ran on one 3090 and the others on two with tensor parallelism, so ninfer pays no cross-GPU traffic, and on these PCIe-only cards that traffic is a real cost.
 * **Different speculation.** sonar and tabbyapi use the model's own MTP layer. ninfer's default profile uses DFlash2 with a draft head, plus n-gram copy drafting that helps when the model rewrites text it has just read ( 73% of copied
-  tokens were accepted against 42% of the others ). `NINFER_SPEC=mtp` ( the `qwen3.8-27b-mtp` registry entry ) is the closer match to the other two, and the release's own numbers have it slower than DFlash2; I have not measured it here.
+  tokens were accepted against 42% of the others ). `NINFER_SPEC=mtp` ( the `qwen3.8-27b-mtp` registry entry ) is the closer match to the other two, and the release's own numbers have it slower than DFlash2; sections 10 and 11 measured MTP and DFlash2 on ninfer-all ( session medians ~107 and ~102 tok/sec ), so DFlash2 was not faster there.
 * **Different prompts and measures.** The sonar and tabbyapi figures are short test prompts and one coding task, and the ninfer ones are a different tool-calling session. All are single runs. ninfer's figures are engine-reported decode speed
   from `speed ninfer`; none of the four were measured on the same prompts, and none are langfuse end-to-end figures. ollama was not measured at all.
 * **Large variation.** ninfer ran 88-178 tok/sec between requests, following its draft acceptance ( 26-56% ). A median of many requests is more meaningful than any one, and none of these medians is a benchmark.
@@ -374,14 +468,14 @@ python bin/llm.py metric sonar                    # MTP acceptance by draft posi
 python bin/llm.py speed tabbyapi --since 2h          # generation tok/sec, cached share and draft acceptance, from tabby's log
 python bin/llm.py speed ninfer --since 2h --min-out 100   # prefill and decode tok/sec, cached share, draft and n-gram acceptance, from ninfer's log
 python bin/llm.py metric ninfer                   # decode speed and speculation acceptance since the pod started ( vault key, kubectl port-forward )
-python bin/llm.py speed langfuse 2026-10-29T12:30:00Z 2026-10-29T14:00:00Z --model sonar
+python bin/llm.py speed langfuse --since 2h --model ninfer     # or START [END] as UTC times: 2026-10-29T12:30:00Z 2026-10-29T14:00:00Z
 ```
 
 The log and metrics verbs also take `--file <path>` to read saved text instead of asking the cluster. Each prints a per-request table and then median speeds by
 prompt size ( `<15k`, `15-45k`, `45-65k`, `>65k` ) for requests with at least `--min-out` tokens out ( default 1000 ).
 
-`speed langfuse` needs the project keys: `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` ( in vault under `k8s/bnekub03/secret/dev-langfuse/langfuse` ). From WSL running a Windows Python,
-also `export WSLENV=LANGFUSE_PUBLIC_KEY:LANGFUSE_SECRET_KEY:$WSLENV`, or the variables are not passed through. Langfuse is v4.70, where the old `/api/public/observations`
+`speed langfuse` reads the project keys from vault ( `k8s/bnekub03/secret/dev-langfuse/langfuse`, so `. vault-login.sh` first ). `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` override them if set.
+`--since 2h` looks back from now; `START` and `END` are still UTC, and so are the times in the table. Langfuse is v4.70, where the old `/api/public/observations`
 returns 404; the verb uses `/api/public/v2/observations` with cursor paging. Its speed is `--basis e2e` ( output tokens / total latency, so it includes prefill ) because
 `timeToFirstToken` is empty ( next section ).
 

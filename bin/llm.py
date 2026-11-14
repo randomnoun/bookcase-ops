@@ -16,6 +16,7 @@ temporary `kubectl port-forward`. `model load` runs ansible-playbook ( on Window
 """
 import base64
 import contextlib
+import datetime
 import functools
 import json
 import os
@@ -125,29 +126,54 @@ def model_group():
 
 # --- langfuse ---------------------------------------------------------------------------------------------------------
 
+def parse_since(text):
+    """'90m', '2h', '1d' or '1h30m' as a timedelta, like kubectl --since."""
+    m = re.fullmatch(r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?", text.strip())
+    if not m or not any(m.groups()):
+        raise click.BadParameter(f"'{text}' isn't a duration like 30m, 2h, 1d or 1h30m", param_hint="--since")
+    days, hours, minutes, seconds = (int(g or 0) for g in m.groups())
+    return datetime.timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+
+
+def langfuse_key(field):
+    return vault(f"k8s/{CLUSTER}/secret/dev-langfuse/langfuse", field)
+
+
 @speed_group.command("langfuse")
-@click.argument("start")
+@click.argument("start", required=False)
 @click.argument("end", required=False)
+@click.option("--since", help="How far back to look ( 30m, 2h, 1d, 1h30m ), instead of a START time. "
+                              "Without START or --since it's 1h.")
 @click.option("--host", envvar="LANGFUSE_HOST", default="https://langfuse.dev.randomnoun", show_default=True)
-@click.option("--public-key", envvar="LANGFUSE_PUBLIC_KEY", required=True, help="Or set LANGFUSE_PUBLIC_KEY.")
-@click.option("--secret-key", envvar="LANGFUSE_SECRET_KEY", required=True,
-              help="Or set LANGFUSE_SECRET_KEY ( preferred: it doesn't end up in your shell history ).")
+@click.option("--public-key", envvar="LANGFUSE_PUBLIC_KEY",
+              help="Or set LANGFUSE_PUBLIC_KEY. Default: the project's public_key in vault.")
+@click.option("--secret-key", envvar="LANGFUSE_SECRET_KEY",
+              help="Or set LANGFUSE_SECRET_KEY. Default: the project's secret_key in vault.")
 @click.option("--model", help="Only models whose name contains this text ( case-insensitive ).")
 @click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
 @click.option("--basis", type=click.Choice(["e2e", "decode"]), default="e2e", show_default=True,
               help="e2e = output tokens / total latency ( includes prefill ). decode = output tokens / ( latency - "
                    "time to first token ), only for requests that have a first-token time.")
 @click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
-def langfuse_speeds(start, end, host, public_key, secret_key, model, min_out, basis, last):
-    """Per-request speeds from langfuse, for generations between START and END ( ISO 8601, UTC ).
+def langfuse_speeds(start, end, since, host, public_key, secret_key, model, min_out, basis, last):
+    """Per-request speeds from langfuse, for generations since a time ago, or between START and END ( ISO 8601, UTC ).
 
     \b
-    Example:
+    Examples:
+      python bin/llm.py speed langfuse --since 2h --model ninfer
       python bin/llm.py speed langfuse 2026-10-29T12:30:00Z 2026-10-29T14:00:00Z --model sonar
 
-    Uses the v2 observations API ( langfuse v4 ). litellm v1.104 sends no first-token time, so for now only the
-    e2e basis has data; the decode basis works once litellm sends it ( see setup/SETUP-LLM-MTP.md ).
+    The project keys come from vault ( `. vault-login.sh` first ) unless LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY
+    are set. The times in the table are UTC. Uses the v2 observations API ( langfuse v4 ). litellm v1.104 sends no
+    first-token time, so for now only the e2e basis has data; the decode basis works once litellm sends it
+    ( see setup/SETUP-LLM-MTP.md ).
     """
+    if start and since:
+        raise click.UsageError("give START or --since, not both")
+    if not start:
+        start = (datetime.datetime.now(datetime.timezone.utc) - parse_since(since or "1h")).strftime("%Y-%m-%dT%H:%M:%SZ")
+    public_key = public_key or langfuse_key("public_key")
+    secret_key = secret_key or langfuse_key("secret_key")
     auth = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
 
     def get(cursor):
@@ -406,8 +432,11 @@ def parse_ninfer(text):
                 r["prefill"] = per_second(x.group(1))
             elif x := re.fullmatch(r"decode (.+)", seg):
                 r["tps"] = per_second(x.group(1))
-            elif x := re.fullmatch(r"(\w+) accepted [\d,]+/[\d,]+ \(([\d.]+)%\)", seg):
+            elif x := re.fullmatch(r"(\w+)(?: speculation)? accepted [\d,]+/[\d,]+ \(([\d.]+)%\)", seg):
                 r["copies" if x.group(1) == "copies" else "draft"] = f"{x.group(2)}%"
+            elif x := re.fullmatch(r"ngram ([\d,]+)/([\d,]+) accepted(?:, [\d,]+ rounds?)?", seg):
+                if num(x.group(2)):
+                    r["copies"] = f"{num(x.group(1)) / num(x.group(2)):.1%}"
         if r["prompt"] is not None and r["out"] is not None and r["tps"]:
             recs.append(r)
     return recs
@@ -442,7 +471,7 @@ def ninfer_speeds(since, namespace, deployment, min_out, last, file):
     show_bands(recs, min_out, "decode tok/sec")
 
 
-NINFER_METRIC_RE = re.compile(r"^(ninfer_\w+)(\{[^}]*\})?\s+(\S+)$")
+NINFER_METRIC_RE = re.compile(r"^((?:ninfer|llamacpp):\w+)(\{[^}]*\})?\s+(\S+)$")
 
 
 def parse_ninfer_counters(text):
@@ -469,30 +498,21 @@ def ninfer_metrics(file):
     prefill and waiting. Reads /metrics through a kubectl port-forward, with the API key from vault.
     """
     t = parse_ninfer_counters(cluster_or_file(file, lambda: engine_api("ninfer", "GET", "/metrics", ninfer_headers())))
-    tokens, secs = t.get("ninfer_decode_tokens_total", 0), t.get("ninfer_decode_seconds_total", 0)
+    # ninfer-all's names ( docs/serving.md#metrics ): the llamacpp: series keep llama.cpp's meanings, ninfer: are its own
+    tokens, secs = t.get("llamacpp:tokens_predicted_total", 0), t.get("llamacpp:tokens_predicted_seconds_total", 0)
     if not (tokens and secs):
         raise click.ClickException("no ninfer decode counters found ( has it served a request yet? )")
     click.echo(f"decode: {tokens:,.0f} tokens in {secs:,.1f}s of decode rounds = {tokens / secs:.1f} tok/s")
 
-    rounds = t.get("ninfer_spec_decode_rounds_total", 0)
-    drafted, accepted = t.get("ninfer_spec_decode_draft_tokens_total", 0), t.get("ninfer_spec_decode_accepted_tokens_total", 0)
+    rounds = t.get("llamacpp:n_decode_total", 0)
+    drafted, accepted = t.get("ninfer:draft_tokens_total", 0), t.get("ninfer:draft_accepted_tokens_total", 0)
     if rounds and drafted:
-        window = t.get("ninfer_spec_decode_draft_window")
-        click.echo(f"speculation: {rounds:,.0f} rounds   draft tokens {drafted:,.0f}   accepted {accepted:,.0f} "
-                   f"( {accepted / drafted:.1%} )" + (f"   draft window {window:.0f}" if window else ""))
-        click.echo(f"tokens per forward pass: {1 + accepted / rounds:.2f}   ( 1 + accepted / rounds )")
-        fallback = t.get("ninfer_spec_decode_fallback_steps_total", 0)
-        if fallback:
-            click.echo(f"rounds without drafts: {fallback:,.0f}")
+        click.echo(f"speculation: {rounds:,.0f} decode rounds   draft tokens {drafted:,.0f}   accepted {accepted:,.0f} "
+                   f"( {accepted / drafted:.1%} )")
+        click.echo(f"tokens per decode round: {tokens / rounds:.2f}")
     else:
         click.echo("no speculative-decoding counters found ( NINFER_SPEC=none? )")
-    n_rounds, n_drafted = t.get("ninfer_spec_decode_ngram_rounds_total", 0), t.get("ninfer_spec_decode_ngram_draft_tokens_total", 0)
-    if n_rounds and n_drafted:
-        n_accepted = t.get("ninfer_spec_decode_ngram_accepted_tokens_total", 0)
-        click.echo(f"n-gram copies: {n_rounds:,.0f} rounds   copied {n_drafted:,.0f}   accepted {n_accepted:,.0f} "
-                   f"( {n_accepted / n_drafted:.1%} )")
-    # prefill counters: named in ninfer's docs but not in the output I have seen, so only shown when present
-    p_tokens, p_secs = t.get("ninfer_prefill_tokens_total", 0), t.get("ninfer_prefill_seconds_total", 0)
+    p_tokens, p_secs = t.get("llamacpp:prompt_tokens_total", 0), t.get("llamacpp:prompt_seconds_total", 0)
     if p_tokens and p_secs:
         click.echo(f"prefill: {p_tokens:,.0f} uncached tokens in {p_secs:,.1f}s = {p_tokens / p_secs:,.0f} tok/s")
 

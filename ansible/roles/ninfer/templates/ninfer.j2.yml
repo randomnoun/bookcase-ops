@@ -1,4 +1,20 @@
-# k8s yaml for the image built from docker/ninfer-3090, which wraps https://github.com/ashalliants/ninfer-3090
+# k8s yaml for the image published by https://github.com/iamwavecut/ninfer-all ( ghcr.io/iamwavecut/ninfer-all )
+
+---
+# run.sh ( the launcher ) has no setting for --api-key, --model-id or --default-thinking-budget, and passes no extra
+# arguments to the server, so NINFER_SERVER points at this wrapper, which adds them from the environment and then
+# runs the real binary.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ninfer-serve-wrapper
+data:
+  serve.sh: |
+    #!/bin/sh
+    [ -z "${NINFER_MODEL_ID:-}" ] || set -- "$@" --model-id "$NINFER_MODEL_ID"
+    [ -z "${NINFER_API_KEY:-}" ] || set -- "$@" --api-key "$NINFER_API_KEY"
+    [ -z "${NINFER_DEFAULT_THINKING_BUDGET:-}" ] || set -- "$@" --default-thinking-budget "$NINFER_DEFAULT_THINKING_BUDGET"
+    exec /opt/ninfer/multi/ninfer-serve "$@"
 
 ---
 apiVersion: v1
@@ -70,11 +86,14 @@ spec:
         - name: ninfer
           image: "{{ ninfer_image }}"
           imagePullPolicy: IfNotPresent
-          # the image's ENTRYPOINT is run.sh, so this is its profile argument
+          # override the image's ENTRYPOINT so NINFER_SERVER env var below takes effect
+          command: ["/opt/ninfer/run.sh"]
           args: ["{{ ninfer_profile }}"]
           ports:
             - containerPort: 8080
           env:
+            - name: NINFER_SERVER
+              value: /opt/ninfer-wrapper/serve.sh
             - name: NINFER_MODEL_ID
               value: "{{ ninfer_served_model_name }}"
 {% if ninfer_api_key | length > 0 %}
@@ -136,10 +155,16 @@ spec:
           volumeMounts:
             - mountPath: /models
               name: models
+            - mountPath: /opt/ninfer-wrapper
+              name: wrapper
       volumes:
         - name: models
           persistentVolumeClaim:
             claimName: ninfer-pvc
+        - name: wrapper
+          configMap:
+            name: ninfer-serve-wrapper
+            defaultMode: 493  # 0755
 
 ---
 apiVersion: v1
