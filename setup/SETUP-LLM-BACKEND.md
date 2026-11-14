@@ -45,7 +45,7 @@ The backend engines run the models:
    * built for large mixture-of-experts models: it keeps the experts in system RAM and on the SSD, and the dense layers and hot experts on the GPUs. The registry has Qwen3.8-Flash-Next ( 125B ), not the 27B the others serve, so its speeds aren't comparable
    * developed by Niko1221
    * also has a model registry managed by llm.py
-   * not yet run here, see the page for what's unconfirmed
+   * runs on both 3090s at a median of about 159 tok/sec with 98% of agent prompt tokens reused from its cache, in a 63-request session, but on the larger model; see the page
    * [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md)
 
 All seven are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 

@@ -785,6 +785,63 @@ def sglang_metrics(file):
         click.echo(f"speculation: {t['spec_num_steps']:.0f} steps, {t.get('spec_num_draft_tokens', 0):.0f} draft tokens")
 
 
+STRATA_DONE_RE = re.compile(
+    r"strata serve: prompt ([\d,]+) tokens = ([\d,]+) reused \+ ([\d,]+) read in ([\d,]+) ms \(([\d.,]+) tok/s\), "
+    r"([\d,]+) generated in ([\d,]+) ms \(([\d.,]+) tok/s\), drafts accepted ([\d,]+) of ([\d,]+)")
+STRATA_LOG = "/data/state/strata/launch/docker.engine.log"
+
+
+def parse_strata(text):
+    """One record per request, from strata's 'strata serve: prompt N tokens = R reused + P read in T ms ..., G generated in ...' line.
+
+    The prompt is the whole prompt, R of it came from the conversation cache and P was read, so cached = R / N and TTFT is
+    estimated as the time to read the P uncached tokens. Decode is strata's own figure for the generated tokens; it is left out
+    when only one token was generated, as the time then says nothing about speed. The lines have no timestamps, so records are
+    only numbered, in file order."""
+    recs = []
+    for line in ANSI_RE.sub("", text).splitlines():
+        m = STRATA_DONE_RE.search(line)
+        if not m:
+            continue
+        prompt, reused, read, read_ms, read_tps, out, out_ms, tps, accepted, drafted = (num(g) for g in m.groups())
+        recs.append({"n": len(recs) + 1, "prompt": int(prompt), "out": int(out),
+                     "cached_pct": 100 * reused / prompt if prompt else None,
+                     "ttft": read_ms / 1000, "prefill": read_tps if read else None,
+                     "tps": tps if out >= 2 else None,
+                     "accept_rate": accepted / drafted if drafted else None})
+    return recs
+
+
+@speed_group.command("strata")
+@click.option("--namespace", "-n", default="dev-strata", show_default=True)
+@click.option("--deployment", default="strata", show_default=True)
+@click.option("--log", "log_path", default=STRATA_LOG, show_default=True, help="Where strata writes its engine log, inside the pod.")
+@click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
+@click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
+@FILE_OPT
+def strata_speeds(namespace, deployment, log_path, min_out, last, file):
+    """Per-request speeds, conversation-cache reuse and draft acceptance from strata's engine log.
+
+    Strata logs one "strata serve: prompt ..." line per request to its engine log file, not to the pod's output, so this reads the
+    file with kubectl exec. The lines have no timestamps, so there is no --since: requests are numbered in file order and --last
+    picks the newest. Cached is the share of the prompt reused from the conversation cache, TTFT is estimated as the time to read
+    the uncached part, "read tok/s" is the speed of that read ( noisy for a few tokens ), decode is strata's own figure for the
+    generated tokens, and accept is drafted tokens accepted over drafted. I haven't checked whether the file starts afresh when
+    the pod restarts, so after a restart older requests may still be in it.
+    """
+    recs = parse_strata(cluster_or_file(file, lambda: kubectl("-n", namespace, "exec", f"deploy/{deployment}", "--", "cat", log_path)))
+    if not recs:
+        raise click.ClickException(f"no 'strata serve: prompt' lines found in {log_path}")
+    dash = lambda v, fmt: "-" if v is None else format(v, fmt)
+    if last:
+        click.echo(f"{len(recs)} requests, showing the last {min(last, len(recs))}:")
+        show_table(["#", "prompt", "cached", "out", "ttft s", "read tok/s", "decode tok/s", "accept"],
+                   [[r["n"], f"{r['prompt']:,}", dash(r["cached_pct"], ".0f") + ("" if r["cached_pct"] is None else "%"),
+                     f"{r['out']:,}", dash(r["ttft"], ".1f"), dash(r["prefill"], ",.0f"), dash(r["tps"], ".1f"),
+                     "-" if r["accept_rate"] is None else f"{r['accept_rate']:.0%}"] for r in recs[-last:]])
+    show_bands(recs, min_out, "decode tok/sec")
+
+
 @metric_group.command("strata")
 @FILE_OPT
 def strata_metrics(file):

@@ -6,7 +6,7 @@ This is all claude-written, I'll rewrite this whole doc at some stage once I've 
 
 Notes from 2026-10-29, enabling MTP self-speculative decoding for `turboderp/Qwen3.8-27B-exl3` (5.00bpw) on both EXL3 backends.
 See [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) for how the engines are deployed and switched.
-Section 7 adds `ninfer` ( 2026-11-07 ), which is a different engine with its own speculative decoding. Section 13 adds `sglang` and section 14 `mistralrs` ( both 2026-11-14 ).
+Section 7 adds `ninfer` ( 2026-11-07 ), which is a different engine with its own speculative decoding. Section 13 adds `sglang` and section 14 `mistralrs` ( both 2026-11-14 ), and section 15 `strata` ( 2026-11-15 ), which runs a different, much larger model.
 
 ## Background
 
@@ -458,6 +458,33 @@ The rows are by prompt size and include the three requests with fewer than 100 t
 6. **Save the quantized model as UQFF** ( `mistralrs quantize -m Qwen/Qwen3.8-27B --isq q4k -o <dir>`, then serve it with `--from-uqff` ) so a restart skips the 3 minutes of quantizing. Convenience only.
 7. **A different quant.** I expect most of the gap to sglang to be the `q4k` kernels against GPTQ's Marlin ones, and none of 1-6 changes that, so I'd expect them to give tens of percent, not 2x. I haven't checked whether mistralrs has a Marlin-style 4-bit path.
 
+### 15. strata ( Qwen3.8-Flash-Next 125B, IQ3_XXS, two GPUs )
+
+Measured 2026-11-15, one pi agent session of 63 requests with prompts growing from 53 to 88,939 tokens, on Strata 0.2.13 ( engine 0.1.59, the `0.2.13-cuda13` image ). **This is a different model from sections 1-14**: Qwen3.8-Flash-Next is a 125-billion-parameter mixture of experts,
+run from ISTA-DASLab's IQ3_XXS GGUF ( 76 GB ), with the experts held mostly in system RAM ( the engine pins 26.8 GiB ) and the dense layers and hottest experts on the GPUs as a layer split across both 3090s. Speculation is MTP; the plan asked for DFlash2 and the log said `Drafting: MTP (DFlash2 isn't available in this mode)`.
+Context is 128k ( 131,072 ), pictures are on. So the figures below are not a like-for-like comparison with the 27B engines; they say what this setup does, not that strata is faster.
+
+Results are strata's own per-request figures from its engine log ( `python bin/llm.py speed strata --min-out 100` ). That log is a file on the PVC and its lines have no timestamps, so the requests are in file order. TTFT is estimated as the time to read the uncached part of the prompt.
+
+| Prompt tokens | n | Median decode tok/sec | Range | Tokens out |
+|---|---|---|---|---|
+| < 15k | 7 | 170.3 | 127.3-176.8 | 109-6,144 |
+| 15-45k | 7 | 162.8 | 150.1-168.2 | 1,628-16,384 |
+| 45-65k | 16 | 148.5 | 128.8-166.1 | 105-2,510 |
+| > 65k | 24 | 158.7 | 131.9-178.3 | 155-2,447 |
+| all ( >= 100 tokens out ) | 54 | **158.6** | 127.3-178.3 | |
+
+* **Decode barely depends on context here.** The bands stay between 148.5 and 170.3, a spread of about 15%, from under 15k to 89k tokens, unlike mistralrs ( section 14 ), where decode fell from 43 to 18 tok/sec over 1.5k-5.5k. The longest generation, 16,384 tokens, ran at 150.1 tok/sec. With only 1,000+ tokens out the bands are 139.9, 162.8, 145.3 and 144.4 ( n = 2, 7, 5, 4 ), a little lower, as the long replies are slower.
+* **Draft acceptance** averaged 72% ( median 73%, range 52-84% ) over those 54 requests, and was lowest on the longest replies ( 52% on a 6,144-token one ), the same pattern as the other engines.
+* **Prefix reuse is the standout.** 98.1% of all prompt tokens were reused from its conversation cache ( 3.22 million of 3.28 million, weighted by tokens ), and the median prompt of 2k+ tokens was 100% reused ( 59 requests ). The first token took a median 0.5 s, 1.3 s at the 90th percentile, 7.5 s at worst.
+  Only 3 of those 59 were cold: 2,100 tokens ( 1.7 s ), 15,895 ( 5.8 s ) and 24,106 ( 7.5 s ), reading at 1,256, 2,764 and 3,218 tok/sec. Prometheus's `vllm:prefix_cache_hits_total` agreed: 97.9%.
+* **Expert cache:** 95.1-99.6% hits ( median 99.1% over 63 lines ), and 96.3-99.9% of KV block reads were served from VRAM ( median 99.3% ), with the rest read from RAM. That is the thing this engine is built around, and it held up at 89k tokens.
+* **Against the others.** The median of 158.6 tok/sec is 1.7x sglang's 94.6 ( section 13 ) and 1.5-1.6x ninfer-all's ~102-108, on a model with far more parameters. I think that is because only a few of its experts run per token, so it reads little per token, and the speculation is on top, but I haven't tested that.
+  What I can say is that the comparison is between different models, different quants ( IQ3_XXS against GPTQ, EXL3 and `.ninfer` ) and different sessions, each on one run. Whether the 125B model's answers are better, I haven't looked at.
+* **Memory is nearly full.** Both GPUs sat at about 97% ( 23.4 of 24 GiB ) and host RAM at 83-89 of 94 GiB with the model idle, so nothing else can run beside it, and a longer prompt or a second request could run out. I saw no out-of-memory error.
+* **First start:** the 76.7 GB downloaded in under an hour at about 30 MB/s, and the model loaded in about 90 seconds. The pod had no restarts overnight. Memory locking worked with only the `IPC_LOCK` capability, with no ulimit change.
+* **Not measured:** output quality, tool calls and thinking through litellm and pi ( the thinking cap went with each request, and I only tested that it works on a direct one ), langfuse end-to-end figures, and a comparison on the same prompts as the other engines.
+
 ## Comparison ( Qwen3.8-27B 5.00bpw, tensor parallel on both 3090s, 262144 context, single stream )
 
 | Setup | Short replies | ~7-8k token generation | 29-59k context, >=1k tokens out | Notes |
@@ -474,6 +501,7 @@ The rows are by prompt size and include the three requests with fewer than 100 t
 | ninfer-all, DFlash2, **one** GPU | median ~102 tok/sec in a tool-calling session ( range 79-182 ) | 90 tok/sec ( one 9.3k-token reply ) | 102-128 engine decode, not end-to-end ( n=5, median 126; see section 11 ) | acceptance median 36% ( seven drafts a round ); one lane; context stepped down to 196,608; weights 18.0 GiB |
 | sglang, MTP via EAGLE, GPTQ 4-bit, **two** GPUs ( tensor parallel ) | median ~95 tok/sec in a tool-calling session ( range 73.5-144 ) | 88.5 and 92.1 tok/sec ( 6.6k and 8.2k tokens out ) | 123 ( 15-45k, n=4 ) and 91 ( 45-65k, n=6 ) median, engine decode, not end-to-end ( see section 13 ) | accept length 2.9 of 4, rate 63%; 97.5% of prompt tokens cached; fp8 KV; needed a patched quantization config for MTP to work at all |
 | mistralrs, MTP, `q4k` quantized at load, **two** GPUs ( tensor parallel ) | median 36.8 tok/sec over 7 requests of 5.5k tokens or less ( range 18.0-43.1 ) | 18.0 tok/sec ( one 6,850-token reply, 5.5k prompt ) | not measured; prompts stopped at 5.5k tokens ( see section 14 ) | accept length 2.0-2.75, rate 49-79%; **0% prefix cache** ( MTP recomputes prefixes ); 63,840-token KV cache; one hang after a cancelled request |
+| strata, MTP, Qwen3.8-**Flash-Next 125B** IQ3_XXS ( a different model ), **two** GPUs ( layer split ) | median 158.6 tok/sec in a pi agent session ( range 127-178, n=54 ) | 127.3 tok/sec ( one 6,144-token reply ); 150.1 on a 16,384-token one | 158.4 median above 15k tokens, up to 89k ( bands 148.5-162.8 ), engine decode, not end-to-end ( n=47; see section 15 ) | acceptance mean 72%; **98% of prompt tokens reused**; median TTFT 0.5 s; experts held in RAM ( 26.8 GiB pinned ); both GPUs at 97% memory; **not comparable with the rows above** |
 
 The first three speed columns are engine-reported decode tok/sec; the 29-59k column is end-to-end tok/sec from langfuse ( output tokens / total latency, includes prefill ), so only compare within it.
 All numbers are single runs, not averaged. The short-reply and 7-8k figures used different prompts; the 29-59k column is the same coding task in both sonar rows.
@@ -520,7 +548,7 @@ To compare them properly: one prompt set, run through litellm against each engin
 
 ## The models behind each engine ( are they comparable? )
 
-Every engine serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-14 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang is measured in section 13 and mistralrs, on 9 requests only, in section 14.
+Every engine serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-14 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang is measured in section 13 and mistralrs, on 9 requests only, in section 14. strata ( section 15 ) serves Qwen3.8-Flash-Next 125B instead of the 27B, so it is not in this table.
 
 | Engine | Registry entry | Weights | GPUs | Speculation | KV cache | Context | Thinking cap |
 |---|---|---|---|---|---|---|---|
