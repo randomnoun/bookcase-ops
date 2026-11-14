@@ -12,12 +12,18 @@ sglang_active_model: "qwen3.8-27b-gptq-int4"
 sglang_models:
 
   # The same model the other engines serve. sglang reads AWQ and GPTQ checkpoints but not EXL3 or .ninfer, so this is a
-  # 4-bit GPTQ quant ( ~16GB of weights, split across both 3090s ). The 3090s are sm_86, which has no FP8 or FP4 tensor
+  # 4-bit GPTQ quant ( ~19.5GiB of weights, split across both 3090s ). The 3090s are sm_86, which has no FP8 or FP4 tensor
   # cores, so the FP8 and NVFP4 checkpoints in sglang's own Qwen3.8 recipe don't apply here.
   qwen3.8-27b-gptq-int4:
-    # palmfuture's quant uses a uniform group_size of 32 "for full vLLM/SGLang compatibility" and carries the MTP head.
-    # Other 4-bit quants of this model exist ( bernhardbrieger/Qwen3.8-27B-GPTQ-Int4, TelperionAI/Qwen3.8-27B-INT4-AWQ-GPTQ ).
-    # I haven't run any of them on 3090s.
+    # palmfuture's GPTQ int4 ( group_size 32, symmetric, 18.8GiB ), with the MTP head kept in bf16 in a separate mtp.safetensors.
+    # Its quantization_config excludes the MTP head from quantization with "-:.*\.mtp\..*", which needs a dot before "mtp", but sglang
+    # 0.5.23 builds the draft model's layers as "mtp.layers.N...". So the rule missed them, the draft MLP and attention were built as
+    # 4-bit GPTQ layers, the bf16 weights had nowhere to load ( 7 x "Parameter model.layers.0... not found in params_dict, skip
+    # loading" ), and accept rate was 0.00 ( checked with sglang's get_dynamic_override ). The --json-model-override-args at the end of
+    # extra_args adds the rule "-:(?:.*\.)?mtp\..*" to fix that without changing checkpoint.
+    # Tried 2026-11-14 and failed to load: bernhardbrieger/Qwen3.8-27B-GPTQ-Int4. It has that rule, but no exclusion for linear_attn.in_proj_ba,
+    # so every GDN layer logged "linear_attn.in_proj_ba.weight not found in params_dict" and gptq_marlin_repack died with "size_n = 48 is
+    # not divisible by tile_n_size = 64". Other 4-bit quants exist ( btbtyler09/Qwen3.8-27B-GPTQ-4bit, TelperionAI/Qwen3.8-27B-INT4-AWQ-GPTQ ).
     model: "palmfuture/Qwen3.8-27B-GPTQ-Int4"
 
     # 262144 is the model's native maximum. sglang sizes the KV pool from what's left after the weights
@@ -27,12 +33,15 @@ sglang_models:
     # Server-wide cap on thinking tokens, the same 8192 as the other engines: the role adds --enable-strict-thinking and sets
     # SGLANG_MAX_THINK_TOKENS. It needs the reasoning parser below. I haven't checked that strict thinking works together with
     # the speculative decoding flags or with Qwen3.8's parser: if the server fails at startup, or the cap is ignored, remove this
-    # line ( then thinking is uncapped ) and say which flag clashed.
+    # line ( then thinking is uncapped ) and say which flag clashed. I had suspected it of stopping MTP drafts being accepted, but
+    # found no reason in sglang's docs or source why a thinking cap would, so it stays on while the replayssm flags below are tried.
     thinking_budget: 8192
 
     extra_args:
       - "--trust-remote-code"
-      # fp8 KV cache: half the memory of bf16. It works on sm_86 as a storage format, but I haven't checked the speed.
+      # fp8 KV cache: half the memory of bf16 ( a pool of 283,366 tokens against 141,683 at bf16 ). Not the cause of the zero
+      # MTP acceptance: bf16 was tried on 2026-11-14 and accept rate was still 0.00. The log warns "Using FP8 KV cache but no
+      # scaling factors provided", so it runs with scales of 1.0.
       - "--kv-cache-dtype=fp8_e4m3"
       # tool calls and thinking through litellm: the qwen3_coder parser matches the model's <tool_call><function=...>
       # format, and the qwen3 reasoning parser splits the <think> text out of the answer. These are the parser names
@@ -46,6 +55,27 @@ sglang_models:
       - "--speculative-num-steps=3"
       - "--speculative-eagle-topk=1"
       - "--speculative-num-draft-tokens=4"
+      # Tried and removed ( 2026-11-14 ): "--speculative-draft-model-quantization=unquant". It had no effect: the log still showed the draft
+      # head loading as "quant=gptq, bits=4" ( server_args printed speculative_draft_model_quantization: None ), with the same 7 layer-0
+      # weights skipped as "not found in params_dict", and accept rate 0.00. This checkpoint already excludes mtp.* from quantization
+      # ( dynamic rule "-:.*\.mtp\..*" ), so the cause is not the draft's quantization.
+      # The next two come from palmfuture's own sglang command, which reports accept 0.97 / mean length 3.90 for its checkpoint ( along with
+      # --dtype float16 and --chunked-prefill-size 2048, not tried here ). They did not by themselves fix the 0.00 accept rate on palmfuture's
+      # checkpoint: that was the MTP exclusion rule, see the model above. Kept because they raised max_running_requests from 5 to 8 and
+      # started cleanly, but I haven't measured whether either matters for speed.
+      #   --enable-linear-replayssm-spec: keeps the speculative verify states for the hybrid ( Gated DeltaNet ) layers in a fixed
+      #       per-slot window instead of per-draft snapshots. Needs topk 1 ( set above ).
+      #   --mamba-ssm-dtype=float32: palmfuture says float16 recurrent state drifts on long contexts. float32 doubles the ssm state ( ~1.9GB
+      #       per GPU at the default ), and only ~1.5GB was free after startup: if it fails with an out-of-memory error, lower
+      #       sglang_mem_fraction_static to 0.85 ( palmfuture's value ) before removing it.
+      - "--enable-linear-replayssm-spec"
+      - "--mamba-ssm-dtype=float32"
+      # Fixes MTP on palmfuture's checkpoint ( 2026-11-14 ): replaces its whole quantization_config ( sglang setattr()s a dict-valued
+      # override, it doesn't merge ) with a copy that has one extra exclusion rule first, "-:(?:.*\.)?mtp\..*", so the draft head's
+      # mtp.layers.N layers stay bf16. Everything else in it is palmfuture's own config.json; if palmfuture re-quantizes the checkpoint,
+      # regenerate this from its new config.json. Result: the "not found in params_dict" warnings went from 7 to 0 and accept len went from
+      # 1.00 to ~2-3.5. The draft head's "Load weight end" line still says quant=gptq, so that line is not a reliable check.
+      - '--json-model-override-args={"quantization_config":{"bits":4,"checkpoint_format":"gptq","desc_act":false,"dynamic":{"-:(?:.*\\.)?mtp\\..*":{},"-:.*\\.input_layernorm$":{},"-:.*\\.linear_attn\\.A_log$":{},"-:.*\\.linear_attn\\.conv1d$":{},"-:.*\\.linear_attn\\.dt_bias$":{},"-:.*\\.linear_attn\\.in_proj_a$":{},"-:.*\\.linear_attn\\.in_proj_b$":{},"-:.*\\.linear_attn\\.in_proj_ba$":{},"-:.*\\.linear_attn\\.norm$":{},"-:.*\\.mlp\\.gate$":{},"-:.*\\.mlp\\.shared_expert_gate$":{},"-:.*\\.mtp\\..*":{},"-:.*\\.post_attention_layernorm$":{},"-:.*\\.self_attn\\.k_norm$":{},"-:.*\\.self_attn\\.q_norm$":{},"-:.*\\.visual\\..*":{},"lm_head":{},"model.language_model.embed_tokens":{}},"format":"gptq","group_size":32,"lm_head":false,"meta":{"act_group_aware":true,"auto_forward_data_parallel":true,"damp_auto_increment":0.01,"damp_percent":0.05,"dense_vram_strategy":"exclusive","dense_vram_strategy_devices":null,"fallback":{"smooth":null,"strategy":"rtn","threshold":"0.5%"},"foem":null,"gc_mode":"interval","gptaq":null,"hessian":{"chunk_bytes":null,"chunk_size":null,"staging_dtype":"float32"},"mock_quantization":false,"moe_vram_strategy":"exclusive","moe_vram_strategy_devices":null,"mse":0.0,"offload_to_disk":true,"offload_to_disk_path":"/tmp/gptqmodel_9lnztqkt","pack_impl":"cpu","quantizer":["gptqmodel:7.0.0"],"static_groups":false,"true_sequential":true,"uri":"https://github.com/modelcloud/gptqmodel","wait_for_submodule_finalizers":false},"method":"gptq","pack_dtype":"int32","quant_method":"gptq","sym":true}}'
 
     # The litellm model that `llm.py model sync` creates for this entry.
     litellm:

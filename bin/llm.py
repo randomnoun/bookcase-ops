@@ -542,6 +542,105 @@ def parse_prefixed(text, prefix):
     return totals, by_pos
 
 
+SGLANG_LINE_RE = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) TP0\] (Prefill|Decode) batch, (.*)$")
+
+
+def sglang_field(text, name):
+    m = re.search(rf"{re.escape(name)}: ([\d.]+)", text)
+    return float(m.group(1)) if m else None
+
+
+def parse_sglang(text):
+    """One record per generation, rebuilt from sglang's per-second 'Decode batch' lines ( it logs nothing per request ).
+
+    A generation is a run of lines with one request running, from a prefill to the next prefill, a gap of 10s or more, or the
+    context shrinking. Lines with other requests running are skipped, so only single-stream time is measured. The prompt is
+    the context size on the run's first line, out is how far that context grew, and tps is the median of the lines' own
+    "gen throughput". Cached is the share of the prompt the prefill lines before the run report as already cached."""
+    recs, run, prompt, cached = [], None, 0, 0
+
+    def close():
+        nonlocal run
+        if run and len(run["tps"]) >= 2:
+            full = run["full"]
+            step = statistics.median(b - a for a, b in zip(full, full[1:]))
+            lens, rates = run["len"], run["rate"]
+            recs.append({"t": run["t"], "prompt": int(full[0]), "out": int(full[-1] - full[0] + step),
+                         "tps": statistics.median(run["tps"]),
+                         "cached_pct": 100 * run["cached"] / run["prompt_total"] if run["prompt_total"] else None,
+                         "accept_len": statistics.mean(lens) if lens else None,
+                         "accept_rate": statistics.mean(rates) if rates else None})
+        run = None
+
+    for line in text.splitlines():
+        m = SGLANG_LINE_RE.match(line)
+        if not m:
+            continue
+        when = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+        kind, rest = m.group(2), m.group(3)
+        if run and (when - run["last"]).total_seconds() >= 10:
+            close()
+        if kind == "Prefill":
+            new, hit = sglang_field(rest, "#new-token"), sglang_field(rest, "#cached-token")
+            if new is None or hit is None or (new <= 1 and hit == 0):  # /health runs a one-token generation
+                continue
+            close()
+            prompt += new + hit
+            cached += hit
+            continue
+        running, full, tps = sglang_field(rest, "#running-req"), sglang_field(rest, "#full token"), \
+            sglang_field(rest, "gen throughput (token/s)")
+        if running != 1 or full is None or tps is None:
+            continue
+        if run and full < run["full"][-1]:
+            close()
+        if not run:
+            run = {"t": m.group(1)[11:], "full": [], "tps": [], "len": [], "rate": [], "last": when,
+                   "prompt_total": prompt, "cached": cached}
+            prompt = cached = 0
+        run["full"].append(full)
+        run["tps"].append(tps)
+        run["last"] = when
+        for key, name in (("len", "accept len"), ("rate", "accept rate")):
+            value = sglang_field(rest, name)
+            if value is not None:
+                run[key].append(value)
+    close()
+    return recs
+
+
+@speed_group.command("sglang")
+@click.option("--since", default="1h", show_default=True, help="How far back to read the pod log ( kubectl --since ).")
+@click.option("--namespace", "-n", default="dev-sglang", show_default=True)
+@click.option("--deployment", default="sglang", show_default=True)
+@click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
+@click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
+@FILE_OPT
+def sglang_speeds(since, namespace, deployment, min_out, last, file):
+    """Per-generation speeds and MTP acceptance from sglang's "Decode batch" log lines.
+
+    sglang logs nothing per request, so each row is rebuilt from the once-a-second decode lines: a run with one request
+    running, from its prefill to the next one. The figures are approximate. Prompt is the context size when the run began,
+    out is how far it grew, and decode is the median of sglang's own gen throughput for the run. Time spent with two
+    requests running is left out, and prefill speed and time to first token aren't available. Accept len is the average
+    tokens per decode step ( 1.00 = no draft was ever accepted ) and accept rate the share of drafted tokens accepted.
+    Times are as logged ( UTC ).
+    """
+    recs = parse_sglang(cluster_or_file(file, lambda: kubectl("-n", namespace, "logs", f"deploy/{deployment}",
+                                                              f"--since={since}")))
+    if not recs:
+        raise click.ClickException("no single-request 'Decode batch' runs found ( at least two lines in a row )")
+    dash = lambda v, fmt: "-" if v is None else format(v, fmt)
+    if last:
+        click.echo(f"{len(recs)} generations, showing the last {min(last, len(recs))}:")
+        show_table(["time", "prompt", "cached", "out", "accept len", "accept rate", "decode tok/s"],
+                   [[r["t"], f"{r['prompt']:,}", dash(r["cached_pct"], ".0f") + ("" if r["cached_pct"] is None else "%"),
+                     f"{r['out']:,}", dash(r["accept_len"], ".2f"),
+                     "-" if r["accept_rate"] is None else f"{r['accept_rate']:.0%}", f"{r['tps']:.1f}"]
+                    for r in recs[-last:]])
+    show_bands(recs, min_out, "decode tok/sec")
+
+
 @metric_group.command("mistralrs")
 @FILE_OPT
 def mistralrs_metrics(file):
@@ -581,8 +680,8 @@ def sglang_metrics(file):
 
     The token and latency figures are cumulative since the pod started, so restart it ( or note the numbers before and
     after a test ) to measure one run. gen_throughput is a gauge of the speed right now, so read it while a request is
-    running. sglang's per-request log line isn't parsed, so there is no `speed sglang`. Reads /metrics through a
-    kubectl port-forward ( the server is started with --enable-metrics ).
+    running. For per-generation speeds use `speed sglang`. Reads /metrics through a kubectl port-forward ( the server
+    is started with --enable-metrics ).
     """
     t, _ = parse_prefixed(cluster_or_file(file, lambda: engine_api("sglang", "GET", "/metrics")), "sglang:")
     prompt, gen = t.get("prompt_tokens_total", 0), t.get("generation_tokens_total", 0)

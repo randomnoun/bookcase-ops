@@ -41,11 +41,12 @@ which sglang's docs say it needs on docker and kubernetes.
 
 ## What I haven't confirmed
 
-* **MTP on the 3090s.** The four `--speculative-*` flags are sglang's recipe for the in-checkpoint MTP head, written for Blackwell cards. If the server fails at startup, try adding `--attention-backend=triton`, or remove them.
-* **The quant.** `palmfuture/Qwen3.8-27B-GPTQ-Int4` was chosen because its description says it uses a group size of 32 for sglang compatibility and ships MTP weights. I haven't run it, or compared its quality with the EXL3 and `.ninfer` quants.
+* **MTP on the 3090s.** It works, but only after patching the checkpoint's quantization config: palmfuture's exclusion rule `-:.*\.mtp\..*` misses sglang's `mtp.layers.N` names, so the draft head was built as GPTQ and accepted nothing. The registry's `--json-model-override-args` adds the rule
+  `-:(?:.*\.)?mtp\..*`; regenerate it from the checkpoint's `config.json` if palmfuture re-quantizes. With it, accepted length averages about 2.9 of 4 and decode about 95 tok/sec in an agent session ( [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md) section 13 ).
+* **The quant.** `palmfuture/Qwen3.8-27B-GPTQ-Int4` was chosen because its description says it uses a group size of 32 for sglang compatibility and ships MTP weights. I haven't compared its quality with the EXL3 and `.ninfer` quants. `bernhardbrieger/Qwen3.8-27B-GPTQ-Int4` doesn't load on sglang 0.5.23.
 * **The parser names.** `qwen3_coder` and `qwen3` are the names sglang lists. Check them against `python3 -m sglang.launch_server --help` in the image you pin.
-* **Thinking budget.** The cap uses sglang's strict thinking, a grammar-level filter. I haven't checked that it works together with the speculative decoding flags or with Qwen3.8's reasoning parser. If the server fails at startup
-  or the cap is ignored, remove `thinking_budget` from the entry; the model can then spend its whole output budget thinking.
+* **Thinking budget.** The cap uses sglang's strict thinking, a grammar-level filter. The server starts and speculates with it on, but I haven't checked that the 8192 cap is actually enforced. If it is ignored, or the server fails to start,
+  remove `thinking_budget` from the entry; the model can then spend its whole output budget thinking.
 * **`/health`.** As for mistralrs, I haven't checked what it returns while the model is loading.
 * **No authentication.** No API key is set, so the server is open to the network on its LoadBalancer service, as sonar's is.
 
@@ -65,4 +66,5 @@ python3 ../bin/llm.py metric sglang     # prompt and generated tokens, mean late
 
 It goes in through a `kubectl port-forward`. The token counts and latencies are totals since the pod started; `gen_throughput` is the speed right now, so read it while a request is running. 
 sglang's documented metrics don't include speculative-decoding acceptance, so `metric sglang` prints any `spec_*` figures the server emits and nothing else. 
-There is no `speed sglang`; compare engines on the speed seen by litellm / langfuse ( `python3 ../bin/llm.py speed langfuse ... --model sglang` ).
+sglang logs nothing per request, so `python3 ../bin/llm.py speed sglang --since 2h --min-out 100` rebuilds one row per generation from its once-a-second `Decode batch` lines ( prompt size, share cached, tokens out, `accept len` and `accept rate` for MTP, decode tok/s ).
+It's approximate: only time with one request running is measured, and there is no time to first token or prefill speed. For end-to-end figures use `python3 ../bin/llm.py speed langfuse ... --model sglang`.
