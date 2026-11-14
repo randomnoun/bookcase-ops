@@ -226,7 +226,7 @@ two agree to 0.7-4.6%; on a ~100-token reply with a 1.6 s prefill the engine say
 ### 7. ninfer ( DFlash2, one GPU )
 
 Measured 2026-11-07. This is not the same setup as the rows above: ninfer serves its own 4-5 bit mix of Qwen3.8-27B ( `WarlaxZ/Qwen3.8-27B-NInfer-3090`, 17.0 GiB loaded, against ~20GB for the EXL3 5.00bpw )
-on **one** 3090, not both. It runs the image from `docker/ninfer-3090` ( NInfer-3090 0.17.1 ) with run.sh's default profile: DFlash2 speculation with K=7 and a draft head, n-gram copy drafting, `rk4v4` KV cache, one lane.
+on **one** 3090, not both. It ran the image from `docker/ninfer-3090` ( NInfer-3090 0.17.1; since replaced by ninfer-all, which I have not re-measured ) with run.sh's default profile: DFlash2 speculation with K=7 and a draft head, n-gram copy drafting, `rk4v4` KV cache, one lane.
 Startup: weights ready in 22.8 s, engine ready in 29.4 s. The log also says `context lowered to 236,544 tokens (asked for 262,144)`: only 6.30 GiB of the card was free beside the model.
 
 Results are engine-reported decode tok/sec from 44 tool-calling requests in one session ( the conversation grew from 2.2k to 73k tokens, `python bin/llm.py speed ninfer --since 6h --min-out 100` ).
@@ -329,7 +329,7 @@ All four serve models to litellm from `bnenod05`, and only one runs at a time ( 
 | **Speed seen, short replies** | not measured | 52 without MTP; 104-112 with | 47-48 without MTP; 95-128 with | 121-178 ( speculation always on ) |
 | **Speed seen, long generations** | not measured | 69-72 with MTP | 74-76 with MTP | 97 ( one 6.9k request ); median ~130 over a 44-request session |
 | **Metrics** | none set up | Prometheus `/metrics` | none, logs only | Prometheus `/metrics`, `/health`, and a per-request log line |
-| **Image** | stock | you build it ( the CUDA compile took about 7 hours ) | stock, from ghcr | you build it, but it only wraps a prebuilt release ( `docker/ninfer-3090` ) |
+| **Image** | stock | you build it ( the CUDA compile took about 7 hours ) | stock, from ghcr | stock, from ghcr ( `ninfer-all`; the figures here are from the ninfer-3090 image you had to build ) |
 | **Starts** | scaled up | scaled to 0 | scaled to 0 | scaled to 0 |
 | **Switch model** | `ollama pull`, then add it to litellm by hand | edit the registry, `model load` | registry, `model download`, `model load` | registry, `model load` |
 

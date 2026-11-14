@@ -11,8 +11,11 @@ ninfer_initial_replicas: 0
 # the model ( ~19GB ) is downloaded onto this volume by an init container
 ninfer_volume_size_gb: 60
 
-# Built from docker/ninfer-3090 ( it wraps the prebuilt NInfer-3090 Linux release ) and pushed to nexus3.
-ninfer_image: "docker-combined.nexus3.dev.randomnoun/ninfer-3090:0.17.1"
+# Published by https://github.com/iamwavecut/ninfer-all. cuda12.9 rather than cuda13.4: both images contain the RTX 3090's
+# sm_86, and the release notes point CUDA 12 driver environments at 12.9. I haven't checked whether 13.4 runs on
+# bnenod05's driver. The floating cuda12.9 tag moves with every commit to master, so this is the tag for one commit:
+# bdc1b8d8970a is the 2026-11-09.1 release.
+ninfer_image: "ghcr.io/iamwavecut/ninfer-all:cuda12.9-bdc1b8d8970a"
 
 # Bearer token for the API ( and for /metrics ). Empty = no authentication, which on a LoadBalancer service means anyone
 # on the network. Generate with `openssl rand -hex 24` and keep it in vault, see setup/SETUP-DATABASE.md.
@@ -30,8 +33,9 @@ ninfer_models: {}
 ninfer_profile: ""
 
 # The rest become the NINFER_* variables that run.sh reads ( run.sh in the release lists them all ). They are only set
-# when non-empty, so run.sh's own defaults apply otherwise. NB: setting ninfer_context or ninfer_kv_capacity
-# turns off run.sh's --fit-context, which otherwise lowers the context to what fits the free GPU memory.
+# when non-empty, so run.sh's own defaults apply otherwise. NB: setting ninfer_context ( or NINFER_KV_CAPACITY,
+# NINFER_PREFILL_CHUNK or NINFER_HOST_STATE_SLOTS in ninfer_env ) turns off run.sh's step-down, which otherwise retries
+# with an eighth less context, up to five times, when the server is refused for lack of GPU memory.
 ninfer_spec: ""             # NINFER_SPEC: dflash2 ( 27b default ), mtp, none
 ninfer_context: ""          # NINFER_CONTEXT
 ninfer_concurrency: ""      # NINFER_CONCURRENCY ( lanes sharing the context )

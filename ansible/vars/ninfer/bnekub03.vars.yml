@@ -3,8 +3,8 @@ kube_storageclass_ninfer: "bnenod05-local-path"
 
 ninfer_volume_size_gb: 60
 
-# Needs to be built beforehand, see docker/ninfer-3090
-ninfer_image: "docker-combined.nexus3.dev.randomnoun/ninfer-3090:0.17.1"
+# Published by ninfer-all to ghcr.io, nothing to build. See the role's defaults for why cuda12.9 and this commit.
+ninfer_image: "ghcr.io/iamwavecut/ninfer-all:cuda12.9-bdc1b8d8970a"
 
 # Leave empty for no authentication. Otherwise this is the bearer token litellm sends, and the `api_key` field of
 # litellm's entry for ninfer. See setup/SETUP-DATABASE.md

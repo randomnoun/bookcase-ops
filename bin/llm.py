@@ -442,7 +442,7 @@ def ninfer_speeds(since, namespace, deployment, min_out, last, file):
     show_bands(recs, min_out, "decode tok/sec")
 
 
-NINFER_METRIC_RE = re.compile(r"^(ninfer_\w+)(\{[^}]*\})?\s+(\S+)$")
+NINFER_METRIC_RE = re.compile(r"^((?:ninfer|llamacpp):\w+)(\{[^}]*\})?\s+(\S+)$")
 
 
 def parse_ninfer_counters(text):
@@ -469,30 +469,21 @@ def ninfer_metrics(file):
     prefill and waiting. Reads /metrics through a kubectl port-forward, with the API key from vault.
     """
     t = parse_ninfer_counters(cluster_or_file(file, lambda: engine_api("ninfer", "GET", "/metrics", ninfer_headers())))
-    tokens, secs = t.get("ninfer_decode_tokens_total", 0), t.get("ninfer_decode_seconds_total", 0)
+    # ninfer-all's names ( docs/serving.md#metrics ): the llamacpp: series keep llama.cpp's meanings, ninfer: are its own
+    tokens, secs = t.get("llamacpp:tokens_predicted_total", 0), t.get("llamacpp:tokens_predicted_seconds_total", 0)
     if not (tokens and secs):
         raise click.ClickException("no ninfer decode counters found ( has it served a request yet? )")
     click.echo(f"decode: {tokens:,.0f} tokens in {secs:,.1f}s of decode rounds = {tokens / secs:.1f} tok/s")
 
-    rounds = t.get("ninfer_spec_decode_rounds_total", 0)
-    drafted, accepted = t.get("ninfer_spec_decode_draft_tokens_total", 0), t.get("ninfer_spec_decode_accepted_tokens_total", 0)
+    rounds = t.get("llamacpp:n_decode_total", 0)
+    drafted, accepted = t.get("ninfer:draft_tokens_total", 0), t.get("ninfer:draft_accepted_tokens_total", 0)
     if rounds and drafted:
-        window = t.get("ninfer_spec_decode_draft_window")
-        click.echo(f"speculation: {rounds:,.0f} rounds   draft tokens {drafted:,.0f}   accepted {accepted:,.0f} "
-                   f"( {accepted / drafted:.1%} )" + (f"   draft window {window:.0f}" if window else ""))
-        click.echo(f"tokens per forward pass: {1 + accepted / rounds:.2f}   ( 1 + accepted / rounds )")
-        fallback = t.get("ninfer_spec_decode_fallback_steps_total", 0)
-        if fallback:
-            click.echo(f"rounds without drafts: {fallback:,.0f}")
+        click.echo(f"speculation: {rounds:,.0f} decode rounds   draft tokens {drafted:,.0f}   accepted {accepted:,.0f} "
+                   f"( {accepted / drafted:.1%} )")
+        click.echo(f"tokens per decode round: {tokens / rounds:.2f}")
     else:
         click.echo("no speculative-decoding counters found ( NINFER_SPEC=none? )")
-    n_rounds, n_drafted = t.get("ninfer_spec_decode_ngram_rounds_total", 0), t.get("ninfer_spec_decode_ngram_draft_tokens_total", 0)
-    if n_rounds and n_drafted:
-        n_accepted = t.get("ninfer_spec_decode_ngram_accepted_tokens_total", 0)
-        click.echo(f"n-gram copies: {n_rounds:,.0f} rounds   copied {n_drafted:,.0f}   accepted {n_accepted:,.0f} "
-                   f"( {n_accepted / n_drafted:.1%} )")
-    # prefill counters: named in ninfer's docs but not in the output I have seen, so only shown when present
-    p_tokens, p_secs = t.get("ninfer_prefill_tokens_total", 0), t.get("ninfer_prefill_seconds_total", 0)
+    p_tokens, p_secs = t.get("llamacpp:prompt_tokens_total", 0), t.get("llamacpp:prompt_seconds_total", 0)
     if p_tokens and p_secs:
         click.echo(f"prefill: {p_tokens:,.0f} uncached tokens in {p_secs:,.1f}s = {p_tokens / p_secs:,.0f} tok/s")
 

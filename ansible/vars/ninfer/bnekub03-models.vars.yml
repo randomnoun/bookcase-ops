@@ -11,15 +11,16 @@ ninfer_active_model: "qwen3.8-27b-mtp"
 
 ninfer_models:
 
-  # The same model sonar and tabbyapi serve. The artifact ( WarlaxZ/Qwen3.8-27B-NInfer-3090, 17.7GiB, 4-5 bit ) is
-  # downloaded by the init container, pinned to a revision inside the release's download-model.sh.
+  # The same model sonar and tabbyapi serve. The artifact ( neroued/Qwen3.8-27B-NInfer, 19.0GiB, 4-5 bit ) is
+  # downloaded by the init container, pinned to a revision inside the release's download-model.sh. It's bigger than the
+  # ninfer-3090 one it replaced, so expect run.sh to step the context down from 262144 on a 3090 ( it logs "Retrying at ..." ).
   qwen3.8-27b-dflash2:
     # run.sh's model profile: qwen38-27b or qwen36-35b-a3b. This also picks the artifact to download.
     profile: "qwen38-27b"
 
     # NINFER_SPEC: dflash2 is the fastest at one stream ( the artifact carries the MTP weights too ). It runs one lane
-    # at the full 262144 context, with run.sh's rk4v4 KV cache. Leaving context unset keeps run.sh's --fit-context,
-    # which lowers it to what fits the free GPU memory and says so in the log.
+    # at the full 262144 context, with run.sh's rk4v4 KV cache. Leaving context unset keeps run.sh's step-down, which
+    # retries with an eighth less context when the card is too full, and says so in the log.
     spec: "dflash2"
 
     # The model's reasoning cap, server-wide ( NINFER_DEFAULT_THINKING_BUDGET ), so an agent can't burn its whole output
@@ -35,7 +36,7 @@ ninfer_models:
       #
       #   num_ctx: only used so pi / opencode learn the context window. Run `pi-sync-models` after changing it
       #       ( and restart opencode ). ninfer itself ignores it. Keep it equal to the context the server logs at
-      #       startup: with the default fit-context that can be below 262144 on a busy card.
+      #       startup: with the default step-down that can be below 262144 on a busy card.
       #
       #   reasoning_effort: "none" turns thinking off on Qwen ( ninfer's docs ). Whether it accepts the
       #       low / medium / xhigh values sonar and tabbyapi take is untested, so none is set here.
