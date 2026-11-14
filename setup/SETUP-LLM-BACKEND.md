@@ -39,7 +39,7 @@ The backend engines run the models:
    * a Python engine like sonar's vLLM base, with batching, a radix-tree prefix cache and tool-call and reasoning parsers. Official image, nothing to build
    * developed by LMSYS
    * also has a model registry managed by llm.py
-   * not yet run on the 3090s, see the page for what's unconfirmed
+   * runs on both 3090s at about 95 tok/sec with MTP, after a fix to the checkpoint's quantization config; see the page
    * [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md)
 
 All six are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
@@ -61,7 +61,8 @@ Some things affect model speed / quality:
       * EXL3 is a quantisation format based on QTIP, a research method for compressing weights to a chosen number of bits each, which ExLlamaV3 converts and loads at fractional bit rates ( 5.00 bpw, 4.00 bpw ) with a custom GPU kernel.
    * **sonar** is built on vLLM, so it gets continuous batching, and has added EXL3 loading and other formats. 
      Of the first four, it's the only one here with batching, which helps when several agents share the model.
-   * **sglang** also batches continuously, and reads AWQ and GPTQ quants of the original model. **mistralrs** quantizes the original weights itself as it loads them.
+   * **sglang** also batches continuously, and reads AWQ and GPTQ quants of the original model. 
+   * **mistralrs** quantizes the original weights itself as it loads them.
    * **ninfer** is an engine for the RTX 5090 ( with the NVidia Blackwell architecture `sm_120` ), and ninfer-all is a continuation of its RTX 3090 port ( `sm_86` ) that covers Volta to Blackwell.
       * It handles one request stream on one GPU very fast, but only for the specific models it supports. 
       * Its `.ninfer` files are single self-contained model files ( weights, tokenizer and chat template ) in its own 4-5 bit grouped quantisation, which only NInfer reads, so a model has to be converted for it first.

@@ -46,6 +46,9 @@ spec:
             - "--host=0.0.0.0"
             - "--port=1234"
             - "--no-ui"
+            # mistralrs ignores HF_HOME and wrote the download to /root/.cache/huggingface on the container's own disk, where a pod restart
+            # throws it away; this puts it on the PVC ( mounted at /data )
+            - "--hf-cache=/data/hub"
             - "--gpu-memory-utilization={{ mistralrs_gpu_memory_utilization }}"
 {% if mistralrs_quant | string | length > 0 %}
             - "--quant={{ mistralrs_quant }}"
@@ -65,20 +68,24 @@ spec:
             - name: HF_TOKEN
               value: "{{ mistralrs_hf_token }}"
 {% endif %}
-          # Downloading and quantizing a big model takes many minutes: 90 x 20s = 30 minutes before kubernetes gives up.
-          # I haven't checked what /health returns while the model is still loading: if the pod goes Ready too early,
-          # or never, swap these for tcpSocket checks as tabbyapi does.
+          # Downloading ~52GB of BF16 weights ( about 14MiB/s here ) and then quantizing them takes well over an hour on the first start:
+          # 360 x 20s = 2 hours before kubernetes gives up. The first attempt, with 30 minutes, was due to be killed mid-download.
+          # timeoutSeconds is 5 because sglang's /health took ~1s to answer, which is the 1s default, so its pod never went Ready;
+          # I haven't checked how long mistralrs's takes, or what it returns while the model is still loading. If the pod goes
+          # Ready too early, or never, swap these for tcpSocket checks as tabbyapi does.
           startupProbe:
             httpGet:
               path: /health
               port: 1234
             periodSeconds: 20
-            failureThreshold: 90
+            timeoutSeconds: 5
+            failureThreshold: 360
           readinessProbe:
             httpGet:
               path: /health
               port: 1234
             periodSeconds: 15
+            timeoutSeconds: 5
           resources:
             limits:
               cpu: "{{ mistralrs_cpu_limit }}"
