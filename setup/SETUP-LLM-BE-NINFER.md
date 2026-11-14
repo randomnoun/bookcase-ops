@@ -33,16 +33,21 @@ It serves OpenAI and Anthropic APIs, one model per process.
    ```
 
    The first start has an init container, `model`, download the model ( about 19GB ) onto the volume with the release's own `download-model.sh`; it resumes if interrupted and checks the size and SHA-256.
-   `kubectl -n dev-ninfer logs -f deploy/ninfer -c model` shows it. The container then loads the model, which took about half a minute on ninfer-3090.
+   `kubectl -n dev-ninfer logs -f deploy/ninfer -c model` shows it. The first download ran at about 10 MiB/s ( roughly 30 minutes ), and the init container restarted once after a DNS failure and resumed from its `.part` file.
+   `engine set` waits 15 minutes for the rollout, so it times out on a first start; the deployment carries on, and `kubectl -n dev-ninfer rollout status deploy/ninfer --timeout=45m` waits for it.
+   The container then loads the model: 1m 8.6s to `engine ready` on the first start ( weights 58.4 s ), against about half a minute on ninfer-3090. I don't know why it was slower.
    
 The model and its settings are in the registry, `vars/ninfer/bnekub03-models.vars.yml`; switch with `python bin/llm.py model load NAME` ( see [Switching models](SETUP-LLM-BACKEND.md#switching-models) ). Each entry names a `profile`
-( `qwen38-27b` or `qwen36-35b-a3b` ), which is the model `run.sh` serves and the artifact the init container downloads, a `spec` ( `dflash2` is the fastest at one stream, `mtp` gives two lanes ), and
+( `qwen38-27b` or `qwen36-35b-a3b` ), which is the model `run.sh` serves and the artifact the init container downloads, a `spec` ( `dflash2` runs one lane and `mtp` two; which is faster depends on context depth, see [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md#11-ninfer-all--dflash2-one-gpu-) ), and
 optionally `context`, `concurrency`, `draft_tokens`, `kv_dtype`, `thinking_budget` and `env` for any other `NINFER_*` variable. They become the environment variables that `run.sh` reads, 
 which are listed at the top of `run.sh` in the release.
 
 * **Context length.** If the entry leaves `context` unset, `run.sh` starts at 262144 and, if the server is refused for lack of GPU memory, steps down an eighth at a time ( up to five times ), saying `Not enough free GPU memory to start at context ... Retrying at ...`. 
-  Setting `context` turns that off and the server fails if it doesn't fit. Keep the litellm `num_ctx` equal to the context the server ends up with. 
-  This replaces ninfer-3090's `--fit-context`; ninfer-all's release notes say a 3090 ended up at 196,608 after two step-downs, and its model is about 1.3 GiB larger than the one ninfer-3090 used, so expect a lower context than the 236,544 seen before.
+  Setting `context` turns that off and the server fails if it doesn't fit. Keep the litellm `num_ctx` equal to the context the server ends up with ( run.sh's first log line, and `capacity | KV N tokens` ). 
+  This replaces ninfer-3090's `--fit-context`, which had cut the context to 236,544. The `mtp` entry started at the full 262,144 on its first attempt, with no step-down: the model loads as 16.0 GiB ( ninfer-3090's was 17.0 GiB ),
+  and the log reported 1.90 GiB free ( 22,188 of 24,576 MiB used ). The `dflash2` entry needs more ( 18.0 GiB of weights ) and did step down, twice: 262,144, then 229,376 ( prefill chunk 4096, 32 host state slots ),
+  then 196,608 ( chunk 2048, 16 slots ), where it started with 1.24 GiB free ( 22,864 of 24,576 MiB used ). The log said `Not enough free GPU memory to start at context ... Retrying at ...` each time, and the wrapper's `--api-key` and `--model-id` survived the retries.
+  Each failed attempt reloads the weights, so that start took about 2m 15s against 51 s for the final attempt alone. `num_ctx` for that entry is 196608 to match.
 * **KV cache and memory.** The default profile uses a 4-bit-keys KV cache ( `rk4v4` ) and pins 8 GiB of host RAM for its context cache ( `--host-kv-mib 8192` ), so the pod asks for 24Gi ( limit 40Gi ). It also keeps 32 host state slots, a few GiB more. 
   If the log says `failed to pin`, the container's memlock limit is too low ( the project's docker examples pass `--ulimit memlock=-1` ); the launcher steps down on that as well.
 * **Vision is on.** The `tuned` profile loads the vision tower in `overlay` residency ( about 10 MiB of runtime reservation ); `NINFER_VISION=off` in `env` drops it.
@@ -57,8 +62,8 @@ then `"num_ctx"` in the LiteLLM Params. Run `pi-sync-models` afterwards and rest
 ## Metrics
 
 `ninfer-serve` has a Prometheus `/metrics` endpoint ( the role creates a `ServiceMonitor`, sending the API key as a bearer token ), and `/health` for the probes. It also logs one `req#N done` line per request, with the prompt and
-output tokens, how much of the prompt came from the cache, the time to the first token, prefill and decode speed, and how many drafted tokens were accepted. `llm.py` reads both, as it does for sonar and tabbyapi.
-**The `req#N done` format is from ninfer-3090 0.17.1; I haven't seen ninfer-all's, so check `speed ninfer` finds requests after the first start** ( ninfer-all's docs describe `request_done` records and a stats panel, not that line ):
+output tokens, how much of the prompt came from the cache, the time to the first token, prefill and decode speed, and how many drafted tokens were accepted. `llm.py` reads both, as it does for sonar and tabbyapi. ninfer-all logs the same `req#N done` line as ninfer-3090 did, but words the speculation figures differently
+( `mixed speculation accepted 74/139 (53.2%)` and `ngram 30/58 accepted, 4 rounds` ); `speed ninfer` shows the first as `draft` and the second, as accepted over drafted, as `copies`:
 
 ```
 python3 ../bin/llm.py speed ninfer --since 1h --min-out 100     # per request, from the log, then median decode tok/sec by prompt size
@@ -74,4 +79,4 @@ kubectl -n dev-ninfer exec deploy/ninfer -c ninfer -- sh -c 'curl -s -H "Authori
 
 The metric names changed between ninfer-3090 and ninfer-all ( `ninfer_decode_tokens_total` became `llamacpp:tokens_predicted_total`, and so on ), and `llm.py` follows ninfer-all's, from its `docs/serving.md#metrics`. Check them if you change `ninfer_image`. 
 The n-gram copy counters `metric ninfer` used to show are gone: I found no equivalent series in the docs.
-A `speed` figure for ninfer varies a lot between requests ( 88-178 tok/sec in one coding session ) and follows the draft acceptance, so compare medians over many requests rather than single ones. The measured results are in [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md#7-ninfer--dflash2-one-gpu-).
+A `speed` figure for ninfer varies a lot between requests ( 88-178 tok/sec in one coding session ) and follows the draft acceptance, so compare medians over many requests rather than single ones. The measured results are in [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md#7-ninfer--dflash2-one-gpu-) ( ninfer-3090 ) and sections [10](SETUP-LLM-MTP.md#10-ninfer-all--mtp3-one-gpu-) and [11](SETUP-LLM-MTP.md#11-ninfer-all--dflash2-one-gpu-) ( ninfer-all, MTP and DFlash2 ).

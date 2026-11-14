@@ -7,20 +7,25 @@
 # Switch with `python bin/llm.py model load NAME`, which rewrites ninfer_active_model below, re-runs the role and
 # updates the litellm entry. Or edit it by hand and re-run the role.
 
-ninfer_active_model: "qwen3.8-27b-mtp"
+ninfer_active_model: "qwen3.8-27b-dflash2"
 
 ninfer_models:
 
   # The same model sonar and tabbyapi serve. The artifact ( neroued/Qwen3.8-27B-NInfer, 19.0GiB, 4-5 bit ) is
-  # downloaded by the init container, pinned to a revision inside the release's download-model.sh. It's bigger than the
-  # ninfer-3090 one it replaced, so expect run.sh to step the context down from 262144 on a 3090 ( it logs "Retrying at ..." ).
+  # downloaded by the init container, pinned to a revision inside the release's download-model.sh. It loads as 16.0GiB
+  # with mtp and 18.0GiB with dflash2 ( run.sh's notes say the dflash2 set carries draft weights and can't use --lm-head-q6 ).
+  # On this card the mtp entry below started at the full 262144, but this dflash2 entry stepped down twice ( 2026-11-14 ),
+  # to 196608 ( prefill chunk 2048, 16 host state slots ), which adds about 90s to every start for the two failed loads.
   qwen3.8-27b-dflash2:
     # run.sh's model profile: qwen38-27b or qwen36-35b-a3b. This also picks the artifact to download.
     profile: "qwen38-27b"
 
-    # NINFER_SPEC: dflash2 is the fastest at one stream ( the artifact carries the MTP weights too ). It runs one lane
-    # at the full 262144 context, with run.sh's rk4v4 KV cache. Leaving context unset keeps run.sh's step-down, which
-    # retries with an eighth less context when the card is too full, and says so in the log.
+    # NINFER_SPEC: dflash2 runs one lane with run.sh's rk4v4 KV cache ( the artifact carries the MTP weights too ). ninfer-all's
+    # own 3090 numbers have it ahead of mtp on short chat, at 1k and at 32k tokens, level at 8k and behind from 65k, and in an agent
+    # session here it was no faster overall ( setup/SETUP-LLM-MTP.md sections 10 and 11 ). Leaving context
+    # unset keeps run.sh's step-down: it retries with an eighth less context, and from the second step a smaller prefill
+    # chunk and fewer host state slots. Don't pin `context: 196608` to skip the retries: that turns the step-down off, and
+    # the chunk and slot settings that made 196608 fit would go with it.
     spec: "dflash2"
 
     # The model's reasoning cap, server-wide ( NINFER_DEFAULT_THINKING_BUDGET ), so an agent can't burn its whole output
@@ -36,17 +41,18 @@ ninfer_models:
       #
       #   num_ctx: only used so pi / opencode learn the context window. Run `pi-sync-models` after changing it
       #       ( and restart opencode ). ninfer itself ignores it. Keep it equal to the context the server logs at
-      #       startup: with the default step-down that can be below 262144 on a busy card.
+      #       startup ( `capacity | KV N tokens` ): 196608 for this entry on this card.
       #
       #   reasoning_effort: "none" turns thinking off on Qwen ( ninfer's docs ). Whether it accepts the
       #       low / medium / xhigh values sonar and tabbyapi take is untested, so none is set here.
       #
       # The thinking cap is set on the server ( thinking_budget above ), not here.
       params:
-        num_ctx: 262144
+        num_ctx: 196608
 
-  # The same model with MTP speculation: two lanes share the 262144 context. Slower decode than dflash2 ( the release
-  # notes measure about 115 tok/s against 133 ), but two requests can run at once.
+  # The same model with MTP speculation: two lanes share the 262144 context, so two requests can run at once. The
+  # ninfer-3090 release notes measured it slower than dflash2 ( about 115 tok/s against 133 ), but ninfer-all's 3090 numbers
+  # have it ahead beyond about 65k tokens of context, and here the two were close ( setup/SETUP-LLM-MTP.md section 11 ).
   qwen3.8-27b-mtp:
     profile: "qwen38-27b"
     spec: "mtp"

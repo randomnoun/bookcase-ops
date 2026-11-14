@@ -16,6 +16,7 @@ temporary `kubectl port-forward`. `model load` runs ansible-playbook ( on Window
 """
 import base64
 import contextlib
+import datetime
 import functools
 import json
 import os
@@ -125,29 +126,54 @@ def model_group():
 
 # --- langfuse ---------------------------------------------------------------------------------------------------------
 
+def parse_since(text):
+    """'90m', '2h', '1d' or '1h30m' as a timedelta, like kubectl --since."""
+    m = re.fullmatch(r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?", text.strip())
+    if not m or not any(m.groups()):
+        raise click.BadParameter(f"'{text}' isn't a duration like 30m, 2h, 1d or 1h30m", param_hint="--since")
+    days, hours, minutes, seconds = (int(g or 0) for g in m.groups())
+    return datetime.timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+
+
+def langfuse_key(field):
+    return vault(f"k8s/{CLUSTER}/secret/dev-langfuse/langfuse", field)
+
+
 @speed_group.command("langfuse")
-@click.argument("start")
+@click.argument("start", required=False)
 @click.argument("end", required=False)
+@click.option("--since", help="How far back to look ( 30m, 2h, 1d, 1h30m ), instead of a START time. "
+                              "Without START or --since it's 1h.")
 @click.option("--host", envvar="LANGFUSE_HOST", default="https://langfuse.dev.randomnoun", show_default=True)
-@click.option("--public-key", envvar="LANGFUSE_PUBLIC_KEY", required=True, help="Or set LANGFUSE_PUBLIC_KEY.")
-@click.option("--secret-key", envvar="LANGFUSE_SECRET_KEY", required=True,
-              help="Or set LANGFUSE_SECRET_KEY ( preferred: it doesn't end up in your shell history ).")
+@click.option("--public-key", envvar="LANGFUSE_PUBLIC_KEY",
+              help="Or set LANGFUSE_PUBLIC_KEY. Default: the project's public_key in vault.")
+@click.option("--secret-key", envvar="LANGFUSE_SECRET_KEY",
+              help="Or set LANGFUSE_SECRET_KEY. Default: the project's secret_key in vault.")
 @click.option("--model", help="Only models whose name contains this text ( case-insensitive ).")
 @click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
 @click.option("--basis", type=click.Choice(["e2e", "decode"]), default="e2e", show_default=True,
               help="e2e = output tokens / total latency ( includes prefill ). decode = output tokens / ( latency - "
                    "time to first token ), only for requests that have a first-token time.")
 @click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
-def langfuse_speeds(start, end, host, public_key, secret_key, model, min_out, basis, last):
-    """Per-request speeds from langfuse, for generations between START and END ( ISO 8601, UTC ).
+def langfuse_speeds(start, end, since, host, public_key, secret_key, model, min_out, basis, last):
+    """Per-request speeds from langfuse, for generations since a time ago, or between START and END ( ISO 8601, UTC ).
 
     \b
-    Example:
+    Examples:
+      python bin/llm.py speed langfuse --since 2h --model ninfer
       python bin/llm.py speed langfuse 2026-10-29T12:30:00Z 2026-10-29T14:00:00Z --model sonar
 
-    Uses the v2 observations API ( langfuse v4 ). litellm v1.104 sends no first-token time, so for now only the
-    e2e basis has data; the decode basis works once litellm sends it ( see setup/SETUP-LLM-MTP.md ).
+    The project keys come from vault ( `. vault-login.sh` first ) unless LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY
+    are set. The times in the table are UTC. Uses the v2 observations API ( langfuse v4 ). litellm v1.104 sends no
+    first-token time, so for now only the e2e basis has data; the decode basis works once litellm sends it
+    ( see setup/SETUP-LLM-MTP.md ).
     """
+    if start and since:
+        raise click.UsageError("give START or --since, not both")
+    if not start:
+        start = (datetime.datetime.now(datetime.timezone.utc) - parse_since(since or "1h")).strftime("%Y-%m-%dT%H:%M:%SZ")
+    public_key = public_key or langfuse_key("public_key")
+    secret_key = secret_key or langfuse_key("secret_key")
     auth = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
 
     def get(cursor):
@@ -406,8 +432,11 @@ def parse_ninfer(text):
                 r["prefill"] = per_second(x.group(1))
             elif x := re.fullmatch(r"decode (.+)", seg):
                 r["tps"] = per_second(x.group(1))
-            elif x := re.fullmatch(r"(\w+) accepted [\d,]+/[\d,]+ \(([\d.]+)%\)", seg):
+            elif x := re.fullmatch(r"(\w+)(?: speculation)? accepted [\d,]+/[\d,]+ \(([\d.]+)%\)", seg):
                 r["copies" if x.group(1) == "copies" else "draft"] = f"{x.group(2)}%"
+            elif x := re.fullmatch(r"ngram ([\d,]+)/([\d,]+) accepted(?:, [\d,]+ rounds?)?", seg):
+                if num(x.group(2)):
+                    r["copies"] = f"{num(x.group(1)) / num(x.group(2)):.1%}"
         if r["prompt"] is not None and r["out"] is not None and r["tps"]:
             recs.append(r)
     return recs
