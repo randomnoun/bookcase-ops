@@ -8,6 +8,7 @@ kube_storageclass_sonar: ""
 # whatever the deployment is currently scaled to, so re-running it doesn't undo a `kubectl scale`.
 sonar_initial_replicas: 0
 
+# Nominal: bnenod05-local-path neither enforces this size nor allows expansion, so changing it on an existing PVC fails the apply.
 sonar_volume_size_gb: 300
 
 # Pinned: this is the last image published to Docker Hub (2025-11-08, upstream

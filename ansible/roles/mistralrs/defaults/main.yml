@@ -8,8 +8,9 @@ kube_storageclass_mistralrs: ""
 # scaled to, so re-running it doesn't undo that.
 mistralrs_initial_replicas: 0
 
-# holds the Hugging Face cache ( the image's HF_HOME is /data ), so a model is only downloaded once
-mistralrs_volume_size_gb: 300
+# holds the Hugging Face cache ( the image's HF_HOME is /data ), so a model is only downloaded once.
+# Nominal: bnenod05-local-path neither enforces this size nor allows expansion, so changing it on an existing PVC fails the apply.
+mistralrs_volume_size_gb: 1000
 
 # The image tag is cuda<CUDA version>-sm<compute capability>-<release>. sm86 is the RTX 3090; pick the CUDA version the node's
 # driver supports ( `nvidia-smi` shows it ). 'latest' moves with every release: IfNotPresent below stops a pod restart pulling

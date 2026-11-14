@@ -8,7 +8,8 @@ kube_storageclass_ninfer: ""
 # scaled to, so re-running it doesn't undo that.
 ninfer_initial_replicas: 0
 
-# the model ( ~19GB ) is downloaded onto this volume by an init container
+# the model ( ~19GB ) is downloaded onto this volume by an init container.
+# Nominal: bnenod05-local-path neither enforces this size nor allows expansion, so changing it on an existing PVC fails the apply.
 ninfer_volume_size_gb: 60
 
 # Published by https://github.com/iamwavecut/ninfer-all. 

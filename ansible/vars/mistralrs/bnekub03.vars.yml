@@ -1,7 +1,8 @@
 kube_context_mistralrs: "bnekub03"
 kube_storageclass_mistralrs: "bnenod05-local-path"
 
-mistralrs_volume_size_gb: 300
+# nominal, see the role defaults: bnenod05-local-path doesn't enforce it
+mistralrs_volume_size_gb: 1000
 
 # The role default is the moving 'latest' tag. Once a release has been run on the node, pin it ( or its digest ) here.
 # mistralrs_image: "ghcr.io/ericlbuehler/mistral.rs:cuda128-sm86-X.Y.Z"

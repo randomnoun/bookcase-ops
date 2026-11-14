@@ -8,6 +8,7 @@ kube_storageclass_sglang: ""
 # scaled to, so re-running it doesn't undo that.
 sglang_initial_replicas: 0
 
+# Nominal: bnenod05-local-path neither enforces this size nor allows expansion, so changing it on an existing PVC fails the apply.
 sglang_volume_size_gb: 300
 
 # The official image from Docker Hub. 'latest' moves with every release: IfNotPresent below stops a pod restart pulling a
@@ -17,8 +18,8 @@ sglang_image: "lmsysorg/sglang:latest"
 
 # sglang_models is a registry of models, keyed by name, and sglang_active_model is the one deployed. They live in
 # vars/sglang/<cluster>-models.vars.yml, which bin/llm.py reads and edits ( `llm.py model load NAME` ). The role copies
-# the active entry onto sglang_model, sglang_model_revision, sglang_quantization, sglang_context_length and
-# sglang_extra_args below ( an entry only needs the keys it changes ). With no active model, those can still be set directly.
+# the active entry onto sglang_model, sglang_model_revision, sglang_quantization, sglang_context_length,
+# sglang_thinking_budget and sglang_extra_args below ( an entry only needs the keys it changes ). With no active model, those can still be set directly.
 sglang_active_model: ""
 sglang_models: {}
 
@@ -40,6 +41,11 @@ sglang_context_length: ""
 
 # optional HuggingFace token, for gated repos. Empty = none.
 sglang_hf_token: ""
+
+# Server-wide cap on thinking tokens, so an agent can't burn its whole output on thinking. Empty = no cap. When set, the
+# server is started with --enable-strict-thinking ( a grammar-level filter that forces </think> at the cap, using the
+# --reasoning-parser ) and SGLANG_MAX_THINK_TOKENS set to this. A request can still ask for a smaller budget.
+sglang_thinking_budget: ""
 
 # any further `sglang.launch_server` flags, one list item each, e.g.
 #   - "--kv-cache-dtype=fp8_e4m3"

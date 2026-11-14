@@ -1,6 +1,7 @@
 kube_context_sonar: "bnekub03"
 kube_storageclass_sonar: "bnenod05-local-path"
 
+# nominal, see the role defaults: bnenod05-local-path doesn't enforce it
 sonar_volume_size_gb: 300
 sonar_gpu_memory_utilization: "0.92"
 

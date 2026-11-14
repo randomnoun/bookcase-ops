@@ -1,4 +1,5 @@
 kube_context_ollama: "bnekub03"
 kube_storageclass_ollama: "bnenod05-local-path"
 
+# nominal, see the role defaults: bnenod05-local-path doesn't enforce it
 ollama_volume_size_gb: 1000

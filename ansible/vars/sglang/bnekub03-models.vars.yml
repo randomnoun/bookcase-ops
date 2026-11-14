@@ -24,6 +24,12 @@ sglang_models:
     # ( --mem-fraction-static ), so this only sets the longest single request. Keep the litellm "num_ctx" equal to it.
     context_length: "262144"
 
+    # Server-wide cap on thinking tokens, the same 8192 as the other engines: the role adds --enable-strict-thinking and sets
+    # SGLANG_MAX_THINK_TOKENS. It needs the reasoning parser below. I haven't checked that strict thinking works together with
+    # the speculative decoding flags or with Qwen3.8's parser: if the server fails at startup, or the cap is ignored, remove this
+    # line ( then thinking is uncapped ) and say which flag clashed.
+    thinking_budget: 8192
+
     extra_args:
       - "--trust-remote-code"
       # fp8 KV cache: half the memory of bf16. It works on sm_86 as a storage format, but I haven't checked the speed.
@@ -51,7 +57,6 @@ sglang_models:
       #   num_ctx: only used so pi / opencode learn the context window. Run `pi-sync-models` after changing it
       #       ( and restart opencode ). sglang itself ignores it.
       #
-      # There is no thinking cap set here. sglang has a thinking-budget feature ( see its docs ) but it needs a server flag
-      # I haven't worked out; without one this model can spend its whole output budget thinking.
+      # The thinking cap is set on the server ( thinking_budget above ), not here.
       params:
         num_ctx: 262144

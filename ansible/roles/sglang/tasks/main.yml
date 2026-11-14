@@ -10,6 +10,7 @@
     sglang_model_revision: "{{ _sglang_entry.revision | default(sglang_model_revision) }}"
     sglang_quantization: "{{ _sglang_entry.quantization | default(sglang_quantization) }}"
     sglang_context_length: "{{ _sglang_entry.context_length | default(sglang_context_length) }}"
+    sglang_thinking_budget: "{{ _sglang_entry.thinking_budget | default(sglang_thinking_budget) }}"
     sglang_extra_args: "{{ _sglang_entry.extra_args | default(sglang_extra_args) }}"
   vars:
     _sglang_entry: "{{ sglang_models[sglang_active_model] }}"

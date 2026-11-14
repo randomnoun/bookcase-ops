@@ -446,6 +446,28 @@ All four serve models to litellm from `bnenod05`, and only one runs at a time ( 
 
 To compare them properly: one prompt set, run through litellm against each engine in turn, with the same sampling settings, and read both the speed and the output.
 
+## The models behind each engine ( are they comparable? )
+
+Every engine serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-14 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang and mistralrs have not been measured yet, so there are no speed rows for them above.
+
+| Engine | Registry entry | Weights | GPUs | Speculation | KV cache | Context | Thinking cap |
+|---|---|---|---|---|---|---|---|
+| sonar | `qwen3.8-27b-5bpw` | EXL3 5.00bpw ( `turboderp/Qwen3.8-27B-exl3`, ~19.9GB ) | 2, tensor parallel | MTP, 3 drafts | fp8 | 262144 | 8192 |
+| tabbyapi | `qwen3.8-27b-5bpw` | the same EXL3 5.00bpw | 2, tensor parallel | MTP, up to 4 drafts, dynamic | 8-bit | 262144 | 8192 |
+| tabbyapi | `swift-27b-sc-4bpw-2gpu` ( active ), `-1gpu` | EXL3 4.00bpw of **Swift**, a fine-tune ( 16.3GB ) | 2 ( tensor parallel ) or 1 | MTP, up to 4 drafts, dynamic | 8-bit ( 6-bit on one GPU ) | 262144 | 8192 |
+| ninfer | `qwen3.8-27b-dflash2` ( active ), `-mtp` | `.ninfer`, own 4-5 bit mix ( 18.0 GiB loaded with DFlash2, 16.0 with MTP ) | **1** | DFlash2 with n-gram copying, or MTP | `rk4v4` ( 4-bit keys and values ) | 196608 ( DFlash2, pinned ), 262144 ( MTP ) | 8192 |
+| sglang | `qwen3.8-27b-gptq-int4` | GPTQ 4-bit, group size 32 ( `palmfuture/Qwen3.8-27B-GPTQ-Int4` ) | 2, tensor parallel | MTP via EAGLE, 3 steps, 4 drafts | fp8 | 262144 | 8192 ( strict thinking ) |
+| mistralrs | `qwen3.8-27b-q4k` | the original BF16 weights, quantized to `q4k` as they load | 2, automatic device mapping | `--mtp` ( support for this model unconfirmed ) | fp8 | 262144 | none |
+
+* **Closest pair.** sonar and tabbyapi `qwen3.8-27b-5bpw` are the only exact match: same EXL3 weights, same context, similar speculation, and they differ in the KV format ( fp8 against 8-bit ) and the engine. Every other row has different weights.
+* **sglang against tabbyapi Swift.** sglang's GPTQ 4-bit is nearest in size to the Swift 4.00bpw quant ( 16.3GB ) on two GPUs with MTP, but Swift is a fine-tune, so the output is not the same model. Against the 5.00bpw rows sglang has about one bit per weight less.
+* **GPTQ and q4k are not EXL3.** At the same nominal bits, the three formats lose different amounts of quality. I haven't measured any of them; only the speed rows above exist.
+* **mistralrs quantizes at load.** Its `q4k` weights come from the original BF16 model, so unlike the others there is no pre-made quant to check against, and its first start is slow.
+* **No cap on mistralrs.** The other engines stop thinking at 8192 tokens, so a long think on mistralrs can use more of the output budget. Compare tok/sec rather than the length of a reply.
+* **Limits seen on sglang.** `max_running_requests` is capped at 5 by its Mamba state cache, and its KV pool held 283,366 tokens at fp8 on these cards. That is above the 262144 context but leaves room for only about one full-length request.
+
+To make the comparison fair, either run the same registry entry's weights on the engines that can read them, or accept that this is a comparison of engine and quant together, as the earlier rows are.
+
 ## Things that did not work
 
 * `--speculative-model mtp`, `--speculative-draft-n-max`, `--quantization exllamav3`, `--kv-cache-dtype int8`: flags from other engines. Sonar uses `--speculative-config '{...}'`,

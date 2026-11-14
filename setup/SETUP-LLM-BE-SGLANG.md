@@ -33,6 +33,7 @@ The model and its settings are in the registry, `vars/sglang/bnekub03-models.var
 * `revision`: `--revision`, a branch, tag or commit
 * `quantization`: `--quantization`; leave it out and sglang reads the method from the checkpoint
 * `context_length`: `--context-length`; left out, the model's own maximum
+* `thinking_budget`: a server-wide cap on thinking tokens. The role starts the server with `--enable-strict-thinking` and sets `SGLANG_MAX_THINK_TOKENS`; sglang then forces `</think>` at the cap. It needs the reasoning parser
 * `extra_args`: any other `sglang.launch_server` flag. The registry's entry sets `--kv-cache-dtype=fp8_e4m3`, `--tool-call-parser=qwen3_coder`, `--reasoning-parser=qwen3` and four `--speculative-*` flags for MTP.
 
 `--tp-size` and `--mem-fraction-static` are `sglang_tensor_parallel_size` and `sglang_mem_fraction_static` in the role defaults. The server is started with `--enable-metrics`, and the pod gets a 16Gi `/dev/shm`, 
@@ -43,7 +44,8 @@ which sglang's docs say it needs on docker and kubernetes.
 * **MTP on the 3090s.** The four `--speculative-*` flags are sglang's recipe for the in-checkpoint MTP head, written for Blackwell cards. If the server fails at startup, try adding `--attention-backend=triton`, or remove them.
 * **The quant.** `palmfuture/Qwen3.8-27B-GPTQ-Int4` was chosen because its description says it uses a group size of 32 for sglang compatibility and ships MTP weights. I haven't run it, or compared its quality with the EXL3 and `.ninfer` quants.
 * **The parser names.** `qwen3_coder` and `qwen3` are the names sglang lists. Check them against `python3 -m sglang.launch_server --help` in the image you pin.
-* **Thinking budget.** No cap is set. sglang has a thinking-budget feature, but I haven't worked out the flag, so the model can spend its whole output budget thinking.
+* **Thinking budget.** The cap uses sglang's strict thinking, a grammar-level filter. I haven't checked that it works together with the speculative decoding flags or with Qwen3.8's reasoning parser. If the server fails at startup
+  or the cap is ignored, remove `thinking_budget` from the entry; the model can then spend its whole output budget thinking.
 * **`/health`.** As for mistralrs, I haven't checked what it returns while the model is loading.
 * **No authentication.** No API key is set, so the server is open to the network on its LoadBalancer service, as sonar's is.
 

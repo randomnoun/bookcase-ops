@@ -7,6 +7,7 @@ kube_storageclass_ollama: ""
 # `kubectl scale` (ollama, sonar and tabbyapi each want every GPU, so only one runs at a time).
 ollama_initial_replicas: 1
 
+# Nominal: bnenod05-local-path neither enforces this size nor allows expansion, so changing it on an existing PVC fails the apply.
 ollama_volume_size_gb: 1000
 
 ollama_gpu_node_selector_key: "gpu-vendor"

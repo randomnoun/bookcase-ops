@@ -8,6 +8,7 @@ kube_storageclass_tabbyapi: ""
 # whatever the deployment is currently scaled to, so re-running it doesn't undo a `kubectl scale`.
 tabbyapi_initial_replicas: 0
 
+# Nominal: bnenod05-local-path neither enforces this size nor allows expansion, so changing it on an existing PVC fails the apply.
 tabbyapi_volume_size_gb: 300
 
 # Published by the project to ghcr.io (tags: latest = CUDA 12.8, cu13 = CUDA 13,

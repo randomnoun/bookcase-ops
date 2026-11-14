@@ -57,6 +57,9 @@ spec:
 {% if sglang_context_length | string | length > 0 %}
             - "--context-length={{ sglang_context_length }}"
 {% endif %}
+{% if sglang_thinking_budget | string | length > 0 %}
+            - "--enable-strict-thinking"
+{% endif %}
 {% for arg in sglang_extra_args %}
             - {{ arg | to_json }}
 {% endfor %}
@@ -70,20 +73,26 @@ spec:
             - name: HF_TOKEN
               value: "{{ sglang_hf_token }}"
 {% endif %}
+{% if sglang_thinking_budget | string | length > 0 %}
+            - name: SGLANG_MAX_THINK_TOKENS
+              value: "{{ sglang_thinking_budget }}"
+{% endif %}
           # downloading ( the first time ) and loading a 27b model takes many minutes: 90 x 20s = 30 minutes before kubernetes gives up.
-          # I haven't checked what /health returns while the model is still loading: if the pod goes Ready too early,
-          # or never, swap these for tcpSocket checks as tabbyapi does.
+          # /health returns 503 until the server is up, and then takes about 1.0s to answer, which is the probe default
+          # timeout ( 1s ), so without timeoutSeconds the probes time out and the pod never goes Ready.
           startupProbe:
             httpGet:
               path: /health
               port: 30000
             periodSeconds: 20
+            timeoutSeconds: 5
             failureThreshold: 90
           readinessProbe:
             httpGet:
               path: /health
               port: 30000
             periodSeconds: 15
+            timeoutSeconds: 5
           resources:
             limits:
               cpu: "{{ sglang_cpu_limit }}"
