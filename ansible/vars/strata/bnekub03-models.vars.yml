@@ -67,7 +67,7 @@ strata_models:
     context: "256k"
     # No `set`: the `ple-io=direct` trial on this entry ( 2026-11-15 ) is over. Q2_0 fits with the PLE table locked in RAM and ran 166.2 tok/sec in a pi session that way, so there is no reason to
     # read it from disk. The role now writes STRATA_SET empty when an entry has none, and an init container clears the saved preset at every start, so nothing is carried over from IQ3_S
-    # ( setup/SETUP-LLM-BE-STRATA.md ). Not yet run on the cluster: after the first `model load flash-next-q2-0`, check the log says `PLE table locked in RAM` and not `PLE direct read probe`.
+    # ( setup/SETUP-LLM-BE-STRATA.md ). Checked on the cluster: switching here from IQ3_S gave `PLE table locked in RAM`, `--ple-io ram` and an empty saved `extra`.
     litellm:
       public_name: "strata-qwen3.8-flash-next:q2_0"
       upstream: "strata"

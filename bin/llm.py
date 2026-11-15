@@ -74,13 +74,16 @@ def show_bands(recs, min_out, label):
 
 PI_NS = "dev-pi"
 PI_MODELS = "/root/.pi/agent/models.json"
+OPENHANDS_NS = "dev-openhands"
+OPENHANDS_LITELLM = "http://web.dev-litellm.svc.cluster.local:4000/v1"
+OPENHANDS_CONNECTION = "litellm"
 
 
-def kubectl(*args):
+def kubectl(*args, input=None):
     exe = shutil.which("kubectl")
     if not exe:
         raise click.ClickException("kubectl not found on PATH")
-    p = subprocess.run([exe, *args], capture_output=True, encoding="utf-8", errors="replace")
+    p = subprocess.run([exe, *args], capture_output=True, encoding="utf-8", errors="replace", input=input)
     if p.returncode != 0:
         raise click.ClickException(f"kubectl {' '.join(args)} failed: {p.stderr.strip()[:500]}")
     return p.stdout
@@ -1324,12 +1327,68 @@ def pi_report(models):
     click.echo(f"  run `kubectl -n {PI_NS} exec deploy/pi -- pi-sync-models`")
 
 
+# Runs inside the openhands pod, which has the agent server on localhost:8000 and its own API key in the environment.
+# stdin is a JSON line ( the config, so the litellm key stays out of the process list ) followed by this script.
+OPENHANDS_BOOT = "import sys, json; cfg = json.loads(sys.stdin.readline()); exec(sys.stdin.read())"
+OPENHANDS_SYNC = r'''
+import os, re, urllib.error, urllib.request
+
+def call(method, url, headers, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(url, data=data, method=method, headers={**headers, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        sys.exit(f"{method} {url} returned HTTP {e.code}: {e.read().decode(errors='replace')[:200]}")
+
+oh = "http://localhost:8000"
+H = {"X-Session-API-Key": os.environ["LOCAL_BACKEND_API_KEY"]}
+# litellm lists 'all-proxy-models' for a key that isn't restricted to particular models; it isn't a model
+ids = sorted(m["id"] for m in call("GET", cfg["base"] + "/models", {"Authorization": "Bearer " + cfg["key"]})["data"]
+             if m["id"] != "all-proxy-models")
+profiles = call("GET", oh + "/api/profiles", H)["profiles"]
+have = {p["model"] for p in profiles} | {p["name"] for p in profiles}
+# profile names allow letters, digits, . _ - only; the model ids have ':' and '/'
+missing = [{"model": i, "profile": re.sub(r"[^A-Za-z0-9._-]", "-", i)[:64]} for i in ids]
+missing = [m for m in missing if "openai/" + m["model"] not in have and m["profile"] not in have]
+if missing and cfg["apply"]:
+    conn = next((c for c in call("GET", oh + "/api/llm/provider-connections", H) if c["display_name"] == cfg["connection"]), None)
+    if not conn:
+        conn = call("POST", oh + "/api/llm/provider-connections", H,
+                    {"display_name": cfg["connection"], "api_key": cfg["key"], "base_url": cfg["base"]})
+    for m in missing:
+        call("POST", oh + "/api/profiles/" + m["profile"], H, {"llm": {"model": "openai/" + m["model"], "provider_connection_id": conn["id"]}})
+print(json.dumps({"missing": missing}))
+'''
+
+
+def openhands_sync(dry_run):
+    """Give openhands a profile for each model litellm serves to its virtual key. Only ever adds: existing profiles are left alone.
+    Never fails the command: openhands or its vault key not being there is only reported."""
+    try:
+        key = vault(f"k8s/{CLUSTER}/secret/dev-openhands/openhands", "litellm_virtual_key")
+        cfg = {"base": OPENHANDS_LITELLM, "key": key, "connection": OPENHANDS_CONNECTION, "apply": not dry_run}
+        out = json.loads(kubectl("-n", OPENHANDS_NS, "exec", "-i", "deploy/openhands", "--", "python", "-c", OPENHANDS_BOOT,
+                                 input=json.dumps(cfg) + "\n" + OPENHANDS_SYNC))
+    except (click.ClickException, ValueError) as e:
+        click.echo(f"( openhands not checked: {getattr(e, 'message', e)} )".replace("\n", " ")[:300], err=True)
+        return
+    if not out["missing"]:
+        click.echo("openhands is in sync with litellm")
+        return
+    click.echo(f"openhands profiles {'to add' if dry_run else 'added'}:")
+    for m in out["missing"]:
+        click.echo(f"  {m['profile']}  ( openai/{m['model']} )")
+
+
 def run_sync(dry_run):
     desired = desired_models()
     actions = sync_plan(litellm_models(), desired)
     if not actions:
         click.echo("litellm is in sync with the registries")
         pi_report(litellm_models())
+        openhands_sync(dry_run)
         return
     click.echo("litellm changes:")
     for a in actions:
@@ -1348,6 +1407,7 @@ def run_sync(dry_run):
     if any(a[0] == "update" and any(k == "num_ctx" for k, _, _ in a[4]) or a[0] == "create" for a in actions):
         click.echo("pi and opencode read the context window from litellm: run "
                    "`kubectl -n dev-pi exec deploy/pi -- pi-sync-models` and restart opencode.")
+    openhands_sync(False)
 
 
 @engine_group.command("list")
