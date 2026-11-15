@@ -201,6 +201,7 @@ A Grafana dashboard for these metrics is in [SETUP-GRAFANA.md](SETUP-GRAFANA.md#
   | IQ3_XXS, MTP again, 256k | 64 ( 46 ) | 65,950 | **140.7** ( 121-167 ) | 148.2, n = 7 | 70% | **93.6%** | 0.36 s ( p90 3.7 s ) |
   | **Q2_0**, MTP, 256k | 45 ( 38 ) | 63,267 | **166.2** ( 146-195 ) | 165.6, n = 16 | 73% | 96.9% | 0.38 s |
   | **IQ3_S**, MTP, 256k, `ple-io=direct` | 59 ( 56 ) | 122,347 | **134.0** ( 113-152 ) | 134.1, n = 26 | 72% | 97.5% | **0.71 s** ( p90 2.65 s ) |
+  | **Unsloth UD-Q2_K_XL**, MTP, 256k, `ple-io=direct` | 72 ( 64 ) | 93,996 | **128.7** ( 111-148 ) | 137.2, n = 19 | 71% | 98.1% | **0.35 s** ( p90 2.69 s ) |
 
   Different tasks each, one session each, and the last two were shorter, so differences of a few tok/sec between rows mean little. What I'd say:
   * **Q2_0 is about 11% faster than IQ3_XXS with the same drafter** ( 166.2 against 149.8 and 140.7 ). By prompt size it is 155.7, 163.7 and 167.6 tok/sec for under 15k, 15-45k and 45-65k, against 163.2, 165.3 and 148.5 for the first IQ3_XXS run, so the lead is in the 45-65k band and the others are level or lower ( n = 5, 12 and 21; I have no Q2_0 data over 65k ). Strata puts 99% of its experts in VRAM against 77% for IQ3_XXS with MTP, so a lead is plausible, but I haven't tested why.

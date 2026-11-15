@@ -16,6 +16,11 @@
           role: kubernetes-coredns
           var_files: [bnekub03]
 
+        # only a daemonset and a RuntimeClass until a node is labelled sysbox-install=yes, see roles/sysbox/tasks/main.yml
+        - name: sysbox
+          role: sysbox
+          var_files: [bnekub03]
+
         - name: k8s-node-labels
           role: k8s-node-labels
           var_files: [bnekub03]

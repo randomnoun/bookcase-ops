@@ -14,7 +14,7 @@
 # Once it is scaled up, `kubectl -n dev-strata exec deploy/strata -- strata launch --plan --family qwen --model IQ3_XXS --context 128k`
 # prints what a choice would download, where the model goes and whether it fits ( it needs a running pod, so there is no way to ask before the first start ).
 
-strata_active_model: "flash-next-q2-0"
+strata_active_model: "flash-next-unsloth-ud-q2-k-xl"
 
 strata_models:
 
@@ -91,6 +91,43 @@ strata_models:
       - "ple-io=direct"
     litellm:
       public_name: "strata-qwen3.8-flash-next:iq3_s"
+      upstream: "strata"
+      params:
+        num_ctx: 262144
+        extra_body:
+          reasoning_budget_tokens: 8192
+
+  # NOT TRIED. The smallest Unsloth size Strata offers for Flash-Next ( family "unsloth" ): UD-IQ1_M, 68.0 GB to download by its plan ( `strata launch --plan --family unsloth --model UD-IQ1_M` ), about
+  # Q2_0's size. It does NOT offer UD-IQ1_S, which Unsloth's repo has at 66.4 GB; Strata's list is UD-IQ1_M, UD-Q2_0, UD-IQ2_XS, UD-Q2_K_XL, UD-IQ3_XXS, UD-Q3_K_XL, UD-IQ4_XS ( and a UD-IQ4_XS-v31 ), UD-Q4_K_XL, UD-Q5_K_XL, UD-Q6_K_XL, Q8_0.
+  # My estimate of its RAM need, from file sizes only: if its second shard is the usual 28.8 GB, the experts are about 35 GB, between Q2_0's 31.6 GiB arena and IQ3_XXS's 40 GiB, which both start with the PLE table in
+  # RAM; so no `ple-io=direct` here. Unknown: whether the shard is shared with the ISTA-DASLab sizes ( assume not: 68 GB to download, 454 GB free ), and whether Strata's MTP draft layer works with an Unsloth file ( the plan accepts `--drafting mtp` ).
+  # 256k like the others so the comparison is fair. Not active; load with `llm.py model load flash-next-unsloth-ud-iq1-m`.
+  flash-next-unsloth-ud-iq1-m:
+    family: "unsloth"
+    model: "UD-IQ1_M"
+    context: "256k"
+    litellm:
+      public_name: "strata-qwen3.8-flash-next:unsloth-ud-iq1-m"
+      upstream: "strata"
+      params:
+        num_ctx: 262144
+        extra_body:
+          reasoning_budget_tokens: 8192
+
+  # RUN ( 2026-11-15 ): starts at 256k with `ple-io=direct` and MTP, Ready in 2 min once downloaded ( 79.6 GB, 30 min: Strata fetched the PLE shard again rather than linking it ), arena 42.9 GiB, 23 GiB of RAM
+  # available afterwards, answered 8k / 189k / 249k-token prompts, no restart. A 72-request pi session ran at a median of 128.7 tok/s ( IQ3_XXS 149.8, IQ3_S 134.0 ), 71% accepted, 98.1% reused, first token 0.35 s; the low decode on the 48-58-token filler replies was the short replies, not the quant ( section 18 ).
+  # Unsloth's UD-Q2_K_XL, the closest Unsloth match for IQ3_XXS in size ( 79.6 GB against 75.8 ): 4 shards of 0.01, 49.73, 1.04 and 28.80 GB. Checked before downloading, from the repo's GGUF headers ( setup/SETUP-LLM-MTP.md, section 18 ):
+  # the 28.8 GB shard is the same size to the byte as the PLE shard already on the volume ( 28,800,138,432 ) and holds `per_layer_token_embd.weight`, IQ4_NL, 320,001,536 rows of 90 bytes; the 1.04 GB one is the last layer ( block 47 ).
+  # The routed experts in that layer are IQ2_S ( gate, up ) and IQ4_NL ( down ), not K-quants. Estimated expert arena about 43 GiB: with the PLE table in RAM that is about 70 GiB ( 74% of 94.2, between IQ3_XXS which fit at 71% and IQ3_S which
+  # was killed at 78% ), so `ple-io=direct` is set to stay near 46%. 256k like the others. Download 50.8 GB if Strata links the PLE shard, 79.6 GB if it fetches it again; 454 GB free either way. Load with `llm.py model load flash-next-unsloth-ud-q2-k-xl`.
+  flash-next-unsloth-ud-q2-k-xl:
+    family: "unsloth"
+    model: "UD-Q2_K_XL"
+    context: "256k"
+    set:
+      - "ple-io=direct"
+    litellm:
+      public_name: "strata-qwen3.8-flash-next:unsloth-ud-q2-k-xl"
       upstream: "strata"
       params:
         num_ctx: 262144
