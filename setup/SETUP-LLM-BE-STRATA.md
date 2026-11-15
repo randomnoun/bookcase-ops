@@ -10,7 +10,7 @@ GGUF files by keeping the experts in system RAM ( or on the SSD ) and the dense 
 * **Lots of RAM.** The model needs RAM for its experts plus about 10 GB: 34 GB ( Q2_0 ) to 50 GB ( IQ3_S ) in the docs' figures. `bnenod05` has about 94 GB.
 * **It starts scaled to 0.** See [Switching between engines](SETUP-LLM-BACKEND.md#switching-between-engines).
 * **Official image.** `ghcr.io/niko1221/strata:0.2.13-cuda13`. The CUDA 13 image needs NVIDIA driver 580 or newer, and `bnenod05` has 580.178.04.
-* **Run on the 3090s.** It downloaded the 76 GB IQ3_XXS model in about 30 minutes ( 37 minutes from pod created to serving, 2 minutes on a restart; see [Startup times](#startup-times) ), and served a 63-request pi agent session at a median of about 159 tok/sec, with 98% of prompt tokens reused from its conversation cache ( [below](#what-was-found-running-it-2026-11-15) ). It is a different, larger model from the other engines', so the speeds don't compare directly.
+* **Run on the 3090s.** It downloaded the 76 GB IQ3_XXS model in about 30 minutes ( 37 minutes from pod created to serving, 2 minutes on a restart; see [Startup times](#startup-times) ), and served a 63-request pi agent session at a median of about 159 tok/sec, with 98% of prompt tokens reused from its conversation cache ( [below](#what-was-found-running-it-2026-11-15) ). The smaller Q2_0 size downloaded in 13 minutes ( 15 minutes from pod created to serving ) and decoded at a median of about 166 tok/sec in a later pi session. It is a different, larger model from the other engines', so the speeds don't compare directly.
 
 ## Install it
 
@@ -41,7 +41,7 @@ GGUF files by keeping the experts in system RAM ( or on the SSD ) and the dense 
 
 The model and its settings are in the registry, `vars/strata/bnekub03-models.vars.yml`; switch with `python bin/llm.py model load NAME` ( see [Switching models](SETUP-LLM-BACKEND.md#switching-models) ). Each entry has:
 
-* `family` and `model`: Strata's `FAMILY` and `MODEL`. `qwen` with `Q2_0`, `IQ2_XS`, `IQ3_XXS` or `IQ3_S` are ISTA-DASLab's original sizes of Flash-Next, and the registry lists `IQ3_XXS` ( active ), `Q2_0` and `IQ3_S`.
+* `family` and `model`: Strata's `FAMILY` and `MODEL`. `qwen` with `Q2_0`, `IQ2_XS`, `IQ3_XXS` or `IQ3_S` are ISTA-DASLab's original sizes of Flash-Next, and the registry lists `IQ3_XXS`, `Q2_0` ( the active one at the moment ) and `IQ3_S`.
 * `context`: `CONTEXT`, such as `128k`. Left out, Strata takes the largest that fits.
 * optionally `parallel`, `kv`, `vision`, `set` ( `STRATA_SET`, one engine setting per item ) and `env` ( any other variable the image reads ). They become environment variables on the container, and are only set when present.
 * optionally `drafting`: `auto` ( DFlash2 where Strata has it, the default ), `mtp`, `dflash2` or `off`. **This one isn't a variable the image reads.** `set: ["drafting=mtp"]` is passed to the engine as `--drafting`, which it rejects ( `unknown argument: --drafting` ), and the pod crash-loops.
@@ -62,7 +62,7 @@ The model and its settings are in the registry, `vars/strata/bnekub03-models.var
 * **Memory locking.** The Docker command uses `--ulimit memlock=-1:-1` so the engine can pin the RAM it holds the experts in. Kubernetes has no setting for that, and the node's default limit is 8 MB, which I measured inside another engine's pod. The deployment adds the `IPC_LOCK` capability instead,
   and that was enough: the engine process had 26.8 GiB locked ( `VmLck` in `/proc/<pid>/status` ). `ulimit -l` in a shell in the pod still says 8192, so it isn't a check of this; look at `VmLck`.
 * **Context.** The registry's `context` is my choice, not Strata's, and the litellm `num_ctx` must equal it ( `/health` says `max_context`; Strata ignores `num_ctx` ). It is **256k** ( `max_context: 262144`, the model's native maximum ), which started with no `kv` setting. I raised it in steps: 128k ran the 63-request pi session below, 192k then 256k each restarted
-  in 2 minutes and answered long test prompts correctly ( [What was found running it](#what-was-found-running-it-2026-11-15) ). Strata's docs say 262K for IQ3_XXS is "not measured". The `Q2_0` and `IQ3_S` entries are set to 256k as well but haven't been started at that size; `IQ3_S` is the one most likely not to fit. If a longer context fails to start or a long prompt restarts the pod, add `kv: "k8v4"` ( keys at 8 bits, values as rotated 4-bit: 23% less KV memory, prompts 2-5% slower ), then go back a step.
+  in 2 minutes and answered long test prompts correctly ( [What was found running it](#what-was-found-running-it-2026-11-15) ). Strata's docs say 262K for IQ3_XXS is "not measured". The `Q2_0` entry is at 256k too, and started, served a pi session ( prompts up to 63k tokens ) and answered a 249k-token test prompt correctly; `IQ3_S` is set to 256k but hasn't been started, and is the one most likely not to fit. If a longer context fails to start or a long prompt restarts the pod, add `kv: "k8v4"` ( keys at 8 bits, values as rotated 4-bit: 23% less KV memory, prompts 2-5% slower ), then go back a step.
 * **Thinking.** Flash-Next's template thinks by default at `xhigh`. Strata has a `reasoning_budget_tokens` setting that ends the thinking at N tokens, but it is a key in the engine's own config file, and I haven't found a way to set it server-wide in the Docker image,
   so the registry sends it with every request through litellm ( `extra_body.reasoning_budget_tokens: 8192` ), where a request's own value wins. A direct request with `reasoning_budget_tokens: 40` was cut at 199 characters of thinking and followed by a correct answer.
   I haven't compared it with an uncapped request, or checked that litellm passes it through.
@@ -70,9 +70,10 @@ The model and its settings are in the registry, `vars/strata/bnekub03-models.var
 
 ## Startup times
 
-Measured on `bnenod05` ( 24 logical CPUs, 94 GB RAM, the NVMe volume ) with `flash-next-iq3-xxs`, from the pod's and the PVC's file timestamps ( UTC ) and the pod log. `( est. )` is arithmetic, not a measurement.
+Measured on `bnenod05` ( 24 logical CPUs, 94 GB RAM, the NVMe volume ) with `flash-next-iq3-xxs` and `flash-next-q2-0`, from the pod's and the PVC's file timestamps ( UTC ) and the pod log. `( est. )` is arithmetic, not a measurement.
 **\*** marks a figure measured on 2026-11-14, before the ethernet cable on `bnellm01` was replaced that night; the network may have been slower then, so downloads and pulls marked \* should be measured again.
-To estimate a model of S GB: download ≈ S ÷ the download rate, and the every-start load stays near the figure below ( only one size has been loaded ).
+To estimate a model of S GB: download ≈ S ÷ the download rate ( counting only the shards the volume doesn't already have, see below ), and the every-start load stays near the figures below ( two sizes have been loaded ).
+The Q2_0 download ( 2026-11-15, 02:15 UTC ) came after the cable was replaced, so it has no asterisk; it ran at 47 MB/s against 42 MB/s\* for IQ3_XXS, one sample each, so I can't tell whether the cable made a difference.
 The first start's pod creation time is worked out from the pod's age when I looked, so its figures are good to about 30 seconds.
 
 **Sizes**
@@ -81,9 +82,10 @@ The first start's pod creation time is worked out from the pod's age when I look
 |---|---|
 | Image `ghcr.io/niko1221/strata:0.2.13-cuda13` | 862 MB compressed in the registry ( 9 layers, the biggest 727 MB ); the node reports 0.86 GB. Strata's Docker doc says 2.2 GB on disk, which I didn't measure |
 | Model, IQ3_XXS | 75.8 GB in two files ( 47.0 GB and 28.8 GB ), 71 GiB on disk |
-| Draft layer ( MTP ) and the pack | `/data/Strata-data/mtp` is 6.5 GiB ( the draft file itself is 889 MB ), `packs` is 1.5 GiB |
+| Model, Q2_0 | 37.6 GB for its own shard ( 37,623,740,192 bytes ). Its second shard ( 28.8 GB ) is the same file as IQ3_XXS's, which Strata keeps once and links ( link count 2 ), so adding Q2_0 used 37.6 GB of the volume. Strata's plan and progress lines count both shards ( 66.4 and 67.3 GB ) |
+| Draft layer ( MTP ) and the packs | `/data/Strata-data/mtp` is 6.5 GiB ( the draft file itself is 889 MB ) and is shared by every size; each size has its own pack in `packs` of about 1.5 GiB ( 1.4 GiB for Q2_0 ) |
 | DFlash2 drafter ( fetched by hand, below ) | 1.21 GB downloaded ( 1,206,140,008 bytes ), then deleted; 0.84 GB kept in `/data/Strata-data/dflash2` ( a 522 MB pack, a 340 MB pack with a smaller selector, a 0.4 MB vocabulary ) |
-| **On the PVC in total** | about 80 GiB |
+| **On the PVC in total** | about 80 GiB with IQ3_XXS alone; `models` is 107 GiB with Q2_0 added, and 507 GB of the 1 TB disk is free |
 
 **One-time, per node** ( repeats when the image tag changes )
 
@@ -95,12 +97,12 @@ The first start's pod creation time is worked out from the pod's age when I look
 
 | Entry | Download | Download time | Rate | Pack and draft layer | Pod created to serving |
 |---|---|---|---|---|---|
-| `flash-next-iq3-xxs` | 75.8 GB | **30 min\*** | **42 MB/s\*** | about 6 min ( the 1.5 GiB pack was written 36 s after the last file, the draft-layer files over the next 4.8 min ) | **about 37 min\*** ( 21% of the 3-hour probe ) |
-| `flash-next-q2-0` | 67.6 GB | 27 min ( est. ) | 42 MB/s\* | about 6 min ( est. ) | about 34 min ( est. ) |
-| `flash-next-iq3-s` | 84.8 GB | 34 min ( est. ) | 42 MB/s\* | about 6 min ( est. ) | about 42 min ( est. ) |
+| `flash-next-iq3-xxs` | 75.8 GB | **30 min\*** | **42 MB/s\*** | about 6 min ( the 1.5 GiB pack was written 36 s after the last file, the draft-layer files over the next 4.8 min; the draft layer is shared by every size, so only the first model pays for it, see Q2_0 ) | **about 37 min\*** ( 21% of the 3-hour probe ) |
+| `flash-next-q2-0` | 37.6 GB ( the 28.8 GB shard it shares was already there ) | **13 min 14 s** ( 02:15:01 to 02:28:15 UTC ) | **47 MB/s** | **4 s** ( the draft layer was already there; checking the files took 18 s first ) | **15 min 00 s** ( pod created 02:14:57, Ready 02:29:57; about 75 s of it loading the engine ) |
+| `flash-next-iq3-s` | about 54.8 GB ( est.; Strata's plan said 83.6 GB, which counts the shared shard, and I haven't checked that IQ3_S shares it ) | about 19 min ( est. ) | 47 MB/s | about 20 s ( est. ) | about 21 min ( est. ) |
 
 The download time includes the image already being on the node and Strata's own checks, so the rate is a little under the true one. Strata's docs measured only 16-19 MB/s from Hugging Face without a login, so allow double. The pod is `0/1` for the whole of that,
-so a first `engine set strata` times out at its default of 15 minutes: the deployment carries on, and `python bin/llm.py engine set strata --timeout 1h` waits for it. I haven't started either of the other two sizes.
+so a first `engine set strata` times out at its default of 15 minutes: the deployment carries on, and `python bin/llm.py engine set strata --timeout 1h` waits for it ( `model load` doesn't wait at all ). I haven't started IQ3_S. The log's `Downloading the model files: N of 67.3 GB` for Q2_0 counted the shared shard in its total, and its first line, 6.7 GB, came at 02:17:06, two minutes in.
 
 **One-time, per drafter** ( DFlash2; the start never downloads it, see the DNS note under [What was found running it](#what-was-found-running-it-2026-11-15) )
 
@@ -118,6 +120,7 @@ Run on 2026-11-15, on the serving pod: `kubectl -n dev-strata exec deploy/strata
 |---|---|---|---|---|---|
 | Pod created to the engine starting | 76.7 GB of model files, which the log lists as `Getting the model files: 76.7 of 76.7 GB` | 22 s | - | I don't know whether it checks sizes or reads the files | Strata's launcher runs each time |
 | Load the engine and the model | about 26.8 GiB pinned in RAM, about 23 GiB on each GPU | 98 s ( 87 s on the first start ) | - | model size, I assume; only one size loaded | the experts and layers are read into RAM and VRAM |
+| Load the engine and the model, Q2_0 | the same 26.8 GiB locked ( `VmLck` was identical ); 99% of the experts resident, against 77-86% for IQ3_XXS | about 75 s ( on its first start; a restart wasn't timed ) | - | model size, I assume | the same |
 | **Pod created to Ready** | | **2 min** ( 120 s ) with MTP | | | the same at 128k, 192k and 256k context ( 121 s at 256k ). **1 min 30 s** at 256k with DFlash2; the log shows loading in 75 s, I haven't looked at why it is faster. **4 min 00 s** at 256k with MTP after the deployment had been at 0 replicas for a while ( loading took 210 s ): I think the model files had left the page cache, but I haven't checked |
 
 `python bin/llm.py engine list --times` prints each engine's pod age and created-to-Ready time ( while that pod still exists ).
@@ -185,9 +188,36 @@ A Grafana dashboard for these metrics is in [SETUP-GRAFANA.md](SETUP-GRAFANA.md#
   No pod restarts and no out-of-memory, "too long" or truncation lines in the log. The 192k pi session before that ran 20 more requests with prompts of 87k-103k tokens at about 145 tok/sec median decode and 100% reuse.
   **What that doesn't show:** filler text, short replies, one request at a time. Quality at depth, a long reply on top of a 250k prompt, and two requests at once are untested, and there is little to spare: at 256k and idle both GPUs were at 23.6 and 23.7 GiB of 24, and `free` showed 90 of 94 GiB used with 3 GiB available.
 * **DFlash2 drafting ( after the first runs, which were MTP ).** Once `strata drafting fetch` had put the drafter on the PVC ( [Startup times](#startup-times) ), a restart at 256k logged `strata dflash2: ... drafter 591 MiB of VRAM (Q4_0 weights)` and `DFlash2 drafter on (/data/Strata-data/dflash2/qwen3.8-flash-next-dflash2.q4_0-selq4.pack ...); windows up to 8 tokens; no MTP layer is loaded`,
-  with GPU memory at 23.5 GiB on each card, no higher than with MTP. It also printed `DFlash2 answers one request at a time, so Strata set this model to one request at a time`, so two clients at once queue. A pi agent session with it ( 80 requests, 73 with 100+ tokens out; the warm-up and my test prompts left out ) decoded at a median **151.6 tok/sec** ( range 114-204 ), against 149.8 for all 183 MTP requests ( 172 with 100+ out ) and 158.4 for the first MTP session. So it is no faster here: the same median, but slower on long replies ( 141.1 against 158.1 at 1,000+ tokens out, n = 22 and 57 ),
-  and its acceptance was lower ( 61% mean against 71%, though DFlash2 drafts windows of up to 8 tokens, so the two rates aren't the same measure ). Prefix reuse was the same ( 98.6% against 98.3% of prompt tokens ) and the median first token took 0.39 s against 0.45 s. The sessions were different tasks, one run each, so a gap of a few tok/sec is noise.
+  with GPU memory at 23.5 GiB on each card, no higher than with MTP. It also printed `DFlash2 answers one request at a time, so Strata set this model to one request at a time`, so two clients at once queue. A pi agent session with it ( 86 requests, 76 with 100+ tokens out; the warm-up and my test prompts left out ) decoded at a median **149.2 tok/sec** ( range 114-204 ), against 149.8 for all 183 MTP requests before it ( 172 with 100+ out ) and 158.4 for the first MTP session. So it is no faster here: the same median, but slower on long replies ( 141.1 against 158.1 at 1,000+ tokens out, n = 22 and 57 ),
+  and its acceptance was lower ( 61% mean against 71%, though DFlash2 drafts windows of up to 8 tokens, so the two rates aren't the same measure ). Prefix reuse was the same ( 98.4% against 98.3% of prompt tokens ) and the median first token took 0.40 s against 0.45 s. The sessions were different tasks, one run each, so a gap of a few tok/sec is noise.
+  ( I first measured this with 80 requests, a median of 151.6; the session carried on a little before the next restart, and these are the figures for all of it. )
   I can't say DFlash2 is worth the 10-minute fetch, the one-request-at-a-time limit and the extra 0.6 GB of VRAM, so the registry's `flash-next-iq3-xxs` entry now sets `drafting: "mtp"` ( see [Install it](#install-it) ); the engine log then shows `strata mtp: draft layer loaded, 835 MiB of VRAM` and no DFlash2 lines, and GPU memory is 23.4 and 23.5 GiB. The rest of this page, and section 15 of [SETUP-LLM-MTP.md](SETUP-LLM-MTP.md), is MTP.
+* **Four pi sessions on the same engine log ( 2026-11-15 ).** The engine log keeps every start, so I split it at the `engine started` lines ( the figures leave out the 53-token warm-up and my own test prompts; "decode" is the median over requests with 100+ tokens out ):
+
+  | Run | Requests ( 100+ out ) | Largest prompt | Decode median ( p10-p90 ) | 1,000+ out | Draft accepted | Prompt tokens reused | Median first token |
+  |---|---|---|---|---|---|---|---|
+  | IQ3_XXS, MTP, 128k-256k | 183 ( 172 ) | 102,583 | **149.8** ( 131-170 ) | 158.1, n = 57 | 71% | 98.3% | 0.45 s |
+  | IQ3_XXS, DFlash2, 256k | 86 ( 76 ) | 102,092 | **149.2** ( 128-183 ) | 141.1, n = 22 | 61% | 98.4% | 0.40 s |
+  | IQ3_XXS, MTP again, 256k | 64 ( 46 ) | 65,950 | **140.7** ( 121-167 ) | 148.2, n = 7 | 70% | **93.6%** | 0.36 s ( p90 3.7 s ) |
+  | **Q2_0**, MTP, 256k | 45 ( 38 ) | 63,267 | **166.2** ( 146-195 ) | 165.6, n = 16 | 73% | 96.9% | 0.38 s |
+
+  Different tasks each, one session each, and the last two were shorter, so differences of a few tok/sec between rows mean little. What I'd say:
+  * **Q2_0 is about 11% faster than IQ3_XXS with the same drafter** ( 166.2 against 149.8 and 140.7 ). By prompt size it is 155.7, 163.7 and 167.6 tok/sec for under 15k, 15-45k and 45-65k, against 163.2, 165.3 and 148.5 for the first IQ3_XXS run, so the lead is in the 45-65k band and the others are level or lower ( n = 5, 12 and 21; I have no Q2_0 data over 65k ). Strata puts 99% of its experts in VRAM against 77% for IQ3_XXS with MTP, so a lead is plausible, but I haven't tested why.
+    I haven't compared the answers: Strata's docs rank Q2_0 as "good" and IQ3_XXS as "great", and nothing here measures quality.
+  * **MTP leaves less room than DFlash2 for experts.** The IQ3_XXS runs had 7,107 expert slots with MTP and 7,824 with DFlash2 ( 77% and 86% of the experts resident ), because the MTP layer takes 835 MiB of VRAM against 591 MiB for the DFlash2 drafter.
+  * **Conversation-cache reuse depends on free RAM at the start.** Strata sizes the cache from the free RAM when it starts ( `conversation cache sized from the free RAM: N MiB for up to 4 parked conversations` ): 5,120 MiB in the DFlash2 start, 4,352 MiB for Q2_0 and only 1,024 MiB for the second IQ3_XXS MTP start,
+    where six requests logged `skip parking (snapshot 1688-1733 MiB exceeds available budget)` and reuse fell to 93.6%. That start came a few minutes after another, and I think the page cache or locked memory from the previous one had not been given back, but I haven't checked. If reuse is low, look for those lines.
+  * **Q2_0 leaves more spare:** GPU memory was 23.5 and 23.7 GiB with the model idle ( the engine sizes its expert cache to what is free, so that says little ), and `free` showed 8.8 GiB available ( for IQ3_XXS I saw 3.7, 4.5 and 15.4 GiB available at different times, so that is not a comparison ). The longest prompt in the pi session was 63k tokens; the long-prompt test below took it to 249k.
+* **Long-prompt test on Q2_0 ( 2026-11-15, `llm_util.py longprompt` ).** The same filler prompts as for IQ3_XXS, now sent by a script in the repo: `python3 bin/llm_util.py longprompt` ( it finds how many tokens a line of filler is, sends 8k, 190k and 250k-token prompts in turn, each with a passphrase on its first line, checks the reply has it, and compares the pod's restart count before and after; `--tokens N` picks other sizes, and it takes `--engine` for the others ).
+
+  | Prompt tokens | Cached | Seconds | Engine's read speed | Engine's decode | Draft accepted | Result |
+  |---|---|---|---|---|---|---|
+  | 7,985 | 0% | 3.8 | 2,282 tok/s | 167.0 tok/s | 71% | passphrase recalled |
+  | 189,289 | 0% | 43.8 | 4,378 tok/s | 151.7 tok/s | 71% | recalled |
+  | 249,031 | 72% | 22.6 | 3,122 tok/s | 137.2 tok/s | 65% | recalled |
+
+  The pod didn't restart and the log has no out-of-memory, "too long" or truncation lines. Compared with IQ3_XXS on the same prompts ( 8,493, 189,083 and 252,093 tokens ): Q2_0 read the cold 189k prompt in 43.8 s against 41-48 s, and decoded at 152 and 137 tok/sec against 121-140 and 136-138. Replies were 52-63 tokens, so the decode figures are rough.
+  GPU memory afterwards was 23.5 and 23.7 GiB, and 8.3 GiB of RAM was available. **What this doesn't show:** filler text and a one-word answer, one request at a time; not quality at depth, not a long reply on top of a 250k prompt, and not two requests together.
 * **Drafting fell back to MTP at first.** The plan said DFlash2 drafting, but the log said `Drafting: MTP (DFlash2 isn't available in this mode)`, and above it `The DFlash2 download did not finish ... 0 of 1206140008 bytes ( URLError: [Errno -3] Temporary failure in name resolution )`. So the 1.2 GB drafter file was never fetched ( `/data/Strata-data/dflash2` is empty ),
   and Strata carried on with the MTP. A restart showed the same with `[Errno -5] No address associated with hostname`. From inside the pod every lookup I tried afterwards worked ( including `us.aws.cdn.hf.co`, the host the download is redirected to ), and the same request returned `206` three times, so the failure comes and goes.
   I haven't found the cause: cluster DNS forwards to `192.168.0.24` ( the BIND server on `bnehyp02` ), then `203.12.160.35`, then `8.8.8.8`, and coredns's log has a few `i/o timeout` errors to those on 2026-11-14, none at the time of the start.

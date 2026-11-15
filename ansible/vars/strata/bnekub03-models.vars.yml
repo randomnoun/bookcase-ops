@@ -61,7 +61,10 @@ strata_models:
   flash-next-q2-0:
     family: "qwen"
     model: "Q2_0"
-    # 256k like the IQ3_XXS entry, but not started yet at this size ( 2026-11-15 ): it is the smallest model, so it has the most memory to spare.
+    # 256k like the IQ3_XXS entry. Started at this size ( 2026-11-15 ): `/health` says max_context 262144, a 45-request pi session ( prompts up to 63k tokens ) ran at a
+    # median 166 tok/sec with no restart, and a 249k-token test prompt ( bin/llm_util.py longprompt ) was answered correctly. Downloaded in 13 minutes ( its second shard is shared with IQ3_XXS ).
+    # This entry sets no `drafting`, yet it ran MTP: the saved launch preset on the volume holds "drafting": "mtp" from the IQ3_XXS entry, and the live deployment still has
+    # DRAFTING=mtp, which the playbook doesn't remove. Add `drafting: "mtp"` here if you want it stated rather than inherited.
     context: "256k"
     litellm:
       public_name: "strata-qwen3.8-flash-next:q2_0"
