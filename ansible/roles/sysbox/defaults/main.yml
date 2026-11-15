@@ -1,0 +1,5 @@
+kube_context_sysbox: ""
+
+# tags are on ghcr.io/nestybox/sysbox-deploy-k8s ( registry.nestybox.com redirects there ). v0.7.1 is the first
+# release that works on Ubuntu 24.04 with kernel 6.8+ under containerd 2.x
+sysbox_deploy_image_tag: "v0.7.1-0"

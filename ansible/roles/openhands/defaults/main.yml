@@ -8,7 +8,7 @@ openhands_tls_secret_key: ""
 
 # the all-in-one image (UI + agent server + automation backend), see
 # https://github.com/OpenHands/OpenHands/tree/main/helm/agent-canvas
-openhands_image: "ghcr.io/openhands/agent-canvas:1.25.0"
+openhands_image: "ghcr.io/openhands/agent-canvas:1.40.0"
 
 # holds ~/.openhands (settings, encrypted secrets, conversation history) and
 # ~/workspace (the repos the agent works on). The storage class allows volume

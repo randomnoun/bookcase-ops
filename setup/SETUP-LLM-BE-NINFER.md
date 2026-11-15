@@ -53,6 +53,44 @@ which are listed at the top of `run.sh` in the release.
 * **Vision is on.** The `tuned` profile loads the vision tower in `overlay` residency ( about 10 MiB of runtime reservation ); `NINFER_VISION=off` in `env` drops it.
 * **Thinking.** `thinking_budget` is `--default-thinking-budget`, a server-wide cap. The litellm `reasoning_effort` values the other engines use aren't known to work here; ninfer's docs say `"none"` turns thinking off for Qwen.
 
+## Startup times
+
+Measured on `bnenod05` from the init container's and server's logs, over several starts. `( est. )` is arithmetic, not a measurement.
+**\*** marks a figure measured before the ethernet cable on `bnellm01` was replaced on 2026-11-14, so it should be measured again.
+The layout is the same on every engine's page; the summary is in [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md#startup-times).
+
+**Sizes**
+
+| What | Size |
+|---|---|
+| Image `ghcr.io/iamwavecut/ninfer-all:cuda12.9-bdc1b8d8970a` | 4.39 GB on the node ( the `cuda13.4` build is 4.27 GB ) |
+| Model, one `.ninfer` file | about 19 GB ( 19 GiB ) |
+
+**One-time, per node** ( repeats when the image tag changes )
+
+| Phase | Size | Time | Rate | Scales with |
+|---|---|---|---|---|
+| Pull the image | 4.39 GB | not timed | - | image size |
+
+**One-time, per model** ( the init container `model`; it resumes from its `.part` file and checks the size and SHA-256 )
+
+| Entry | Download | Download time | Rate | Pod created to serving |
+|---|---|---|---|---|
+| `qwen3.8-27b-dflash2` and `qwen3.8-27b-mtp` ( same `qwen38-27b` file ) | about 19 GiB | **about 30 min\*** | **about 10 MiB/s\*** | about 32 min\* ( est.: the download plus 1 min 09 s; the init container restarted once after a DNS failure ) |
+
+**Every start**
+
+| Phase | Size processed | Time | Rate | Scales with | Why every start |
+|---|---|---|---|---|---|
+| Init container: check the file | about 19 GiB | not timed | - | file size | runs each time |
+| Load the weights | 16.0 GiB ( `mtp` ), 18.0 GiB ( `dflash2` ) | 58.4 s of the 1 min 08.6 s to `engine ready` on the first start | - | model size | read into VRAM each time |
+| Retries when the context doesn't fit | the whole load again | `dflash2`: 2 min 15 s against 51 s for the last attempt alone ( two step-downs, 262,144 to 196,608 ) | - | number of step-downs | set `context` to avoid them |
+| **Pod created to Ready** | | not timed from the pod; 1 min 09 s to `engine ready` on the first `mtp` start, 2 min 15 s for `dflash2` with its retries | | | |
+
+`python bin/llm.py engine list --times` prints each engine's pod age and created-to-Ready time ( while that pod still exists ).
+
+**Limits:** `engine set` waits 15 minutes unless given `--timeout`, so a first start needs `--timeout 45m`.
+
 ## Configure the model in litellm
 
 `python bin/llm.py model sync` creates the litellm model from the registry entry's `litellm:` block: an OpenAI-compatible model at `http://web.dev-ninfer.svc.cluster.local:8080/v1`, called `ninfer` upstream ( `ninfer_served_model_name` ), 

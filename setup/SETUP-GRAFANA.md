@@ -80,9 +80,43 @@ Putting `rate(aphrodite:generation_tokens_total[1m])` and `DCGM_FI_DEV_GPU_UTIL`
 
 The exporter's profiling metrics ( `DCGM_FI_PROF_*` ) aren't all supported on GeForce cards, so if one is missing it may be a hardware limitation and not a setup problem. 
 
+### Strata ( LLM backend )
+
+Gives requests, tokens/sec, time to first token, inter-token and request latency, draft acceptance and context use, plus Strata's own engine view: engine state, batch slots, per-GPU busy and memory, and host RAM.
+
+Prometheus scrapes it because the `strata` role creates a `ServiceMonitor` in the `dev-strata` namespace ( see [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md#metrics) ), which asks for `/metrics?format=prometheus` and sends the API key as a bearer token.
+Check `https://prometheus.dev.randomnoun/targets` for `serviceMonitor/dev-strata/strata/0`, which should be `UP`; it was, scraping every 15 seconds, when I set this up.
+`/metrics` returns JSON unless the request asks for Prometheus text, which is why the ServiceMonitor passes `format=prometheus`.
+
+Strata publishes its own dashboard, "Strata ( and vLLM )", and a copy is in this repo as [ansible/strata-dashboard.json](../ansible/strata-dashboard.json) ( from `docs/monitoring/grafana-strata.json` in the Strata repo, 2026-11-15, Strata 0.2.13 ).
+In Grafana go to Dashboards -> New -> Import, upload it, and select the prometheus datasource when asked. Unlike sonar's it needs no renaming, because Strata uses vLLM's metric names ( `vllm:` ) for the common series and its own `strata:` names for the rest. 
+It has 20 panels in two rows and `model` and `instance` variables. All 27 metric names its queries use exist on the live server, and you said it looked good when imported.
+
+Queries for your own panels:
+
+| What | Query |
+|---|---|
+| Generation tokens/sec | `sum(rate(vllm:generation_tokens_total[1m]))` |
+| Prompt tokens/sec | `sum(rate(vllm:prompt_tokens_total[1m]))` |
+| Draft acceptance | `rate(vllm:spec_decode_num_accepted_tokens_total[5m]) / rate(vllm:spec_decode_num_draft_tokens_total[5m])` |
+| Requests running / queued | `vllm:num_requests_running`, `vllm:num_requests_waiting` |
+| Engine speed now ( tok/s ) | `strata:live_tok_s` |
+| GPU busy / memory used, per card | `strata:gpu_util`, `strata:gpu_mem_used_bytes` |
+| Host RAM used | `strata:ram_used_bytes` |
+
+Notes on two panels:
+
+* **Prompt tokens served from the cache** uses `vllm:prefix_cache_hits_total`. It read 0 of 179 when I first looked, which I took for a broken counter, but that was before the first request had reused anything: after a pi agent session it was 3,222,633 of 3,292,102 queries ( 97.9% ),
+  and the engine log's own totals for 63 requests were 3,216,341 of 3,279,542 prompt tokens reused ( 98.1% ), so the counter does count Strata's conversation cache. `strata:last_hit_rate` ( 98.9% ) is the share reused by the *last* request, despite its name.
+  It is not an expert-cache figure, so the "Expert cache hit rate ( last request )" panel is mislabelled; the expert cache's hit rate is in the engine log as `decode expert cache hit rate`.
+* **GPU memory** shows both cards at about 97%, since Strata sizes its caches to use what is free. That is how it plans memory, not a leak.
+
+The per-request decode speed is in Strata's engine log, not in these metrics: `python3 ../bin/llm.py speed strata`, which is the number to use when comparing one backend with another.
+
 ### Not scraped yet
 
-Only `sonar` and the GPUs are scraped. `ollama` has no ServiceMonitor, and `litellm` serves `/metrics` behind authentication and needs its prometheus callback enabled first.
+Only `sonar`, `strata` and the GPUs are scraped. `ollama` has no ServiceMonitor, and `litellm` serves `/metrics` behind authentication and needs its prometheus callback enabled first.
+`ninfer`, `mistralrs` and `sglang` each create a ServiceMonitor too, but I haven't checked that Prometheus finds them or set up a dashboard for them.
 
 ### Tabbyapi ( no metrics )
 

@@ -21,24 +21,30 @@ mistralrs_models:
     # or "auto" to let mistralrs pick what fits. If a UQFF file exists for the repo it is used instead of quantizing.
     quant: "q4k"
 
-    # 262144 is the model's native maximum. mistralrs sizes the KV cache from what is left after the weights
-    # ( --gpu-memory-utilization ), so this only sets the longest single request. If the server fails to start because the
-    # cache is too small, lower it. Keep the litellm "num_ctx" for this model equal to this.
-    max_model_len: "262144"
+    # 262144 is the model's native maximum, but it didn't start on 2026-11-14 ( "runtime reservations need 36131 MiB ... only 4904 MiB remains
+    # usable" ); that was --max-seqs, not the context ( see below ), and 65536 was only a guess that turned out not to matter for that. It does fit:
+    # the KV cache is 1,062 MiB per GPU, 63,840 tokens at fp8, so a request can't actually use all 65536. About 9 GiB per card is still free, so
+    # --gpu-memory-utilization 0.95 should give about 136k tokens ( not tried ), and then this could be raised. Keep the litellm "num_ctx" equal to this.
+    max_model_len: "65536"
 
     extra_args:
       # 8-bit float KV cache, about half the memory of the default
       - "--pa-cache-type=f8e4m3"
-      # MTP self-speculative decoding with the draft head that is part of the checkpoint. I haven't confirmed that
-      # this mistralrs release supports MTP for the Qwen3.8 architecture: if the server fails at startup with an MTP
-      # error, remove this line. --mtp-n-predict fixes the draft length; leaving it out lets mistralrs adapt it.
+      # Needed to start at all. The reservation that didn't fit was 36,131 MiB at 262144 context and 35,856 MiB at 65536, so it didn't scale with
+      # context; the log line before the failure was "Recurrent state pool reserved capacity=33", and 33 is --max-seqs' default for `serve` ( 32 )
+      # plus one. With 2 it was "capacity=9" and the server started. I take it the Gated DeltaNet layers reserve state per concurrent request
+      # ( not confirmed from the source ), so this server runs at most 2 requests at once. 2 rather than 1 so a client's title/summary request
+      # doesn't queue behind a long one.
+      - "--max-seqs=2"
+      # MTP self-speculative decoding with the draft head that is part of the checkpoint. It works: "Speculative decoding enabled: MTP assistant
+      # `built-in`", accepting 2.0-2.75 tokens per step ( 49-79% ), but decode was only 18-43 tok/sec and the prefix cache never hits with it on
+      # ( setup/SETUP-LLM-MTP.md section 14 ). --mtp-n-predict fixes the draft length; left out, mistralrs picks 2, 3, 4 or 6 as it runs, and chose 2 mostly.
       - "--mtp"
 
     # The litellm model that `llm.py model sync` creates for this entry.
     litellm:
       public_name: "mistralrs-qwen3.8:27b-q4k"
-      # the model name litellm sends. I expect mistralrs to name the model by its repo id, but haven't checked: compare
-      # with `python bin/llm.py engine list` ( SERVING column ) once it is running, and change this if it differs.
+      # the model name litellm sends: mistralrs lists "Qwen/Qwen3.8-27B" ( status: loaded ) and "default" at /v1/models, so the repo id matches.
       upstream: "Qwen/Qwen3.8-27B"
       # litellm_params, merged over model / api_base / api_key:
       #
@@ -49,4 +55,4 @@ mistralrs_models:
       # splits this model's <think> text or <tool_call><function=...> format out for a client. If tool calls come back as
       # plain text in pi, that's the thing to look at. There is no thinking budget set here either.
       params:
-        num_ctx: 262144
+        num_ctx: 65536

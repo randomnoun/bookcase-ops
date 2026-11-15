@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -sL \"https://api.github.com/repos/searxng/searxng-docker/contents/\")",
+      "Bash(curl *)",
+      "WebFetch(domain:docs.searxng.org)",
+      "WebSearch",
+      "WebFetch(domain:docs.openssl.org)",
+      "Read(//c/tmp/**)",
+      "Bash(docker pull *)",
+      "Bash(openssl s_client -connect searxng.dev.randomnoun:443)",
+      "Bash(openssl x509 *)",
+      "mcp__searxng__searxng_web_search",
+      "mcp__searxng__web_url_read"
+    ]
+  }
+}

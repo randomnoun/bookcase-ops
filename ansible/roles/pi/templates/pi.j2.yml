@@ -45,7 +45,8 @@ data:
       headers: { Authorization: 'Bearer ' + process.env.LITELLM_API_KEY },
     });
     if (!res.ok) throw new Error('litellm /models returned HTTP ' + res.status);
-    const ids = (await res.json()).data.map((m) => m.id).sort();
+    // litellm lists 'all-proxy-models' for a key that isn't restricted to particular models; it isn't a model
+    const ids = (await res.json()).data.map((m) => m.id).filter((id) => id !== 'all-proxy-models').sort();
     if (ids.length === 0) throw new Error('litellm returned no models for this key');
     // pi compacts its context at (contextWindow - reserve), so it needs the real window or ollama truncates first.
     // litellm's /models has no such field; /model/info (at the proxy root, not /v1) has num_ctx in litellm_params.

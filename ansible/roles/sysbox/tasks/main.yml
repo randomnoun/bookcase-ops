@@ -1,0 +1,12 @@
+# Deploying this installs nothing by itself: the daemonset only runs on nodes labelled sysbox-install=yes.
+# Labelling a node makes the installer put sysbox on it and register a sysbox-runc handler in containerd, which restarts containerd
+# on that node. Once it's done the installer sets sysbox-runtime=running on the node, which is what the RuntimeClass schedules on.
+#
+#   kubectl label node <node> sysbox-install=yes
+#
+# no `wait: true` on this one: an install can take minutes, and the daemonset has nothing to wait for until a node is labelled.
+- name: "kubernetes sysbox"
+  k8s:
+    state: "present"
+    context: "{{ kube_context_sysbox }}"
+    definition: "{{ lookup('template', 'sysbox.j2.yml')  }}"

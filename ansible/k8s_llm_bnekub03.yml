@@ -28,6 +28,9 @@
         - name: sglang-bnekub03
           role: sglang
           var_files: [bnekub03, bnekub03-models]
+        - name: strata-bnekub03
+          role: strata
+          var_files: [bnekub03, bnekub03-models]
         - name: open-webui-bnekub03
           role: open-webui
           var_files: [bnekub03]

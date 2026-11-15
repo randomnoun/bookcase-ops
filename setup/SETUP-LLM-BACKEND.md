@@ -33,18 +33,25 @@ The backend engines run the models:
    * a Rust engine that quantizes the original weights as it loads them, so nothing needs converting. Official image, nothing to build
    * developed by Eric Buehler
    * also has a model registry managed by llm.py
-   * not yet run on the 3090s, see the page for what's unconfirmed
+   * runs on both 3090s at about 37 tok/sec with MTP on short requests, with no prefix caching; slow so far
    * [SETUP-LLM-BE-MISTRALRS.md](SETUP-LLM-BE-MISTRALRS.md)
 * `sglang` ( safetensors: AWQ, GPTQ, FP8 )
    * a Python engine like sonar's vLLM base, with batching, a radix-tree prefix cache and tool-call and reasoning parsers. Official image, nothing to build
    * developed by LMSYS
    * also has a model registry managed by llm.py
-   * not yet run on the 3090s, see the page for what's unconfirmed
+   * runs on both 3090s at about 95 tok/sec with MTP, after a fix to the checkpoint's quantization config
    * [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md)
+* `strata` ( GGUF )
+   * built for large mixture-of-experts models: it keeps the experts in system RAM and on the SSD, and the dense layers and hot experts on the GPUs. 
+   * developed by Niko1221
+   * also has a model registry managed by llm.py
+   * The registry has Qwen3.8-Flash-Next ( 125B ), not the 27B the others serve, so its speeds aren't comparable
+   * runs on both 3090s at a median of about 159 tok/sec with 98% of agent prompt tokens reused from its cache, in a 63-request session, but on the larger model
+   * [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md)
 
-All six are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
+All seven are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 
 
-`ollama`, `sonar`, `mistralrs` and `sglang` request both GPUs; `ninfer` requests one, and `tabbyapi` can request 1 or 2 depending on the model. 
+`ollama`, `sonar`, `mistralrs`, `sglang` and `strata` request both GPUs; `ninfer` requests one, and `tabbyapi` can request 1 or 2 depending on the model. 
 They all need the `nvidia-device-plugin` component to access the GPU and `local-path-provisioner` to read/write large models on the locally-attached NVMe drive.
 
 ## The models
@@ -61,7 +68,8 @@ Some things affect model speed / quality:
       * EXL3 is a quantisation format based on QTIP, a research method for compressing weights to a chosen number of bits each, which ExLlamaV3 converts and loads at fractional bit rates ( 5.00 bpw, 4.00 bpw ) with a custom GPU kernel.
    * **sonar** is built on vLLM, so it gets continuous batching, and has added EXL3 loading and other formats. 
      Of the first four, it's the only one here with batching, which helps when several agents share the model.
-   * **sglang** also batches continuously, and reads AWQ and GPTQ quants of the original model. **mistralrs** quantizes the original weights itself as it loads them.
+   * **sglang** also batches continuously, and reads AWQ and GPTQ quants of the original model. 
+   * **mistralrs** quantizes the original weights itself as it loads them.
    * **ninfer** is an engine for the RTX 5090 ( with the NVidia Blackwell architecture `sm_120` ), and ninfer-all is a continuation of its RTX 3090 port ( `sm_86` ) that covers Volta to Blackwell.
       * It handles one request stream on one GPU very fast, but only for the specific models it supports. 
       * Its `.ninfer` files are single self-contained model files ( weights, tokenizer and chat template ) in its own 4-5 bit grouped quantisation, which only NInfer reads, so a model has to be converted for it first.
@@ -161,9 +169,27 @@ Some things affect model speed / quality:
      The card says its author tested it on one 3090 with a 262,144 context and a Q6 KV cache, and ran no quality or speed measurements.
 
 
+## Startup times
+
+Each engine's page has a *Startup times* section in the same layout: sizes, then what happens once per node ( image pull ), once per model ( download, plus any prep ) and on every start ( load, plus anything redone every time, such as mistralrs's quantization ), each with the size it processed and its rate.
+This is the summary. A `-` means I haven't measured it; `( est. )` is arithmetic. **\*** marks figures from 2026-11-14, before the ethernet cable on `bnellm01` was replaced that night, so the downloads and pulls should be measured again.
+
+| Engine | Image | Model downloaded | First download | Every start | Why |
+|---|---|---|---|---|---|
+| [`ninfer`](SETUP-LLM-BE-NINFER.md#startup-times) | 4.39 GB | about 19 GiB | about 30 min\* | about 1 min ( `mtp` ), 2 min 15 s with retries ( `dflash2` ) | loads weights; retries reload them |
+| [`sglang`](SETUP-LLM-BE-SGLANG.md#startup-times) | 16.1 GB, 7 min\* to pull | 21.0 GB | within a 15 min\* first start | about 2 min | weights, MTP head, CUDA graphs |
+| [`mistralrs`](SETUP-LLM-BE-MISTRALRS.md#startup-times) | 4.04 GB, 5 min 40 s\* to pull | 55.6 GB ( BF16 ) | about 55 min\* | 3 min 06 s | **re-quantizes every start** |
+| [`strata`](SETUP-LLM-BE-STRATA.md#startup-times) | 0.86 GB | 75.8 GB ( IQ3_XXS ), 37.6 GB more for Q2_0 ( shares a 28.8 GB shard ) | IQ3_XXS 30 min\* ( 37 min\* with prep ); Q2_0 13 min ( 15 min to serving ) | 1.5-2 min warm; 4 min after a long time scaled to 0 | loads experts into pinned RAM; a DFlash2 drafter needs a 10 min one-time fetch |
+| `tabbyapi` | 6.71 GB | - | - | - | |
+| `sonar` | - | - | - | - | image is built locally |
+| `ollama` | - | - | - | - | |
+
+Image size, model size and the rates are what to scale from: a first start is roughly the image pull ( once per node ), plus the model size divided by the download rate, plus the every-start time.
+`python3 ../bin/llm.py engine list --times` adds each pod's age and its created-to-Ready time, and `engine set` prints the same time once the rollout finishes, so the "every start" column can be filled in from a restart without reading logs ( the pod has to still exist; its events are gone in about an hour ).
+
 ## Switching between engines
 
-`ollama`, `sonar`, `tabbyapi`, `mistralrs` and `sglang` usually request both GPUs, so only one can run at a time. 
+`ollama`, `sonar`, `tabbyapi`, `mistralrs`, `sglang` and `strata` usually request both GPUs, so only one can run at a time. 
 `ninfer` needs only one GPU, so it could in principle run beside another one-GPU pod, but for now `engine set` still scales everything else down for it.
 
 Switch with `bin/llm.py`. It needs `pip install click pyyaml hvac requests`, `kubectl`, and `. vault-login.sh` first for the verbs that call APIs: secrets are read from vault with
@@ -184,13 +210,13 @@ kubectl -n dev-tabbyapi scale deploy/tabbyapi --replicas=1
 kubectl -n dev-tabbyapi rollout status deploy/tabbyapi --timeout=15m
 ```
 
-( swap the namespace and name for `dev-sonar` / `sonar`, `dev-mistralrs` / `mistralrs`, `dev-sglang` / `sglang` or `dev-ollama` / `ollama` ). Check what's running with `kubectl get deploy -A | grep -E 'ollama|sonar|tabbyapi|ninfer|mistralrs|sglang'`.
+( swap the namespace and name for `dev-sonar` / `sonar`, `dev-mistralrs` / `mistralrs`, `dev-sglang` / `sglang`, `dev-strata` / `strata` or `dev-ollama` / `ollama` ). Check what's running with `kubectl get deploy -A | grep -E 'ollama|sonar|tabbyapi|ninfer|mistralrs|sglang|strata'`.
 
 ### Switching models
 
 Every engine but `ollama` has a model registry, in `ansible/vars/<engine>/bnekub03-models.vars.yml`: a `<engine>_models` map, and `<engine>_active_model` naming the one that's deployed.
 Each entry holds the engine settings for that model ( sonar: model, revision, context length, flags; tabbyapi: folder, context length, cache, tensor-parallel, MTP; mistralrs: model, quant, context length, flags;
-sglang: model, revision, context length, flags ) and a `litellm:` block with its litellm
+sglang: model, revision, context length, flags; strata: family, model, context length ) and a `litellm:` block with its litellm
 name and params. The roles copy the active entry onto their usual variables, so the choice survives pod restarts and re-running the role.
 
 ```
@@ -201,12 +227,26 @@ python3 ../bin/llm.py model sync --dry-run           # show what would change in
 python3 ../bin/llm.py model unload                   # tabbyapi / ollama only; not persistent
 ```
 
-"Current engine" is whichever engine is scaled up; pass `--engine` to pick one. `model load` leaves a one-line change in the registry file for you to commit. Run it from WSL,
+"Current engine" is whichever engine is scaled up; pass `--engine` to pick one. `model load` first asks vault whether the token from `. vault-login.sh` is still valid ( ansible reads its secrets from vault ), and stops before it edits anything if not; `--no-apply` and `--dry-run` skip that check. It leaves a one-line change in the registry file for you to commit. Run it from WSL,
 since it runs `ansible-playbook` ( or use `--no-apply` and run the printed command yourself ).
 
 `model sync` makes litellm match the active models: it creates or updates one litellm model per engine and deletes the ones it created for entries that are no longer active ( sonar serves every model under
 the same name, as does sglang, so a stale entry would answer with the wrong model ). It marks its models with a `bookcase-ops` entry in `model_info` ( `{"engine": ..., "ansible-model": ...}`, the engine and the registry entry it was built from ) and leaves everything else alone, so models you added in the litellm UI are untouched. 
 Ollama's models aren't synced; add them in the UI. After a sync that changes `num_ctx`, run `pi-sync-models` and restart opencode as before.
+pi only learns a model's context window when `pi-sync-models` runs, so `model sync` ( when litellm is already in sync ) and `engine list` read `/root/.pi/agent/models.json` from the pi pod and say which models have a `contextWindow` that differs from litellm's `num_ctx`
+( `pi's models.json is behind litellm`, with the command to run ). If the pi pod can't be read it prints `pi not checked` and carries on. It doesn't look at opencode, whose models file is generated when its pod starts.
+
+### Tests against a running engine
+
+`bin/llm_util.py` holds tests that send requests to the engine that's scaled up ( `llm.py`'s `speed` and `metric` verbs only read what an engine logged ). It reaches the engine through the same temporary `kubectl port-forward` and the same vault keys as `llm.py`, so it needs `. vault-login.sh` too, and it doesn't go through litellm.
+
+```
+python3 ../bin/llm_util.py longprompt                          # 8k, 190k and 250k-token prompts, each with a passphrase on its first line; checks it comes back
+python3 ../bin/llm_util.py longprompt --tokens 120000 --engine strata
+```
+
+Each row shows the prompt tokens the engine counted, how much of it came from its cache, the time, the engine's reading speed for the uncached part, and whether the passphrase was recalled; it also says if the pod's restart count changed ( an out-of-memory restart during a long prompt is the failure this looks for ), and exits 1 if a request failed, the passphrase didn't come back or the pod restarted.
+It sends filler text and wants a one-word answer, so a pass says the context fits and the engine reads it, not that the model reasons well over a long document. Results so far are in [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md#what-was-found-running-it-2026-11-15).
 
 Re-running a role does **not** reset the replica count: it reads the current value from the cluster and keeps it, so `initial_replicas` only applies
 the first time the deployment is created. To change a role's behaviour permanently, scale it with `kubectl` as above.
@@ -229,3 +269,4 @@ Each engine has its own page, covering deployment, model installation, the litel
 * [SETUP-LLM-BE-NINFER.md](SETUP-LLM-BE-NINFER.md) - `ninfer`
 * [SETUP-LLM-BE-MISTRALRS.md](SETUP-LLM-BE-MISTRALRS.md) - `mistralrs`
 * [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md) - `sglang`
+* [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md) - `strata`

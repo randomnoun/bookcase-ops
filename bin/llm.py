@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tools for running and comparing the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang ) in this repo.
+"""Tools for running and comparing the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang, strata ) in this repo.
 
     python bin/llm.py --help
     python bin/llm.py speed langfuse --help
@@ -72,11 +72,18 @@ def show_bands(recs, min_out, label):
         click.echo("  none")
 
 
-def kubectl(*args):
+PI_NS = "dev-pi"
+PI_MODELS = "/root/.pi/agent/models.json"
+OPENHANDS_NS = "dev-openhands"
+OPENHANDS_LITELLM = "http://web.dev-litellm.svc.cluster.local:4000/v1"
+OPENHANDS_CONNECTION = "litellm"
+
+
+def kubectl(*args, input=None):
     exe = shutil.which("kubectl")
     if not exe:
         raise click.ClickException("kubectl not found on PATH")
-    p = subprocess.run([exe, *args], capture_output=True, encoding="utf-8", errors="replace")
+    p = subprocess.run([exe, *args], capture_output=True, encoding="utf-8", errors="replace", input=input)
     if p.returncode != 0:
         raise click.ClickException(f"kubectl {' '.join(args)} failed: {p.stderr.strip()[:500]}")
     return p.stdout
@@ -99,7 +106,7 @@ CLUSTER = "bnekub03"
 @click.option("--cluster", default=CLUSTER, show_default=True, envvar="LLM_CLUSTER",
               help="Which cluster's vars files ( ansible/vars/*/<cluster>-models.vars.yml ) and vault paths to use.")
 def cli(cluster):
-    """Run and compare the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang ) in this repo."""
+    """Run and compare the LLM backends ( ollama, sonar, tabbyapi, ninfer, mistralrs, sglang, strata ) in this repo."""
     global CLUSTER
     CLUSTER = cluster
 
@@ -641,14 +648,95 @@ def sglang_speeds(since, namespace, deployment, min_out, last, file):
     show_bands(recs, min_out, "decode tok/sec")
 
 
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+MISTRALRS_DONE_RE = re.compile(r"^(\d{4}-\d\d-\d\dT)(\d\d:\d\d:\d\d)\.\d+Z\s+INFO\s+mistralrs_server_core::metrics: request completed: (.*)$")
+MISTRALRS_THROUGHPUT_RE = re.compile(r"Prefix cache hitrate ([\d.]+)%(?:, MTP accept ([\d.]+)% \(len ([\d.]+))?")
+
+
+def parse_mistralrs(text):
+    """One record per completed chat request, from mistralrs's 'request completed' line, which carries its own token counts
+    and prefill and decode speeds. The engine's 5-second 'Throughput' lines that fall inside a request supply the draft
+    acceptance, as the mean over those lines, and the prefix-cache hit rate. Requests the client dropped
+    ( outcome=client_disconnected ) have no token counts and are left out. mistralrs colours its log with ANSI escape
+    codes, which kubectl passes through, so they are removed first."""
+    lines = ANSI_RE.sub("", text).splitlines()
+    recs = []
+    for i, line in enumerate(lines):
+        m = MISTRALRS_DONE_RE.match(line.strip())
+        if not m or "route=/v1/chat/completions" not in m.group(3):
+            continue
+        f = dict(re.findall(r"(\w+)=(\S+)", m.group(3)))
+        if f.get("outcome") != "completed" or "completion_tokens" not in f:
+            continue
+        prompt, out = int(f["prompt_tokens"]), int(f["completion_tokens"])
+        decode = float(f["decode_tok_s"]) if f.get("decode_tok_s") else None
+        if not decode:
+            continue
+        # Throughput lines are printed every 5 s while a request runs; take those in the 'duration' before this line
+        end = datetime.datetime.strptime(m.group(1) + m.group(2), "%Y-%m-%dT%H:%M:%S")
+        start = end - datetime.timedelta(seconds=float(f.get("duration_ms", 0)) / 1000 + 5)
+        lens, accepts, hits = [], [], []
+        for other in lines:
+            t = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)\.\d+Z\s+INFO\s+mistralrs_core::engine::logger: Throughput .*?(Prefix cache hitrate.*)$", other.strip())
+            if not t:
+                continue
+            when = datetime.datetime.strptime(t.group(1), "%Y-%m-%dT%H:%M:%S")
+            if not start <= when <= end + datetime.timedelta(seconds=5):
+                continue
+            mm = MISTRALRS_THROUGHPUT_RE.search(t.group(2))
+            if mm:
+                hits.append(float(mm.group(1)))
+                if mm.group(2):
+                    accepts.append(float(mm.group(2)))
+                    lens.append(float(mm.group(3)))
+        recs.append({"t": m.group(2), "prompt": prompt, "out": out, "tps": decode,
+                     "prefill": float(f["prefill_tok_s"]) if f.get("prefill_tok_s") else None,
+                     "ttft": prompt / float(f["prefill_tok_s"]) if f.get("prefill_tok_s") and float(f["prefill_tok_s"]) else None,
+                     "cached_pct": statistics.mean(hits) if hits else None,
+                     "accept_rate": statistics.mean(accepts) / 100 if accepts else None,
+                     "accept_len": statistics.mean(lens) if lens else None})
+    return recs
+
+
+@speed_group.command("mistralrs")
+@click.option("--since", default="1h", show_default=True, help="How far back to read the pod log ( kubectl --since ).")
+@click.option("--namespace", "-n", default="dev-mistralrs", show_default=True)
+@click.option("--deployment", default="mistralrs", show_default=True)
+@click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
+@click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
+@FILE_OPT
+def mistralrs_speeds(since, namespace, deployment, min_out, last, file):
+    """Per-request speeds and MTP acceptance from mistralrs's "request completed" log lines.
+
+    Each completed chat request logs its prompt and completion tokens and the engine's own prefill and decode speeds.
+    TTFT is estimated as prompt tokens over the prefill speed. Accept len and rate are the mean of the engine's 5-second
+    Throughput lines during the request, so a request shorter than 5 seconds may have none; cache is the mean prefix-cache
+    hit rate over the same lines ( always 0% with --mtp on, which recomputes cached prefixes ). Requests the client
+    cancelled have no token counts and are skipped. Times are as logged ( UTC ).
+    """
+    recs = parse_mistralrs(cluster_or_file(file, lambda: kubectl("-n", namespace, "logs", f"deploy/{deployment}",
+                                                                 f"--since={since}")))
+    if not recs:
+        raise click.ClickException("no completed chat requests found ( cancelled requests are skipped )")
+    dash = lambda v, fmt: "-" if v is None else format(v, fmt)
+    if last:
+        click.echo(f"{len(recs)} requests, showing the last {min(last, len(recs))}:")
+        show_table(["time", "prompt", "cached", "out", "ttft s", "prefill tok/s", "decode tok/s", "accept len", "accept"],
+                   [[r["t"], f"{r['prompt']:,}", dash(r["cached_pct"], ".0f") + ("" if r["cached_pct"] is None else "%"),
+                     f"{r['out']:,}", dash(r["ttft"], ".1f"), dash(r["prefill"], ",.0f"), f"{r['tps']:.1f}",
+                     dash(r["accept_len"], ".2f"), "-" if r["accept_rate"] is None else f"{r['accept_rate']:.0%}"]
+                    for r in recs[-last:]])
+    show_bands(recs, min_out, "decode tok/sec")
+
+
 @metric_group.command("mistralrs")
 @FILE_OPT
 def mistralrs_metrics(file):
     """Token counts, prefix-cache hit rate and MTP draft acceptance from mistralrs's /metrics.
 
     The counters are cumulative since the pod started, so restart it ( or note the numbers before and after a
-    test ) to measure one run. mistralrs publishes no per-request speed, so there is no `speed mistralrs`. Reads
-    /metrics through a kubectl port-forward.
+    test ) to measure one run. For per-request speeds use `speed mistralrs`. Reads /metrics through a kubectl
+    port-forward.
     """
     t, by_pos = parse_prefixed(cluster_or_file(file, lambda: engine_api("mistralrs", "GET", "/metrics")), "mistralrs_")
     prefill, decode = t.get("prefill_tokens_processed_total", 0), t.get("decode_tokens_processed_total", 0)
@@ -704,6 +792,105 @@ def sglang_metrics(file):
         click.echo(f"speculation: {t['spec_num_steps']:.0f} steps, {t.get('spec_num_draft_tokens', 0):.0f} draft tokens")
 
 
+STRATA_DONE_RE = re.compile(
+    r"strata serve: prompt ([\d,]+) tokens = ([\d,]+) reused \+ ([\d,]+) read in ([\d,]+) ms \(([\d.,]+) tok/s\), "
+    r"([\d,]+) generated in ([\d,]+) ms \(([\d.,]+) tok/s\), drafts accepted ([\d,]+) of ([\d,]+)")
+STRATA_LOG = "/data/state/strata/launch/docker.engine.log"
+
+
+def parse_strata(text):
+    """One record per request, from strata's 'strata serve: prompt N tokens = R reused + P read in T ms ..., G generated in ...' line.
+
+    The prompt is the whole prompt, R of it came from the conversation cache and P was read, so cached = R / N and TTFT is
+    estimated as the time to read the P uncached tokens. Decode is strata's own figure for the generated tokens; it is left out
+    when only one token was generated, as the time then says nothing about speed. The lines have no timestamps, so records are
+    only numbered, in file order."""
+    recs = []
+    for line in ANSI_RE.sub("", text).splitlines():
+        m = STRATA_DONE_RE.search(line)
+        if not m:
+            continue
+        prompt, reused, read, read_ms, read_tps, out, out_ms, tps, accepted, drafted = (num(g) for g in m.groups())
+        recs.append({"n": len(recs) + 1, "prompt": int(prompt), "out": int(out),
+                     "cached_pct": 100 * reused / prompt if prompt else None,
+                     "ttft": read_ms / 1000, "prefill": read_tps if read else None,
+                     "tps": tps if out >= 2 else None,
+                     "accept_rate": accepted / drafted if drafted else None})
+    return recs
+
+
+@speed_group.command("strata")
+@click.option("--namespace", "-n", default="dev-strata", show_default=True)
+@click.option("--deployment", default="strata", show_default=True)
+@click.option("--log", "log_path", default=STRATA_LOG, show_default=True, help="Where strata writes its engine log, inside the pod.")
+@click.option("--min-out", default=1000, show_default=True, help="Minimum output tokens for the per-band summary.")
+@click.option("--last", default=30, show_default=True, help="Show only the last N requests in the table ( 0 = summary only ).")
+@FILE_OPT
+def strata_speeds(namespace, deployment, log_path, min_out, last, file):
+    """Per-request speeds, conversation-cache reuse and draft acceptance from strata's engine log.
+
+    Strata logs one "strata serve: prompt ..." line per request to its engine log file, not to the pod's output, so this reads the
+    file with kubectl exec. The lines have no timestamps, so there is no --since: requests are numbered in file order and --last
+    picks the newest. Cached is the share of the prompt reused from the conversation cache, TTFT is estimated as the time to read
+    the uncached part, "read tok/s" is the speed of that read ( noisy for a few tokens ), decode is strata's own figure for the
+    generated tokens, and accept is drafted tokens accepted over drafted. The file is appended to across restarts ( each start
+    adds an "engine started" line ), so requests from earlier runs stay in it and are included.
+    """
+    recs = parse_strata(cluster_or_file(file, lambda: kubectl("-n", namespace, "exec", f"deploy/{deployment}", "--", "cat", log_path)))
+    if not recs:
+        raise click.ClickException(f"no 'strata serve: prompt' lines found in {log_path}")
+    dash = lambda v, fmt: "-" if v is None else format(v, fmt)
+    if last:
+        click.echo(f"{len(recs)} requests, showing the last {min(last, len(recs))}:")
+        show_table(["#", "prompt", "cached", "out", "ttft s", "read tok/s", "decode tok/s", "accept"],
+                   [[r["n"], f"{r['prompt']:,}", dash(r["cached_pct"], ".0f") + ("" if r["cached_pct"] is None else "%"),
+                     f"{r['out']:,}", dash(r["ttft"], ".1f"), dash(r["prefill"], ",.0f"), dash(r["tps"], ".1f"),
+                     "-" if r["accept_rate"] is None else f"{r['accept_rate']:.0%}"] for r in recs[-last:]])
+    show_bands(recs, min_out, "decode tok/sec")
+
+
+@metric_group.command("strata")
+@FILE_OPT
+def strata_metrics(file):
+    """Speed, cache hit rate, speculation and load from strata's /metrics ( Prometheus text, vLLM's metric names ).
+
+    Strata's docs name only some of its metrics, so this prints those ( requests running, KV cache use, prefix-cache
+    hits, draft acceptance, live tok/s, GPU and RAM use, tool-call repairs ) and then any token counters and
+    time histograms it finds, as means. Counters are cumulative since the pod started. Reads /metrics through a
+    kubectl port-forward, with the API key from vault.
+    """
+    text = cluster_or_file(file, lambda: engine_api("strata", "GET", "/metrics?format=prometheus", strata_headers()))
+    if not isinstance(text, str):
+        raise click.ClickException("strata returned JSON, not Prometheus text ( /metrics?format=prometheus )")
+    v, _ = parse_prefixed(text, "vllm:")
+    s, _ = parse_prefixed(text, "strata:")
+    if not (v or s):
+        raise click.ClickException("no vllm: or strata: metrics found ( has the model loaded? )")
+    if "live_tok_s" in s:
+        click.echo(f"speed now: {s['live_tok_s']:.1f} tok/s")
+    if "num_requests_running" in v:
+        usage = f"   KV cache {v['kv_cache_usage_perc']:.1%} used" if "kv_cache_usage_perc" in v else ""
+        click.echo(f"requests running: {v['num_requests_running']:.0f}{usage}")
+    for name in sorted(n for n in v if n.endswith("tokens_total") and "spec_decode" not in n):
+        click.echo(f"{name}: {v[name]:,.0f}")
+    queries, hits = v.get("prefix_cache_queries_total", 0), v.get("prefix_cache_hits_total", 0)
+    if queries:
+        click.echo(f"prefix cache: {hits:,.0f} of {queries:,.0f} queries hit ( {hits / queries:.1%} )")
+    if "last_hit_rate" in s:
+        click.echo(f"last request's cache hit rate: {s['last_hit_rate']:.1%}")
+    drafted, accepted = v.get("spec_decode_num_draft_tokens_total", 0), v.get("spec_decode_num_accepted_tokens_total", 0)
+    if drafted:
+        click.echo(f"speculation: drafted {drafted:,.0f}   accepted {accepted:,.0f} ( {accepted / drafted:.1%} )")
+    for base in sorted(n[:-4] for n in v if n.endswith("_sum") and n[:-4].endswith("_seconds") and v.get(n[:-4] + "_count")):
+        click.echo(f"mean {base}: {v[base + '_sum'] / v[base + '_count']:.3f}s over {v[base + '_count']:,.0f}")
+    load = [f"GPU {s['gpu_util']:.0f}%" if "gpu_util" in s else "", f"RAM {s['ram_used_bytes'] / 2**30:.1f} GiB" if "ram_used_bytes" in s else ""]
+    if any(load):
+        click.echo("load: " + "   ".join(x for x in load if x))
+    repaired, unread = s.get("tool_args_repaired_total", 0), s.get("tool_calls_unread_total", 0)
+    if repaired or unread:
+        click.echo(f"tool calls: {repaired:,.0f} had their arguments repaired, {unread:,.0f} blocks could not be read")
+
+
 # --- engines ----------------------------------------------------------------------------------------------------------
 
 ANSIBLE =Path(__file__).resolve().parent.parent / "ansible"
@@ -712,9 +899,10 @@ ENGINES = {"ollama": {"ns": "dev-ollama", "port": 11434},
            "tabbyapi": {"ns": "dev-tabbyapi", "port": 5000},
            "ninfer": {"ns": "dev-ninfer", "port": 8080},
            "mistralrs": {"ns": "dev-mistralrs", "port": 1234},
-           "sglang": {"ns": "dev-sglang", "port": 30000}}
+           "sglang": {"ns": "dev-sglang", "port": 30000},
+           "strata": {"ns": "dev-strata", "port": 8080}}
 # the engines with a model registry ( ansible/vars/<engine>/<cluster>-models.vars.yml ); ollama manages its own
-CATALOGUED = ("sonar", "tabbyapi", "ninfer", "mistralrs", "sglang")
+CATALOGUED = ("sonar", "tabbyapi", "ninfer", "mistralrs", "sglang", "strata")
 # the engines that serve one model per process, with no key, and list it at /v1/models
 SINGLE_MODEL = ("sonar", "mistralrs", "sglang")
 # the model_info key on the litellm models this script creates ( holding {"engine", "ansible-model"} ), so
@@ -771,6 +959,22 @@ def vault_secret(path):
         raise click.ClickException(f"cannot read secret/{path} from vault at {client.url}: {e}")
 
 
+def vault_check(warn_below=900):
+    """Stop with a clear message unless vault accepts the token, before something slow ( ansible, which reads its secrets from vault
+    as it goes ) finds out the hard way. Says so if the token has under `warn_below` seconds left. Never needs a secret's path."""
+    client = vault_client()
+    try:
+        info = client.auth.token.lookup_self()["data"]
+    except hvac.exceptions.Forbidden:
+        raise click.ClickException("vault refused the token: it is missing, expired or invalid ( `. vault-login.sh` )")
+    except (hvac.exceptions.VaultError, requests.RequestException) as e:
+        raise click.ClickException(f"cannot reach vault at {client.url}: {e}")
+    ttl = info.get("ttl") or 0                                  # 0: the token never expires
+    if 0 < ttl < warn_below:
+        click.echo(f"( the vault token has {fmt_duration(ttl)} left; ansible reads vault as it runs, so log in again if the playbook is a long one )", err=True)
+    return ttl
+
+
 def vault(path, field):
     secret = vault_secret(path)
     if field not in secret:
@@ -807,12 +1011,22 @@ def ninfer_headers():
     return {"Authorization": f"Bearer {ninfer_key()}"}
 
 
+def strata_key():
+    return vault(f"k8s/{CLUSTER}/secret/dev-strata/strata", "api_key")
+
+
+def strata_headers():
+    return {"Authorization": f"Bearer {strata_key()}"}
+
+
 def engine_api_key(engine):
     """The key litellm sends to the engine ( sonar, mistralrs and sglang have none, but litellm wants a non-empty string )."""
     if engine == "tabbyapi":
         return tabbyapi_key("api_key")
     if engine == "ninfer":
         return ninfer_key()
+    if engine == "strata":
+        return strata_key()
     return "none"
 
 
@@ -863,8 +1077,30 @@ def engine_api(engine, method, path, headers=None, body=None, timeout=60):
         return http(method, f"{base}{path}", headers, body, timeout, s)
 
 
+def parse_time(text):
+    return datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def fmt_duration(seconds):
+    seconds = int(round(seconds))
+    return f"{seconds // 60}m {seconds % 60:02d}s" if seconds >= 60 else f"{seconds}s"
+
+
+def pod_times(pods):
+    """( created, ready_at ) of the newest pod, as datetimes; ready_at is None while the pod isn't Ready.
+
+    ready_at is the Ready condition's lastTransitionTime, so a pod that went unready and Ready again shows the later time.
+    Both come from the pod object, so they last as long as the pod does ( events expire after about an hour )."""
+    if not pods:
+        return None, None
+    pod = max(pods, key=lambda p: p["metadata"]["creationTimestamp"])
+    ready = next((parse_time(c["lastTransitionTime"]) for c in pod["status"].get("conditions", [])
+                  if c["type"] == "Ready" and c["status"] == "True"), None)
+    return parse_time(pod["metadata"]["creationTimestamp"]), ready
+
+
 def engine_state(engine):
-    """Replicas and pod phase, or None if the engine isn't deployed."""
+    """Replicas, pod phase and the newest pod's created and Ready times, or None if the engine isn't deployed."""
     ns = ENGINES[engine]["ns"]
     try:
         d = json.loads(kubectl("-n", ns, "get", f"deploy/{engine}", "-o", "json"))
@@ -873,8 +1109,9 @@ def engine_state(engine):
             return None
         raise
     pods = json.loads(kubectl("-n", ns, "get", "pods", "-l", f"app={engine}-web", "-o", "json"))["items"]
+    created, ready_at = pod_times(pods)
     return {"replicas": d["spec"].get("replicas", 0), "ready": d["status"].get("readyReplicas", 0),
-            "phase": pods[0]["status"]["phase"] if pods else "-"}
+            "phase": pods[0]["status"]["phase"] if pods else "-", "created": created, "ready_at": ready_at}
 
 
 def current_engine(engine=None):
@@ -896,6 +1133,8 @@ def serving(engine):
         return [m["id"] for m in engine_api(engine, "GET", "/v1/models")["data"]]
     if engine == "ninfer":
         return [m["id"] for m in engine_api("ninfer", "GET", "/v1/models", ninfer_headers())["data"]]
+    if engine == "strata":
+        return [m["id"] for m in engine_api("strata", "GET", "/v1/models", strata_headers())["data"]]
     try:
         return [engine_api("tabbyapi", "GET", "/v1/model", tabbyapi_headers())["id"]]
     except click.ClickException as e:
@@ -1057,11 +1296,99 @@ def apply_sync(actions):
         click.echo("  done: " + describe(action))
 
 
+def pi_stale(models, models_json):
+    """[ ( model name, pi's contextWindow, litellm's num_ctx ) ] for the models where pi's models.json disagrees with litellm.
+    pi-sync-models copies each model's num_ctx into contextWindow, so only models with a num_ctx are compared."""
+    have = {m.get("id"): m.get("contextWindow") for p in (models_json.get("providers") or {}).values() for m in p.get("models") or []}
+    out = []
+    for m in models:
+        try:
+            n = int((m.get("litellm_params") or {}).get("num_ctx") or 0)
+        except (TypeError, ValueError):
+            continue
+        if n > 0 and have.get(m["model_name"]) != n:
+            out.append((m["model_name"], have.get(m["model_name"]), n))
+    return sorted(out)
+
+
+def pi_report(models):
+    """Say whether pi's models.json is behind litellm. Never fails the command: pi not being there is only reported."""
+    try:
+        stale = pi_stale(models, json.loads(kubectl("-n", PI_NS, "exec", "deploy/pi", "--", "cat", PI_MODELS)))
+    except (click.ClickException, ValueError) as e:
+        click.echo(f"( pi not checked: {getattr(e, 'message', e)} )".replace("\n", " ")[:300], err=True)
+        return
+    if not stale:
+        click.echo("pi is in sync with litellm")
+        return
+    click.echo("pi's models.json is behind litellm:")
+    for name, old, new in stale:
+        click.echo(f"  {name}: pi {old if old else '( not set )'}  ->  litellm {new}")
+    click.echo(f"  run `kubectl -n {PI_NS} exec deploy/pi -- pi-sync-models`")
+
+
+# Runs inside the openhands pod, which has the agent server on localhost:8000 and its own API key in the environment.
+# stdin is a JSON line ( the config, so the litellm key stays out of the process list ) followed by this script.
+OPENHANDS_BOOT = "import sys, json; cfg = json.loads(sys.stdin.readline()); exec(sys.stdin.read())"
+OPENHANDS_SYNC = r'''
+import os, re, urllib.error, urllib.request
+
+def call(method, url, headers, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(url, data=data, method=method, headers={**headers, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        sys.exit(f"{method} {url} returned HTTP {e.code}: {e.read().decode(errors='replace')[:200]}")
+
+oh = "http://localhost:8000"
+H = {"X-Session-API-Key": os.environ["LOCAL_BACKEND_API_KEY"]}
+# litellm lists 'all-proxy-models' for a key that isn't restricted to particular models; it isn't a model
+ids = sorted(m["id"] for m in call("GET", cfg["base"] + "/models", {"Authorization": "Bearer " + cfg["key"]})["data"]
+             if m["id"] != "all-proxy-models")
+profiles = call("GET", oh + "/api/profiles", H)["profiles"]
+have = {p["model"] for p in profiles} | {p["name"] for p in profiles}
+# profile names allow letters, digits, . _ - only; the model ids have ':' and '/'
+missing = [{"model": i, "profile": re.sub(r"[^A-Za-z0-9._-]", "-", i)[:64]} for i in ids]
+missing = [m for m in missing if "openai/" + m["model"] not in have and m["profile"] not in have]
+if missing and cfg["apply"]:
+    conn = next((c for c in call("GET", oh + "/api/llm/provider-connections", H) if c["display_name"] == cfg["connection"]), None)
+    if not conn:
+        conn = call("POST", oh + "/api/llm/provider-connections", H,
+                    {"display_name": cfg["connection"], "api_key": cfg["key"], "base_url": cfg["base"]})
+    for m in missing:
+        call("POST", oh + "/api/profiles/" + m["profile"], H, {"llm": {"model": "openai/" + m["model"], "provider_connection_id": conn["id"]}})
+print(json.dumps({"missing": missing}))
+'''
+
+
+def openhands_sync(dry_run):
+    """Give openhands a profile for each model litellm serves to its virtual key. Only ever adds: existing profiles are left alone.
+    Never fails the command: openhands or its vault key not being there is only reported."""
+    try:
+        key = vault(f"k8s/{CLUSTER}/secret/dev-openhands/openhands", "litellm_virtual_key")
+        cfg = {"base": OPENHANDS_LITELLM, "key": key, "connection": OPENHANDS_CONNECTION, "apply": not dry_run}
+        out = json.loads(kubectl("-n", OPENHANDS_NS, "exec", "-i", "deploy/openhands", "--", "python", "-c", OPENHANDS_BOOT,
+                                 input=json.dumps(cfg) + "\n" + OPENHANDS_SYNC))
+    except (click.ClickException, ValueError) as e:
+        click.echo(f"( openhands not checked: {getattr(e, 'message', e)} )".replace("\n", " ")[:300], err=True)
+        return
+    if not out["missing"]:
+        click.echo("openhands is in sync with litellm")
+        return
+    click.echo(f"openhands profiles {'to add' if dry_run else 'added'}:")
+    for m in out["missing"]:
+        click.echo(f"  {m['profile']}  ( openai/{m['model']} )")
+
+
 def run_sync(dry_run):
     desired = desired_models()
     actions = sync_plan(litellm_models(), desired)
     if not actions:
         click.echo("litellm is in sync with the registries")
+        pi_report(litellm_models())
+        openhands_sync(dry_run)
         return
     click.echo("litellm changes:")
     for a in actions:
@@ -1080,15 +1407,21 @@ def run_sync(dry_run):
     if any(a[0] == "update" and any(k == "num_ctx" for k, _, _ in a[4]) or a[0] == "create" for a in actions):
         click.echo("pi and opencode read the context window from litellm: run "
                    "`kubectl -n dev-pi exec deploy/pi -- pi-sync-models` and restart opencode.")
+    openhands_sync(False)
 
 
 @engine_group.command("list")
-def engine_list():
+@click.option("--times", is_flag=True, help="Add the pod's age and how long it took from created to Ready ( the 'every start' time in the setup pages ).")
+def engine_list(times):
     """Replicas, pod phase, the configured and the serving model, and the litellm models of each engine.
 
     SERVING is what the engine itself reports ( asked through a kubectl port-forward ); CONFIG is the active model in
     the registry. LITELLM lists the litellm models whose api_base is the engine, and "!" marks an engine whose
-    entry differs from the registry ( see `model sync` ).
+    entry differs from the registry ( see `model sync` ). The last line says whether pi's models.json ( read from
+    the pi pod ) is behind litellm's context windows. With --times, AGE is how long the pod has existed and
+    TO READY is the time from the pod being created to its Ready condition, which includes the image pull and the
+    download on a first start. Kubernetes keeps both times for as long as the pod exists, so this works after the events
+    have expired; once the pod is replaced they are gone, so note them from the pod you want.
     """
     try:
         models = litellm_models()
@@ -1100,8 +1433,14 @@ def engine_list():
     for engine in ENGINES:
         st = engine_state(engine)
         if not st:
-            rows.append([engine, "not deployed", "-", "-", "-", "-"])
+            rows.append([engine, "not deployed", "-", "-", "-", "-"] + (["-", "-"] if times else []))
             continue
+        extra = []
+        if times:
+            now = datetime.datetime.now(datetime.timezone.utc)
+            created, ready_at = st["created"], st["ready_at"]
+            extra = ["-" if not created else fmt_duration((now - created).total_seconds()),
+                     "-" if not created else fmt_duration((ready_at - created).total_seconds()) if ready_at else "not ready"]
         config = catalogue(engine)[0] or "-" if engine in CATALOGUED else "-"
         try:
             now = ", ".join(serving(engine)) or "-" if st["ready"] > 0 else "-"
@@ -1110,10 +1449,16 @@ def engine_list():
         names = "?" if models is None else ", ".join(m["model_name"] for m in models if engine_of(m) == engine) or "-"
         if any(a[1] == engine for a in plan):
             names += "  !"
-        rows.append([engine, f"{st['ready']}/{st['replicas']}", st["phase"], config, now, names])
-    show_table(["engine", "ready", "pod", "config", "serving", "litellm"], rows, left=(0, 1, 2, 3, 4, 5))
+        rows.append([engine, f"{st['ready']}/{st['replicas']}", st["phase"], config, now, names] + extra)
+    if times:
+        show_table(["engine", "ready", "pod", "config", "serving", "litellm", "age", "to ready"], rows, left=(0, 1, 2, 3, 4, 5))
+    else:
+        show_table(["engine", "ready", "pod", "config", "serving", "litellm"], rows, left=(0, 1, 2, 3, 4, 5))
     if any(r[5].endswith("!") for r in rows):
         click.echo("\n! - litellm entry does not match ansible; run llm.py model sync --dry-run")
+    if models is not None:
+        click.echo()
+        pi_report(models)
 
 
 @engine_group.command("set")
@@ -1123,7 +1468,7 @@ def engine_list():
 def engine_set(engine, timeout, dry_run):
     """Give the GPUs to ENGINE: scale the others to 0, wait for their pods to go, scale ENGINE to 1, wait for the rollout.
 
-    ollama, sonar, tabbyapi, mistralrs and sglang each request both GPUs, and a GPU stays held until the old pod has
+    ollama, sonar, tabbyapi, mistralrs, sglang and strata each request both GPUs, and a GPU stays held until the old pod has
     finished terminating, so the others have to be gone before the new pod can schedule. ninfer asks for one GPU, but
     the others are scaled down for it too: it's only run on its own, and a second engine would cut into its memory.
     """
@@ -1152,6 +1497,9 @@ def engine_set(engine, timeout, dry_run):
     if not dry_run:
         kubectl("-n", ENGINES[engine]["ns"], "scale", f"deploy/{engine}", "--replicas=1")
         click.echo(kubectl("-n", ENGINES[engine]["ns"], "rollout", "status", f"deploy/{engine}", f"--timeout={timeout}").strip())
+        st = engine_state(engine)
+        if st and st["created"] and st["ready_at"]:
+            click.echo(f"{engine}: pod created -> Ready in {fmt_duration((st['ready_at'] - st['created']).total_seconds())}")
 
 
 # --- models -----------------------------------------------------------------------------------------------------------
@@ -1185,6 +1533,8 @@ def model_list(engine):
             detail = f"{e['model']}@{e.get('revision', '-')}  ctx {e.get('context_length', '-')}"
         elif engine == "ninfer":
             detail = f"{e['profile']}  {e.get('spec', 'default spec')}  ctx {e.get('context', 'fit to free memory')}"
+        elif engine == "strata":
+            detail = f"{e.get('family', '-')}/{e['model']}  ctx {e.get('context', 'largest that fits')}"
         else:
             detail = f"{e['folder']}  ctx {e.get('max_seq_len', '-')}"
             if on_disk is not None and e["folder"] not in on_disk:
@@ -1210,6 +1560,9 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
     Rewrites <engine>_active_model in the registry ( ansible/vars/<engine>/<cluster>-models.vars.yml ), re-runs the
     engine's ansible role so the pod restarts with the model's settings, then syncs litellm. The change shows up in git
     and survives pod restarts. An engine that is scaled to 0 picks the model up when you next `engine set` it.
+
+    Unless --no-apply, it first checks that vault accepts your token ( ansible reads its secrets from vault ), and stops
+    with the registry unchanged if it doesn't: run `. vault-login.sh` and try again.
     """
     engine = current_engine(engine)
     if engine not in CATALOGUED:
@@ -1224,6 +1577,8 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
     click.echo(f"{engine}: {active or '-'} -> {name}" if name != active else f"{engine}: {name} is already the active model")
     if dry_run:
         return
+    if not no_apply:
+        vault_check()                                   # before the registry is touched: ansible and the litellm sync both read vault
     if name != active:
         set_active(engine, name)
     if no_apply:
@@ -1239,7 +1594,7 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
 def model_unload(engine):
     """Unload the current model from VRAM. Not persistent: tabbyapi loads its active model again when its pod restarts."""
     engine = current_engine(engine)
-    if engine in ("sonar", "ninfer", "mistralrs", "sglang"):
+    if engine in ("sonar", "ninfer", "mistralrs", "sglang", "strata"):
         raise click.ClickException(f"{engine} serves one model per process and can't unload it: use `engine set` to scale it down")
     if engine == "tabbyapi":
         engine_api("tabbyapi", "POST", "/v1/model/unload", tabbyapi_headers(admin=True), {})
@@ -1282,6 +1637,9 @@ def model_sync(dry_run):
     Creates or updates one litellm model per engine from the active entry's `litellm:` block, and deletes the
     models this script made for entries that are no longer active ( sonar serves every model under one name, so a
     stale entry would answer with the wrong model ). Models made in the litellm UI are left alone, and so is ollama.
+
+    When litellm already matches, it also reads pi's models.json from the pi pod and says if pi's context windows are
+    behind litellm's ( pi only learns them when `pi-sync-models` runs ).
     """
     run_sync(dry_run)
 

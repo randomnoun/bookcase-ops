@@ -116,10 +116,13 @@ This role is based on the [helm chart](https://github.com/OpenHands/OpenHands/tr
    * **Choose your agent:** 
       * pick **OpenHands**. The choice is per backend, and can be changed under Settings → Agent later
    * **Set up your LLM:** 
-      * Choose **Advanced**
-      * Custom Model: `openai/ollama-qwen3-coder:30b` 
-      * Base URL: `http://web.dev-litellm.svc.cluster.local:4000/v1`
-      * API Key: the litellm virtual key for openhands ( see [SETUP-DATABASE.md](SETUP-DATABASE.md) )
+      * skip it: `llm.py model sync` creates a `litellm` provider connection and a profile for each litellm model ( named like `ollama-qwen3-coder-30b` ), 
+        using the openhands litellm virtual key in vault ( see [SETUP-DATABASE.md](SETUP-DATABASE.md) ). It only adds profiles, so ones you edit are left alone.
+      * to do it by hand instead:
+         * Choose **Advanced**
+         * Custom Model: `openai/ollama-qwen3-coder:30b` 
+         * Base URL: `http://web.dev-litellm.svc.cluster.local:4000/v1`
+         * API Key: the litellm virtual key for openhands ( see [SETUP-DATABASE.md](SETUP-DATABASE.md) )      
       
 * It turns out you need openhands 'Enterprise' to get the isolation features I was installing this for ( might be able to install docker-in-docker later ) 
 * You need to install the tables manually. For postgres it starts OK, finds no tables, and carries on, so chat and coding sessions work but the automation features won't. 
