@@ -37,6 +37,11 @@ strata_parallel: ""    # PARALLEL: requests answered at the same time, 1 to 8. E
 strata_kv: ""          # KV: int8 ( default ), q4_0 ( half the memory ), k8v4, fp16
 strata_vision: ""      # VISION: off ( default ), on, gpu, cpu. Pictures cost about 0.9GB more to download
 strata_set: []         # STRATA_SET, one engine setting per item, e.g. "prefill=65536" or "STRATA_PIN_BY_NEED=1"
+# The speculative drafter: auto ( DFlash2 where Strata has it ), mtp, dflash2 or off. The image's entrypoint has no variable for it and `--set drafting=...`
+# crashes the engine ( "unknown argument: --drafting" ), so when this is set the container runs a copy of the image's entrypoint.sh with one line added that
+# passes `--drafting $DRAFTING` to `strata launch`. The start fails with a message if the image's script no longer has the line that is patched.
+# The choice is saved in the launch preset, so taking the key out of an entry doesn't go back to auto: set "auto" ( or "dflash2" ) to change it back.
+strata_drafting: ""
 strata_env: {}         # any other environment variable the image reads, name: value
 
 # docker's --stop-timeout 120: on SIGTERM the container runs `strata launch --stop` so the engine releases its memory, and the default 30s is too short for a big model

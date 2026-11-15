@@ -14,7 +14,7 @@
 # Once it is scaled up, `kubectl -n dev-strata exec deploy/strata -- strata launch --plan --family qwen --model IQ3_XXS --context 128k`
 # prints what a choice would download, where the model goes and whether it fits ( it needs a running pod, so there is no way to ask before the first start ).
 
-strata_active_model: "flash-next-iq3-xxs"
+strata_active_model: "flash-next-q2-0"
 
 strata_models:
 
@@ -29,6 +29,12 @@ strata_models:
     # say 262K for IQ3_XXS is "not measured", so if a long prompt or a long reply restarts the pod, add `kv: "k8v4"` below ( keys at 8 bits and
     # values as rotated 4-bit: 23% less KV memory, prompts 2-5% slower ), and after that go back to 192k. Keep num_ctx below equal to this.
     context: "256k"
+
+    # drafting: auto ( DFlash2 where Strata has it, which is the default ), mtp, dflash2 or off. In a pi session DFlash2 was no faster than MTP ( median 151.6 tok/sec against
+    # 149.8, slower on 1,000+ token replies ) and it answers one request at a time, so this asks for MTP. `set: ["drafting=mtp"]` does NOT work: the engine said
+    # `unknown argument: --drafting` and the pod crash-looped ( tried 2026-11-15 ), so the role patches the image's entrypoint to pass `--drafting` ( see strata_drafting in the role defaults ).
+    # The choice is saved in the launch preset: to go back, set "auto" here rather than deleting the line. Running with it ( 2026-11-15 ): the engine log says `strata mtp: draft layer loaded`.
+    drafting: "mtp"
 
     # The litellm model that `llm.py model sync` creates for this entry.
     litellm:
@@ -55,12 +61,13 @@ strata_models:
   flash-next-q2-0:
     family: "qwen"
     model: "Q2_0"
-    context: "128k"
+    # 256k like the IQ3_XXS entry, but not started yet at this size ( 2026-11-15 ): it is the smallest model, so it has the most memory to spare.
+    context: "256k"
     litellm:
       public_name: "strata-qwen3.8-flash-next:q2_0"
       upstream: "strata"
       params:
-        num_ctx: 131072
+        num_ctx: 262144
         extra_body:
           reasoning_budget_tokens: 8192
 
@@ -68,11 +75,13 @@ strata_models:
   flash-next-iq3-s:
     family: "qwen"
     model: "IQ3_S"
-    context: "128k"
+    # 256k like the IQ3_XXS entry, but not started yet at this size ( 2026-11-15 ). This is the biggest model ( 8 GB more than IQ3_XXS, which already leaves
+    # about 1 GiB free on each GPU at 256k ), so it may not fit: if the start fails or the pod restarts on a long prompt, add `kv: "k8v4"` or drop to 192k or 128k.
+    context: "256k"
     litellm:
       public_name: "strata-qwen3.8-flash-next:iq3_s"
       upstream: "strata"
       params:
-        num_ctx: 131072
+        num_ctx: 262144
         extra_body:
           reasoning_budget_tokens: 8192

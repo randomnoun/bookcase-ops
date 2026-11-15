@@ -18,10 +18,16 @@
     strata_kv: "{{ _strata_entry.kv | default(strata_kv) }}"
     strata_vision: "{{ _strata_entry.vision | default(strata_vision) }}"
     strata_set: "{{ _strata_entry.set | default(strata_set) }}"
+    strata_drafting: "{{ _strata_entry.drafting | default(strata_drafting) }}"
     strata_env: "{{ _strata_entry.env | default(strata_env) }}"
   vars:
     _strata_entry: "{{ strata_models[strata_active_model] }}"
   when: strata_active_model | length > 0
+
+- name: "strata_drafting must be auto, mtp, dflash2 or off"
+  assert:
+    that: strata_drafting | string | lower in ['', 'auto', 'mtp', 'dflash2', 'off']
+    fail_msg: "strata_drafting '{{ strata_drafting }}' is not one of auto, mtp, dflash2, off ( Strata treats any other word as auto )"
 
 - name: "strata skipped, no strata model is set"
   debug:

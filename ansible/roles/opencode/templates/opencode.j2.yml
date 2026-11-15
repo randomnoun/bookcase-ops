@@ -32,8 +32,17 @@ data:
     set -e
     # the image is bare alpine: add git (opencode uses it for projects/snapshots), jq and curl (for the model sync below)
     apk add --no-cache git jq curl openssh-client > /dev/null
-    mkdir -p "$HOME/.config/opencode" /data/workspace
-    cfg="$HOME/.config/opencode/opencode.json"
+    # opencode's own state lives under /data/opencode (XDG_* env vars), not in $HOME,
+    # so it doesn't clutter the project picker or get snapshotted as workspace changes
+    mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" /data/workspace
+    # one-time move of state left in $HOME by earlier deployments
+    mig() { if [ -d "$1" ] && [ ! -e "$2" ]; then mv "$1" "$2" && echo "migrated $1 -> $2"; fi; }
+    mig /data/workspace/.config/opencode "$XDG_CONFIG_HOME/opencode"
+    mig /data/workspace/.local/share/opencode "$XDG_DATA_HOME/opencode"
+    mig /data/workspace/.cache/opencode "$XDG_CACHE_HOME/opencode"
+    mig /data/workspace/.local/state/opencode "$XDG_STATE_HOME/opencode"
+    mkdir -p "$XDG_CONFIG_HOME/opencode"
+    cfg="$XDG_CONFIG_HOME/opencode/opencode.json"
     synced=0
     for i in $(seq 1 12); do
       if ids=$(curl -sf -H "Authorization: Bearer $LITELLM_API_KEY" "$LITELLM_BASE_URL/models" | jq -ec '[.data[].id] | sort') && [ "$ids" != "[]" ]; then
@@ -50,7 +59,7 @@ data:
           "provider": { "litellm": {
             "npm": "@ai-sdk/openai-compatible",
             "name": "litellm",
-            "options": { "baseURL": $base, "apiKey": "{env:LITELLM_API_KEY}" },
+            "options": { "baseURL": $base, "apiKey": "{env:LITELLM_API_KEY}", "headers": { "langfuse_trace_user_id": "opencode" } },
             "models": ($ids | map({ key: ., value: ({ name: . } + (if $ctx[.] then { limit: { context: $ctx[.], output: ([$ctx[.] / 8, 8192] | min | floor) } } else {} end)) }) | from_entries)
           } }
         }' > "$cfg.tmp"
@@ -111,10 +120,21 @@ spec:
             - containerPort: 4096
           env:
             # the web UI's "add project" picker starts in $HOME, so make that
-            # the directory holding the repos (dotfolders for opencode's own
-            # config/sessions end up alongside them)
+            # the directory holding the repos. opencode's own config/sessions/db
+            # are redirected out of it via the XDG_* vars below.
             - name: HOME
               value: /data/workspace
+            - name: XDG_CONFIG_HOME
+              value: /data/opencode/config
+            - name: XDG_DATA_HOME
+              value: /data/opencode/data
+            - name: XDG_CACHE_HOME
+              value: /data/opencode/cache
+            - name: XDG_STATE_HOME
+              value: /data/opencode/state
+            # npm ignores XDG and would otherwise create ~/.npm in the workspace
+            - name: NPM_CONFIG_CACHE
+              value: /data/opencode/cache/npm
             - name: LITELLM_BASE_URL
               value: "{{ opencode_litellm_base_url }}"
             - name: DEFAULT_MODEL

@@ -49,6 +49,16 @@ spec:
         - name: strata
           image: "{{ strata_image }}"
           imagePullPolicy: IfNotPresent
+{% if strata_drafting | string | length > 0 %}
+          # the image's own entrypoint is `tini -- /opt/strata/entrypoint.sh run`; this runs a copy with one line added after the STRATA_SET line, see strata_drafting
+          command: ["/usr/bin/tini", "--", "sh", "-c"]
+          args:
+            - |
+              sed '/for kv in \$STRATA_SET; do/a\
+              [ -n "${DRAFTING:-}" ] \&\& { set -- "$@" --drafting "$DRAFTING"; have=1; }' /opt/strata/entrypoint.sh > /tmp/strata-entrypoint.sh
+              grep -q -- '--drafting "\$DRAFTING"' /tmp/strata-entrypoint.sh || { echo "[X] the image's entrypoint.sh has no 'for kv in \$STRATA_SET' line to add DRAFTING after: the strata role's drafting patch needs updating" >&2; exit 1; }
+              exec sh /tmp/strata-entrypoint.sh run
+{% endif %}
           ports:
             - containerPort: 8080
           env:
@@ -76,6 +86,10 @@ spec:
 {% if strata_vision | string | length > 0 %}
             - name: VISION
               value: "{{ strata_vision }}"
+{% endif %}
+{% if strata_drafting | string | length > 0 %}
+            - name: DRAFTING
+              value: "{{ strata_drafting | string | lower }}"
 {% endif %}
 {% if strata_set | length > 0 %}
             - name: STRATA_SET

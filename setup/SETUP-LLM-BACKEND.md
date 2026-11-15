@@ -33,19 +33,20 @@ The backend engines run the models:
    * a Rust engine that quantizes the original weights as it loads them, so nothing needs converting. Official image, nothing to build
    * developed by Eric Buehler
    * also has a model registry managed by llm.py
-   * runs on both 3090s at about 37 tok/sec with MTP on short requests, with no prefix caching; slow so far, see the page
+   * runs on both 3090s at about 37 tok/sec with MTP on short requests, with no prefix caching; slow so far
    * [SETUP-LLM-BE-MISTRALRS.md](SETUP-LLM-BE-MISTRALRS.md)
 * `sglang` ( safetensors: AWQ, GPTQ, FP8 )
    * a Python engine like sonar's vLLM base, with batching, a radix-tree prefix cache and tool-call and reasoning parsers. Official image, nothing to build
    * developed by LMSYS
    * also has a model registry managed by llm.py
-   * runs on both 3090s at about 95 tok/sec with MTP, after a fix to the checkpoint's quantization config; see the page
+   * runs on both 3090s at about 95 tok/sec with MTP, after a fix to the checkpoint's quantization config
    * [SETUP-LLM-BE-SGLANG.md](SETUP-LLM-BE-SGLANG.md)
 * `strata` ( GGUF )
-   * built for large mixture-of-experts models: it keeps the experts in system RAM and on the SSD, and the dense layers and hot experts on the GPUs. The registry has Qwen3.8-Flash-Next ( 125B ), not the 27B the others serve, so its speeds aren't comparable
+   * built for large mixture-of-experts models: it keeps the experts in system RAM and on the SSD, and the dense layers and hot experts on the GPUs. 
    * developed by Niko1221
    * also has a model registry managed by llm.py
-   * runs on both 3090s at a median of about 159 tok/sec with 98% of agent prompt tokens reused from its cache, in a 63-request session, but on the larger model; see the page
+   * The registry has Qwen3.8-Flash-Next ( 125B ), not the 27B the others serve, so its speeds aren't comparable
+   * runs on both 3090s at a median of about 159 tok/sec with 98% of agent prompt tokens reused from its cache, in a 63-request session, but on the larger model
    * [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md)
 
 All seven are pinned to `bnenod05`, have no Ingress/TLS and are consumed only by `litellm`. 

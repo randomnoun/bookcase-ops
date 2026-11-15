@@ -1300,7 +1300,7 @@ def pi_report(models):
         click.echo(f"( pi not checked: {getattr(e, 'message', e)} )".replace("\n", " ")[:300], err=True)
         return
     if not stale:
-        click.echo("pi's models.json matches litellm's context windows")
+        click.echo("pi is in sync with litellm")
         return
     click.echo("pi's models.json is behind litellm:")
     for name, old, new in stale:
