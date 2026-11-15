@@ -53,6 +53,46 @@ which sglang's docs say it needs on docker and kubernetes.
 * **Not confirmed:** whether the 8192 thinking cap is enforced ( the server starts and speculates with `--enable-strict-thinking`, but I haven't seen a request run past the cap or be cut at it ); the quality of the output; and what `/health` returns while the model is still loading.
 * **No authentication.** No API key is set, so the server is open to the network on its LoadBalancer service, as sonar's is.
 
+## Startup times
+
+Measured on `bnenod05` with `qwen3.8-27b-gptq-int4`, on 2026-11-14, from the pod log ( its `Engine startup timings` line ) and the pull I ran by hand. `( est. )` is arithmetic, not a measurement.
+**\*** marks a figure measured before the ethernet cable on `bnellm01` was replaced that night, so it should be measured again.
+The layout is the same on every engine's page; the summary is in [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md#startup-times).
+
+**Sizes**
+
+| What | Size |
+|---|---|
+| Image `lmsysorg/sglang:v0.5.23` | 16.1 GB on the node |
+| Model, `palmfuture/Qwen3.8-27B-GPTQ-Int4` | 21.0 GB in 21 files, from the Hugging Face API |
+
+**One-time, per node** ( repeats when the image tag changes )
+
+| Phase | Size | Time | Rate | Scales with |
+|---|---|---|---|---|
+| Pull the image | 16.1 GB | **6 min 58 s\*** | 38.5 MB/s\* ( est. from the two figures ) | image size |
+
+**One-time, per model**
+
+| Entry | Download | Download time | Rate | Pod created to serving |
+|---|---|---|---|---|
+| `qwen3.8-27b-gptq-int4` | 21.0 GB | not separated from the weight load below | - | **about 15 min\*** ( the first start; the startup probe allows 30 min ) |
+
+**Every start** ( the weights on the PVC; the first start's figures are in brackets )
+
+| Phase | Size processed | Time | Rate | Scales with | Why every start |
+|---|---|---|---|---|---|
+| Load the weights | 21.0 GB of model, 9.64 GB of it on each GPU | not timed on a restart ( 609 s on the first start, which included reading them from a cold disk ) | - | model size | read into VRAM each time |
+| Load the MTP draft head | 2.59 GB on each GPU | 1 s | - | draft head size | each time |
+| Capture CUDA graphs | 52 prefill sizes ( 4 to 4096 tokens ) and batch sizes 1 to 5 | prefill graphs 245 s on the first start ( the log I kept ); about 60 s on a later start, from my notes | - | the list of token and batch sizes | graphs aren't saved between starts |
+| **Pod created to Ready** | | **about 2 min** ( 15 min on the first start: the log's `scheduler_e2e` was 879 s ) | | | |
+
+`python bin/llm.py engine list --times` prints each engine's pod age and created-to-Ready time ( while that pod still exists ).
+
+**Limits:** the startup probe allows 30 minutes and `engine set` waits 15 minutes unless given `--timeout`.
+
+**Normal in the log:** `Capture target prefill CUDA graph begin` followed by about 4 minutes of nothing on the first start, and `The server is fired up and ready to roll!` at the end.
+
 ## Configure the model in litellm
 
 `python bin/llm.py model sync` creates the litellm model from the registry entry's `litellm:` block: an OpenAI-compatible model at `http://web.dev-sglang.svc.cluster.local:30000/v1`, called `local-sglang` upstream

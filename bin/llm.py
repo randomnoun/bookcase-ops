@@ -72,6 +72,10 @@ def show_bands(recs, min_out, label):
         click.echo("  none")
 
 
+PI_NS = "dev-pi"
+PI_MODELS = "/root/.pi/agent/models.json"
+
+
 def kubectl(*args):
     exe = shutil.which("kubectl")
     if not exe:
@@ -826,8 +830,8 @@ def strata_speeds(namespace, deployment, log_path, min_out, last, file):
     file with kubectl exec. The lines have no timestamps, so there is no --since: requests are numbered in file order and --last
     picks the newest. Cached is the share of the prompt reused from the conversation cache, TTFT is estimated as the time to read
     the uncached part, "read tok/s" is the speed of that read ( noisy for a few tokens ), decode is strata's own figure for the
-    generated tokens, and accept is drafted tokens accepted over drafted. I haven't checked whether the file starts afresh when
-    the pod restarts, so after a restart older requests may still be in it.
+    generated tokens, and accept is drafted tokens accepted over drafted. The file is appended to across restarts ( each start
+    adds an "engine started" line ), so requests from earlier runs stay in it and are included.
     """
     recs = parse_strata(cluster_or_file(file, lambda: kubectl("-n", namespace, "exec", f"deploy/{deployment}", "--", "cat", log_path)))
     if not recs:
@@ -1054,8 +1058,30 @@ def engine_api(engine, method, path, headers=None, body=None, timeout=60):
         return http(method, f"{base}{path}", headers, body, timeout, s)
 
 
+def parse_time(text):
+    return datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def fmt_duration(seconds):
+    seconds = int(round(seconds))
+    return f"{seconds // 60}m {seconds % 60:02d}s" if seconds >= 60 else f"{seconds}s"
+
+
+def pod_times(pods):
+    """( created, ready_at ) of the newest pod, as datetimes; ready_at is None while the pod isn't Ready.
+
+    ready_at is the Ready condition's lastTransitionTime, so a pod that went unready and Ready again shows the later time.
+    Both come from the pod object, so they last as long as the pod does ( events expire after about an hour )."""
+    if not pods:
+        return None, None
+    pod = max(pods, key=lambda p: p["metadata"]["creationTimestamp"])
+    ready = next((parse_time(c["lastTransitionTime"]) for c in pod["status"].get("conditions", [])
+                  if c["type"] == "Ready" and c["status"] == "True"), None)
+    return parse_time(pod["metadata"]["creationTimestamp"]), ready
+
+
 def engine_state(engine):
-    """Replicas and pod phase, or None if the engine isn't deployed."""
+    """Replicas, pod phase and the newest pod's created and Ready times, or None if the engine isn't deployed."""
     ns = ENGINES[engine]["ns"]
     try:
         d = json.loads(kubectl("-n", ns, "get", f"deploy/{engine}", "-o", "json"))
@@ -1064,8 +1090,9 @@ def engine_state(engine):
             return None
         raise
     pods = json.loads(kubectl("-n", ns, "get", "pods", "-l", f"app={engine}-web", "-o", "json"))["items"]
+    created, ready_at = pod_times(pods)
     return {"replicas": d["spec"].get("replicas", 0), "ready": d["status"].get("readyReplicas", 0),
-            "phase": pods[0]["status"]["phase"] if pods else "-"}
+            "phase": pods[0]["status"]["phase"] if pods else "-", "created": created, "ready_at": ready_at}
 
 
 def current_engine(engine=None):
@@ -1250,11 +1277,43 @@ def apply_sync(actions):
         click.echo("  done: " + describe(action))
 
 
+def pi_stale(models, models_json):
+    """[ ( model name, pi's contextWindow, litellm's num_ctx ) ] for the models where pi's models.json disagrees with litellm.
+    pi-sync-models copies each model's num_ctx into contextWindow, so only models with a num_ctx are compared."""
+    have = {m.get("id"): m.get("contextWindow") for p in (models_json.get("providers") or {}).values() for m in p.get("models") or []}
+    out = []
+    for m in models:
+        try:
+            n = int((m.get("litellm_params") or {}).get("num_ctx") or 0)
+        except (TypeError, ValueError):
+            continue
+        if n > 0 and have.get(m["model_name"]) != n:
+            out.append((m["model_name"], have.get(m["model_name"]), n))
+    return sorted(out)
+
+
+def pi_report(models):
+    """Say whether pi's models.json is behind litellm. Never fails the command: pi not being there is only reported."""
+    try:
+        stale = pi_stale(models, json.loads(kubectl("-n", PI_NS, "exec", "deploy/pi", "--", "cat", PI_MODELS)))
+    except (click.ClickException, ValueError) as e:
+        click.echo(f"( pi not checked: {getattr(e, 'message', e)} )".replace("\n", " ")[:300], err=True)
+        return
+    if not stale:
+        click.echo("pi's models.json matches litellm's context windows")
+        return
+    click.echo("pi's models.json is behind litellm:")
+    for name, old, new in stale:
+        click.echo(f"  {name}: pi {old if old else '( not set )'}  ->  litellm {new}")
+    click.echo(f"  run `kubectl -n {PI_NS} exec deploy/pi -- pi-sync-models`")
+
+
 def run_sync(dry_run):
     desired = desired_models()
     actions = sync_plan(litellm_models(), desired)
     if not actions:
         click.echo("litellm is in sync with the registries")
+        pi_report(litellm_models())
         return
     click.echo("litellm changes:")
     for a in actions:
@@ -1276,12 +1335,17 @@ def run_sync(dry_run):
 
 
 @engine_group.command("list")
-def engine_list():
+@click.option("--times", is_flag=True, help="Add the pod's age and how long it took from created to Ready ( the 'every start' time in the setup pages ).")
+def engine_list(times):
     """Replicas, pod phase, the configured and the serving model, and the litellm models of each engine.
 
     SERVING is what the engine itself reports ( asked through a kubectl port-forward ); CONFIG is the active model in
     the registry. LITELLM lists the litellm models whose api_base is the engine, and "!" marks an engine whose
-    entry differs from the registry ( see `model sync` ).
+    entry differs from the registry ( see `model sync` ). The last line says whether pi's models.json ( read from
+    the pi pod ) is behind litellm's context windows. With --times, AGE is how long the pod has existed and
+    TO READY is the time from the pod being created to its Ready condition, which includes the image pull and the
+    download on a first start. Kubernetes keeps both times for as long as the pod exists, so this works after the events
+    have expired; once the pod is replaced they are gone, so note them from the pod you want.
     """
     try:
         models = litellm_models()
@@ -1293,8 +1357,14 @@ def engine_list():
     for engine in ENGINES:
         st = engine_state(engine)
         if not st:
-            rows.append([engine, "not deployed", "-", "-", "-", "-"])
+            rows.append([engine, "not deployed", "-", "-", "-", "-"] + (["-", "-"] if times else []))
             continue
+        extra = []
+        if times:
+            now = datetime.datetime.now(datetime.timezone.utc)
+            created, ready_at = st["created"], st["ready_at"]
+            extra = ["-" if not created else fmt_duration((now - created).total_seconds()),
+                     "-" if not created else fmt_duration((ready_at - created).total_seconds()) if ready_at else "not ready"]
         config = catalogue(engine)[0] or "-" if engine in CATALOGUED else "-"
         try:
             now = ", ".join(serving(engine)) or "-" if st["ready"] > 0 else "-"
@@ -1303,10 +1373,16 @@ def engine_list():
         names = "?" if models is None else ", ".join(m["model_name"] for m in models if engine_of(m) == engine) or "-"
         if any(a[1] == engine for a in plan):
             names += "  !"
-        rows.append([engine, f"{st['ready']}/{st['replicas']}", st["phase"], config, now, names])
-    show_table(["engine", "ready", "pod", "config", "serving", "litellm"], rows, left=(0, 1, 2, 3, 4, 5))
+        rows.append([engine, f"{st['ready']}/{st['replicas']}", st["phase"], config, now, names] + extra)
+    if times:
+        show_table(["engine", "ready", "pod", "config", "serving", "litellm", "age", "to ready"], rows, left=(0, 1, 2, 3, 4, 5))
+    else:
+        show_table(["engine", "ready", "pod", "config", "serving", "litellm"], rows, left=(0, 1, 2, 3, 4, 5))
     if any(r[5].endswith("!") for r in rows):
         click.echo("\n! - litellm entry does not match ansible; run llm.py model sync --dry-run")
+    if models is not None:
+        click.echo()
+        pi_report(models)
 
 
 @engine_group.command("set")
@@ -1345,6 +1421,9 @@ def engine_set(engine, timeout, dry_run):
     if not dry_run:
         kubectl("-n", ENGINES[engine]["ns"], "scale", f"deploy/{engine}", "--replicas=1")
         click.echo(kubectl("-n", ENGINES[engine]["ns"], "rollout", "status", f"deploy/{engine}", f"--timeout={timeout}").strip())
+        st = engine_state(engine)
+        if st and st["created"] and st["ready_at"]:
+            click.echo(f"{engine}: pod created -> Ready in {fmt_duration((st['ready_at'] - st['created']).total_seconds())}")
 
 
 # --- models -----------------------------------------------------------------------------------------------------------
@@ -1477,6 +1556,9 @@ def model_sync(dry_run):
     Creates or updates one litellm model per engine from the active entry's `litellm:` block, and deletes the
     models this script made for entries that are no longer active ( sonar serves every model under one name, so a
     stale entry would answer with the wrong model ). Models made in the litellm UI are left alone, and so is ollama.
+
+    When litellm already matches, it also reads pi's models.json from the pi pod and says if pi's context windows are
+    behind litellm's ( pi only learns them when `pi-sync-models` runs ).
     """
     run_sync(dry_run)
 

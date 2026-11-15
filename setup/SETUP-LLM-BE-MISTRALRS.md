@@ -51,6 +51,45 @@ The model and its settings are in the registry, `vars/mistralrs/bnekub03-models.
 * **No authentication.** I didn't find an API key option, so the server is open to the network on its LoadBalancer service, as sonar's is.
 * **UQFF.** `mistralrs quantize -m Qwen/Qwen3.8-27B --isq q4k -o <dir>` saves the quantized model, and `--from-uqff` serves it without re-quantizing. I haven't tried it.
 
+## Startup times
+
+Measured on `bnenod05` with `qwen3.8-27b-q4k`, on 2026-11-14, from the pod log and the pull I ran by hand. `( est. )` is arithmetic, not a measurement.
+**\*** marks a figure measured before the ethernet cable on `bnellm01` was replaced that night, so it should be measured again.
+The layout is the same on every engine's page; the summary is in [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md#startup-times).
+
+**Sizes**
+
+| What | Size |
+|---|---|
+| Image `ghcr.io/ericlbuehler/mistral.rs:cuda128-sm86-latest` | 4.04 GB on the node |
+| Model, `Qwen/Qwen3.8-27B` ( BF16 safetensors ) | 55.6 GB in 32 files, 52 GiB; the quantized result is never saved |
+
+**One-time, per node** ( repeats when the image tag changes )
+
+| Phase | Size | Time | Rate | Scales with |
+|---|---|---|---|---|
+| Pull the image | 4.04 GB | **5 min 40 s\*** | 11.9 MB/s\* ( est. from the two figures ) | image size |
+
+**One-time, per model**
+
+| Entry | Download | Download time | Rate | Pod created to serving |
+|---|---|---|---|---|
+| `qwen3.8-27b-q4k` | 55.6 GB ( 52 GiB ) | **about 55 min\*** | **14-18 MiB/s\*** | about 58 min\* ( est.: the download plus the every-start time below ); the startup probe allows 2 hours |
+
+**Every start** ( weights on the PVC; **the quantization is in here, because it happens every time** )
+
+| Phase | Size processed | Time | Rate | Scales with | Why every start |
+|---|---|---|---|---|---|
+| Load the weights and quantize to q4k | 52 GiB read, about 15 GiB on each GPU afterwards | about 2 min 23 s | - | model size ( both the read and the quantization ) | nothing keeps the quantized model; a UQFF file would, and I haven't tried it |
+| Plan memory and capture graphs | - | about 39 s | - | not measured | each time |
+| **Pod created to Ready** | | **3 min 06 s** ( 186 s ) | | | |
+
+`python bin/llm.py engine list --times` prints each engine's pod age and created-to-Ready time ( while that pod still exists ).
+
+**Limits:** the startup probe allows 2 hours ( 360 × 20 s ) and `engine set` waits 15 minutes unless given `--timeout`.
+
+**Normal in the log:** the log has ANSI colour codes, and `/health` isn't answering until the server is listening, so the pod stays `0/1` through the whole load.
+
 ## Configure the model in litellm
 
 `python bin/llm.py model sync` creates the litellm model from the registry entry's `litellm:` block: an OpenAI-compatible model at `http://web.dev-mistralrs.svc.cluster.local:1234/v1`, with a placeholder `api_key`

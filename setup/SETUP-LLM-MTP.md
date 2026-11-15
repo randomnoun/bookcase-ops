@@ -450,6 +450,9 @@ The rows are by prompt size and include the three requests with fewer than 100 t
 * **Not measured:** output quality, tool calls and thinking through litellm and pi, langfuse end-to-end figures, whether the model needs a thinking cap ( there is none, and no tool-call or reasoning parser flag ), and any session longer than 9 requests.
 
 **What to try next**, cheapest first. Each is one restart of about 3 minutes ( the re-quantisation ), and none has been tried:
+0. **The CPU limit.** mistralrs's pod was limited to 8 CPUs ( `mistralrs_cpu_limit` ) and was throttled in 12.6% of CPU periods over 24 hours, against 2.8% for ninfer and 0.2% for sglang ( Prometheus, `container_cpu_cfs_throttled_periods_total` ), and its server process
+   was using 222-331% CPU. The role default is now **16**, which is applied on the next deploy and hasn't been run. After a session, compare the throttled share again and `speed mistralrs`. It is a restart, but no re-download.
+   strata's pod has no CPU limit at all, and peaked at 22.3 cores in the hour I measured, so this isn't what limits it.
 1. **`--mtp-n-predict=3`.** Left alone it picks 2, 3, 4 or 6 as it runs and mostly chose 2; sglang ran a fixed 3 steps and accepted 2.9. This removes the adaptive logic.
 2. **Drop `--pa-cache-type=f8e4m3`**, and raise `--gpu-memory-utilization` to 0.95 to make up the cache. The warning says the fp8 scales are uncalibrated, and the slowdown with prompt length points at attention. This is my best guess for that slowdown, and only a guess.
 3. **`--mtp` off, as a control.** It shows what speculation is worth here, and it brings the prefix cache back, which may matter more than decode speed for agent work. Decode would probably fall; whether the cached prompts make up for it is the thing to find out.
@@ -462,7 +465,7 @@ The rows are by prompt size and include the three requests with fewer than 100 t
 
 Measured 2026-11-15, one pi agent session of 63 requests with prompts growing from 53 to 88,939 tokens, on Strata 0.2.13 ( engine 0.1.59, the `0.2.13-cuda13` image ). **This is a different model from sections 1-14**: Qwen3.8-Flash-Next is a 125-billion-parameter mixture of experts,
 run from ISTA-DASLab's IQ3_XXS GGUF ( 76 GB ), with the experts held mostly in system RAM ( the engine pins 26.8 GiB ) and the dense layers and hottest experts on the GPUs as a layer split across both 3090s. Speculation is MTP; the plan asked for DFlash2 and the log said `Drafting: MTP (DFlash2 isn't available in this mode)`.
-Context is 128k ( 131,072 ), pictures are on. So the figures below are not a like-for-like comparison with the 27B engines; they say what this setup does, not that strata is faster.
+Context was 128k ( 131,072 ) for this session ( it has since been raised to 256k, see [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md#what-was-found-running-it-2026-11-15) ), pictures are on. So the figures below are not a like-for-like comparison with the 27B engines; they say what this setup does, not that strata is faster.
 
 Results are strata's own per-request figures from its engine log ( `python bin/llm.py speed strata --min-out 100` ). That log is a file on the PVC and its lines have no timestamps, so the requests are in file order. TTFT is estimated as the time to read the uncached part of the prompt.
 
@@ -482,7 +485,7 @@ Results are strata's own per-request figures from its engine log ( `python bin/l
 * **Against the others.** The median of 158.6 tok/sec is 1.7x sglang's 94.6 ( section 13 ) and 1.5-1.6x ninfer-all's ~102-108, on a model with far more parameters. I think that is because only a few of its experts run per token, so it reads little per token, and the speculation is on top, but I haven't tested that.
   What I can say is that the comparison is between different models, different quants ( IQ3_XXS against GPTQ, EXL3 and `.ninfer` ) and different sessions, each on one run. Whether the 125B model's answers are better, I haven't looked at.
 * **Memory is nearly full.** Both GPUs sat at about 97% ( 23.4 of 24 GiB ) and host RAM at 83-89 of 94 GiB with the model idle, so nothing else can run beside it, and a longer prompt or a second request could run out. I saw no out-of-memory error.
-* **First start:** the 76.7 GB downloaded in under an hour at about 30 MB/s, and the model loaded in about 90 seconds. The pod had no restarts overnight. Memory locking worked with only the `IPC_LOCK` capability, with no ulimit change.
+* **First start:** the 76.7 GB downloaded in 30 minutes at about 42 MB/s, and the pod went from created to serving in about 37 minutes, with 87 seconds of that loading the engine ( a restart is Ready in 2 minutes ). The pod had no restarts overnight. Memory locking worked with only the `IPC_LOCK` capability, with no ulimit change.
 * **Not measured:** output quality, tool calls and thinking through litellm and pi ( the thinking cap went with each request, and I only tested that it works on a direct one ), langfuse end-to-end figures, and a comparison on the same prompts as the other engines.
 
 ## Comparison ( Qwen3.8-27B 5.00bpw, tensor parallel on both 3090s, 262144 context, single stream )

@@ -8,7 +8,7 @@ Only the pods with a pin icon ( 📌 ) are pinned to that node, as it's the node
 
 Take a look at [SETUP-LLM-ARCHITECTURE.md](setup/SETUP-LLM-ARCHITECTURE.md) for a bit more detail on how those connect together  
   
-![Physical / virtual machines and kubernetes deployments](image/architecture-6.png)
+![Physical / virtual machines and kubernetes deployments](image/architecture-8.png)
 
 
 

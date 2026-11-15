@@ -24,9 +24,11 @@ strata_models:
     family: "qwen"
     model: "IQ3_XXS"
 
-    # 128k is my choice, not Strata's: left empty it takes the largest that fits, and then litellm's num_ctx below wouldn't be known. Check the
-    # startup log for the context it settled on and keep num_ctx equal to it. If it doesn't fit, lower this ( 64k ).
-    context: "128k"
+    # 256k, the model's native maximum ( 2026-11-15 ). It started in 2 minutes, `/health` says max_context 262144, and a 252k-token filler prompt was
+    # answered correctly with no restart ( setup/SETUP-LLM-BE-STRATA.md ). Both GPUs sit at about 96% memory with the model idle and Strata's docs
+    # say 262K for IQ3_XXS is "not measured", so if a long prompt or a long reply restarts the pod, add `kv: "k8v4"` below ( keys at 8 bits and
+    # values as rotated 4-bit: 23% less KV memory, prompts 2-5% slower ), and after that go back to 192k. Keep num_ctx below equal to this.
+    context: "256k"
 
     # The litellm model that `llm.py model sync` creates for this entry.
     litellm:
@@ -45,7 +47,7 @@ strata_models:
       #
       #   reasoning_effort: left unset. The model's template defaults to thinking on at xhigh, which is what the other engines set.
       params:
-        num_ctx: 131072
+        num_ctx: 262144
         extra_body:
           reasoning_budget_tokens: 8192
 

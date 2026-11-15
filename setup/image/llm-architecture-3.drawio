@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="rcT9mAlYuP4d0focZIx6">
-    <mxGraphModel dx="1741" dy="1094" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="0" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="1741" dy="992" grid="1" gridSize="10" guides="1" tooltips="1" connect="0" arrows="0" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -339,6 +339,9 @@
         </mxCell>
         <mxCell id="lQhsfCRelfIty8jpijYW-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;fillColor=#FFF9E7;fontSize=10;spacingLeft=2;" value="&lt;b&gt;mistralrs&lt;/b&gt;&lt;div&gt;UQFF, GGUF&lt;/div&gt;" vertex="1">
           <mxGeometry height="40" width="110" x="210" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="lQhsfCRelfIty8jpijYW-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;fillColor=#FFF9E7;fontSize=10;spacingLeft=2;" value="&lt;b&gt;strata&lt;/b&gt;&lt;div&gt;GGUF&lt;/div&gt;" vertex="1">
+          <mxGeometry height="40" width="110" x="340" y="650" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

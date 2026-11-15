@@ -168,6 +168,24 @@ Some things affect model speed / quality:
      The card says its author tested it on one 3090 with a 262,144 context and a Q6 KV cache, and ran no quality or speed measurements.
 
 
+## Startup times
+
+Each engine's page has a *Startup times* section in the same layout: sizes, then what happens once per node ( image pull ), once per model ( download, plus any prep ) and on every start ( load, plus anything redone every time, such as mistralrs's quantization ), each with the size it processed and its rate.
+This is the summary. A `-` means I haven't measured it; `( est. )` is arithmetic. **\*** marks figures from 2026-11-14, before the ethernet cable on `bnellm01` was replaced that night, so the downloads and pulls should be measured again.
+
+| Engine | Image | Model downloaded | First download | Every start | Why |
+|---|---|---|---|---|---|
+| [`ninfer`](SETUP-LLM-BE-NINFER.md#startup-times) | 4.39 GB | about 19 GiB | about 30 min\* | about 1 min ( `mtp` ), 2 min 15 s with retries ( `dflash2` ) | loads weights; retries reload them |
+| [`sglang`](SETUP-LLM-BE-SGLANG.md#startup-times) | 16.1 GB, 7 min\* to pull | 21.0 GB | within a 15 min\* first start | about 2 min | weights, MTP head, CUDA graphs |
+| [`mistralrs`](SETUP-LLM-BE-MISTRALRS.md#startup-times) | 4.04 GB, 5 min 40 s\* to pull | 55.6 GB ( BF16 ) | about 55 min\* | 3 min 06 s | **re-quantizes every start** |
+| [`strata`](SETUP-LLM-BE-STRATA.md#startup-times) | 0.86 GB | 75.8 GB ( IQ3_XXS ) | 30 min\* ( 37 min\* with prep ) | 2 min | loads experts into pinned RAM |
+| `tabbyapi` | 6.71 GB | - | - | - | |
+| `sonar` | - | - | - | - | image is built locally |
+| `ollama` | - | - | - | - | |
+
+Image size, model size and the rates are what to scale from: a first start is roughly the image pull ( once per node ), plus the model size divided by the download rate, plus the every-start time.
+`python3 ../bin/llm.py engine list --times` adds each pod's age and its created-to-Ready time, and `engine set` prints the same time once the rollout finishes, so the "every start" column can be filled in from a restart without reading logs ( the pod has to still exist; its events are gone in about an hour ).
+
 ## Switching between engines
 
 `ollama`, `sonar`, `tabbyapi`, `mistralrs`, `sglang` and `strata` usually request both GPUs, so only one can run at a time. 
@@ -214,6 +232,8 @@ since it runs `ansible-playbook` ( or use `--no-apply` and run the printed comma
 `model sync` makes litellm match the active models: it creates or updates one litellm model per engine and deletes the ones it created for entries that are no longer active ( sonar serves every model under
 the same name, as does sglang, so a stale entry would answer with the wrong model ). It marks its models with a `bookcase-ops` entry in `model_info` ( `{"engine": ..., "ansible-model": ...}`, the engine and the registry entry it was built from ) and leaves everything else alone, so models you added in the litellm UI are untouched. 
 Ollama's models aren't synced; add them in the UI. After a sync that changes `num_ctx`, run `pi-sync-models` and restart opencode as before.
+pi only learns a model's context window when `pi-sync-models` runs, so `model sync` ( when litellm is already in sync ) and `engine list` read `/root/.pi/agent/models.json` from the pi pod and say which models have a `contextWindow` that differs from litellm's `num_ctx`
+( `pi's models.json is behind litellm`, with the command to run ). If the pi pod can't be read it prints `pi not checked` and carries on. It doesn't look at opencode, whose models file is generated when its pod starts.
 
 Re-running a role does **not** reset the replica count: it reads the current value from the cluster and keeps it, so `initial_replicas` only applies
 the first time the deployment is created. To change a role's behaviour permanently, scale it with `kubectl` as above.

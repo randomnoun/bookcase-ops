@@ -55,7 +55,10 @@ mistralrs_gpu_count: 2
 mistralrs_gpu_runtime_class_name: "nvidia"
 
 mistralrs_cpu_request: "4"
-mistralrs_cpu_limit: "8"
+# 8 was throttled in 12.6% of CPU periods over 24 hours ( Prometheus, container_cpu_cfs_throttled_periods_total ), the most of any engine,
+# and the server process was using 222-331% CPU during decode and quantization, so the limit may be part of why decode was slow ( setup/SETUP-LLM-MTP.md
+# section 14 ). Raised to 16 as a test; it hasn't been run at 16 yet, so check throttling again afterwards. The node has 24 logical processors.
+mistralrs_cpu_limit: "16"
 mistralrs_memory_request: "16Gi"
 mistralrs_memory_limit: "64Gi"
 
