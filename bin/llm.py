@@ -956,6 +956,22 @@ def vault_secret(path):
         raise click.ClickException(f"cannot read secret/{path} from vault at {client.url}: {e}")
 
 
+def vault_check(warn_below=900):
+    """Stop with a clear message unless vault accepts the token, before something slow ( ansible, which reads its secrets from vault
+    as it goes ) finds out the hard way. Says so if the token has under `warn_below` seconds left. Never needs a secret's path."""
+    client = vault_client()
+    try:
+        info = client.auth.token.lookup_self()["data"]
+    except hvac.exceptions.Forbidden:
+        raise click.ClickException("vault refused the token: it is missing, expired or invalid ( `. vault-login.sh` )")
+    except (hvac.exceptions.VaultError, requests.RequestException) as e:
+        raise click.ClickException(f"cannot reach vault at {client.url}: {e}")
+    ttl = info.get("ttl") or 0                                  # 0: the token never expires
+    if 0 < ttl < warn_below:
+        click.echo(f"( the vault token has {fmt_duration(ttl)} left; ansible reads vault as it runs, so log in again if the playbook is a long one )", err=True)
+    return ttl
+
+
 def vault(path, field):
     secret = vault_secret(path)
     if field not in secret:
@@ -1484,6 +1500,9 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
     Rewrites <engine>_active_model in the registry ( ansible/vars/<engine>/<cluster>-models.vars.yml ), re-runs the
     engine's ansible role so the pod restarts with the model's settings, then syncs litellm. The change shows up in git
     and survives pod restarts. An engine that is scaled to 0 picks the model up when you next `engine set` it.
+
+    Unless --no-apply, it first checks that vault accepts your token ( ansible reads its secrets from vault ), and stops
+    with the registry unchanged if it doesn't: run `. vault-login.sh` and try again.
     """
     engine = current_engine(engine)
     if engine not in CATALOGUED:
@@ -1498,6 +1517,8 @@ def model_load(name, engine, no_apply, no_sync, dry_run):
     click.echo(f"{engine}: {active or '-'} -> {name}" if name != active else f"{engine}: {name} is already the active model")
     if dry_run:
         return
+    if not no_apply:
+        vault_check()                                   # before the registry is touched: ansible and the litellm sync both read vault
     if name != active:
         set_active(engine, name)
     if no_apply:

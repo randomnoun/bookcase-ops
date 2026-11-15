@@ -227,7 +227,7 @@ python3 ../bin/llm.py model sync --dry-run           # show what would change in
 python3 ../bin/llm.py model unload                   # tabbyapi / ollama only; not persistent
 ```
 
-"Current engine" is whichever engine is scaled up; pass `--engine` to pick one. `model load` leaves a one-line change in the registry file for you to commit. Run it from WSL,
+"Current engine" is whichever engine is scaled up; pass `--engine` to pick one. `model load` first asks vault whether the token from `. vault-login.sh` is still valid ( ansible reads its secrets from vault ), and stops before it edits anything if not; `--no-apply` and `--dry-run` skip that check. It leaves a one-line change in the registry file for you to commit. Run it from WSL,
 since it runs `ansible-playbook` ( or use `--no-apply` and run the printed command yourself ).
 
 `model sync` makes litellm match the active models: it creates or updates one litellm model per engine and deletes the ones it created for entries that are no longer active ( sonar serves every model under

@@ -543,9 +543,9 @@ ninfer's decode speed is higher than the other rows, on half the GPUs, but the m
 The ninfer row is also a different quantisation, a different task and a different measure in its last speed cell ( section 7 ), so read it as "faster", not as a precise ratio.
 The two ninfer-all rows ( sections 10 and 11 ) are closer to the others: their session medians of ~107 ( MTP3 ) and ~102 ( DFlash2 ) tok/sec on one GPU are about the same as tabbyapi's two-GPU Swift run ( ~105, section 9 ), so the figures above describe the ninfer-3090 DFlash2 setup, not ninfer in general.
 
-## The four engines compared
+## The seven engines compared
 
-All four serve models to litellm from `bnenod05`, and only one runs at a time ( `python bin/llm.py engine set` ). Speeds are in the next section, with their qualifications; they are not a like-for-like benchmark.
+All seven serve models to litellm from `bnenod05`, and only one runs at a time ( `python bin/llm.py engine set` ). Speeds are in the next section, with their qualifications; they are not a like-for-like benchmark, and **the strata column is a different, larger model** ( Qwen3.8-Flash-Next 125B, not the 27B ), so its speeds can't be set against the others'.
 
 | | **ollama** | **sonar** | **tabbyapi** | **ninfer** |
 |---|---|---|---|---|
@@ -559,10 +559,25 @@ All four serve models to litellm from `bnenod05`, and only one runs at a time ( 
 | **Starts** | scaled up | scaled to 0 | scaled to 0 | scaled to 0 |
 | **Switch model** | `ollama pull`, then add it to litellm by hand | edit the registry, `model load` | registry, `model download`, `model load` | registry, `model load` |
 
+| | **mistralrs** | **sglang** | **strata** ( Flash-Next 125B ) |
+|---|---|---|---|
+| **Model format** | safetensors ( or GGUF ), **quantized as it loads** ( `q4k` ); a prebuilt UQFF file would skip that | AWQ / GPTQ safetensors ( not EXL3 ) | GGUF, for the Flash-Next family only ( ISTA-DASLab and Unsloth sizes ) |
+| **Models at once** | one per process | one per process | one per process |
+| **GPUs** | both ( tensor parallel over NCCL ) | both ( tensor parallel ) | both ( layer split; the experts mostly in system RAM ) |
+| **Speed seen, short replies** | median 36.8 over 7 requests of 5.5k tokens or less ( range 18-43 ) | session median ~95 ( range 73.5-144 ) | session medians 140-166 ( IQ3_XXS 150, Q2_0 166 ) |
+| **Speed seen, long generations** | 18.0 ( one 6,850-token reply ) | 88.5 and 92.1 ( 6.6k and 8.2k tokens out ) | 127 on a 6,144-token reply and 150 on a 16,384-token one ( IQ3_XXS ); 195 on an 11,835-token one ( Q2_0 ) |
+| **Metrics** | Prometheus `/metrics`, a ServiceMonitor, `metric mistralrs` | Prometheus `/metrics` ( `--enable-metrics` ), a ServiceMonitor, `metric sglang` | Prometheus `/metrics?format=prometheus`, a ServiceMonitor, a Grafana dashboard, `metric strata`; per-request speeds from a log file on the volume |
+| **Image** | stock, from ghcr ( 4.04 GB ) | stock, from Docker Hub ( 16.1 GB ), pinned by digest | stock, from ghcr ( 0.86 GB ) |
+| **Starts** | scaled to 0 | scaled to 0 | scaled to 0 |
+| **Switch model** | registry, `model load` | registry, `model load` | registry, `model load` |
+
 * **ollama** is the flexible one: the only engine that swaps many models in and out on demand, which is why it runs by default. It is also the only one without a model registry or `model sync`.
 * **sonar** has the most features ( batching, Prometheus, tool-call and reasoning parser flags ) but was the hardest to set up; MTP needed a manual patch on the PVC.
 * **tabbyapi** is the simplest way to run EXL3: MTP worked first time and models can be swapped at runtime. No metrics.
 * **ninfer** matched tabbyapi's two-GPU speed on one GPU ( session medians ~102-107 on ninfer-all against ~105 ), with the earlier ninfer-3090 session higher ( ~130 ), at the cost of a narrower, riskier setup: a community port of a Blackwell engine, maintained best-effort, that only runs the models it supports.
+* **mistralrs** was the slowest of the 27B engines by a wide margin ( 37 tok/sec against ~95 for sglang ), has no prefix cache hits with MTP on, and hung once after a cancelled request. It quantizes the original weights on every start ( about 3 minutes ), which is its one real convenience: no separate quant to find. The untested speed ideas are in section 14.
+* **sglang** is the fastest of the engines that read a stock 4-bit quant on both GPUs ( ~95 ), and has the most complete serving features ( tool-call and reasoning parsers, a strict thinking cap, metrics ), but MTP only worked after patching the checkpoint's quantization config through `--json-model-override-args`, and its 16 GB image is the largest here.
+* **strata** isn't an alternative to the others for the 27B: it runs a different, 125B model that doesn't fit on the GPUs, by keeping its experts in system RAM, and it decodes faster than every 27B engine on it ( 150-166 tok/sec ), with 93-98% of prompt tokens reused from its conversation cache. The price is RAM ( 26.8 GiB locked, 83-89 of 94 GiB in use ) and two GPUs at ~96% memory, so nothing else can run beside it, and a first-start download of 38-76 GB. Whether its answers are better I haven't tested.
 
 ### Qualifications on the speed rows
 
@@ -580,7 +595,7 @@ To compare them properly: one prompt set, run through litellm against each engin
 
 ## The models behind each engine ( are they comparable? )
 
-Every engine serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-14 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang is measured in section 13 and mistralrs, on 9 requests only, in section 14. strata ( sections 15 and 16 ) serves Qwen3.8-Flash-Next 125B instead of the 27B, so it is not in this table.
+Every engine except strata serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-15 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang is measured in section 13 and mistralrs, on 9 requests only, in section 14. strata ( sections 15 and 16 ) serves Qwen3.8-Flash-Next 125B instead, so its rows are at the bottom and are a different model, not another quant of the 27B.
 
 | Engine | Registry entry | Weights | GPUs | Speculation | KV cache | Context | Thinking cap |
 |---|---|---|---|---|---|---|---|
@@ -590,12 +605,17 @@ Every engine serves Qwen3.8-27B, but not the same weights. These are the registr
 | ninfer | `qwen3.8-27b-dflash2` ( active ), `-mtp` | `.ninfer`, own 4-5 bit mix ( 18.0 GiB loaded with DFlash2, 16.0 with MTP ) | **1** | DFlash2 with n-gram copying, or MTP | `rk4v4` ( 4-bit keys and values ) | 196608 ( DFlash2, pinned ), 262144 ( MTP ) | 8192 |
 | sglang | `qwen3.8-27b-gptq-int4` | GPTQ 4-bit, group size 32 ( `palmfuture/Qwen3.8-27B-GPTQ-Int4` ) | 2, tensor parallel | MTP via EAGLE, 3 steps, 4 drafts | fp8 | 262144 | 8192 ( strict thinking ) |
 | mistralrs | `qwen3.8-27b-q4k` | the original BF16 weights, quantized to `q4k` as they load | 2, tensor parallel ( NCCL ) | `--mtp`, built-in head, adaptive depth | fp8 | 65536 ( 262144 didn't start ) | none |
+| strata | `flash-next-iq3-xxs` | **Qwen3.8-Flash-Next 125B**, ISTA-DASLab IQ3_XXS GGUF ( 47.0 GB for the model, 75.8 GB to download ) | 2, layer split; experts mostly in RAM ( 26.8 GiB locked ) | MTP ( `drafting: mtp` ); DFlash2 was tried and wasn't faster | int8 ( Strata's default ) with KV streaming | 262144 | 8192, sent by litellm with each request |
+| strata | `flash-next-q2-0` | the same model, ISTA-DASLab Q2_0 ( 37.6 GB for the model, 37.6 GB to download once IQ3_XXS's shared shard is there ) | the same | MTP | the same | 262144 | 8192 |
+| strata | `flash-next-iq3-s` | the same model, ISTA-DASLab IQ3_S ( 54.8 GB for the model ) | the same | not measured | the same | 262144 ( set; not started at this size yet ) | 8192 |
 
 * **Closest pair.** sonar and tabbyapi `qwen3.8-27b-5bpw` are the only exact match: same EXL3 weights, same context, similar speculation, and they differ in the KV format ( fp8 against 8-bit ) and the engine. Every other row has different weights.
 * **sglang against tabbyapi Swift.** sglang's GPTQ 4-bit is nearest in size to the Swift 4.00bpw quant ( 16.3GB ) on two GPUs with MTP, but Swift is a fine-tune, so the output is not the same model. Against the 5.00bpw rows sglang has about one bit per weight less.
 * **GPTQ and q4k are not EXL3.** At the same nominal bits, the three formats lose different amounts of quality. I haven't measured any of them; only the speed rows above exist.
 * **mistralrs quantizes at load.** Its `q4k` weights come from the original BF16 model, so unlike the others there is no pre-made quant to check against, and its first start is slow.
 * **No cap on mistralrs.** The other engines stop thinking at 8192 tokens, so a long think on mistralrs can use more of the output budget. Compare tok/sec rather than the length of a reply.
+* **strata isn't comparable.** It is a different model with about 4.6 times the parameters, run from GGUF at 2-3 bits with most experts in system RAM, so its higher tok/sec says what that setup does, not that the engine is better. The three entries are sizes of the one model: IQ3_XXS and Q2_0 are measured ( 150 and 166 tok/sec session medians, section 15 and 16 ), IQ3_S isn't.
+  Strata's cap on thinking isn't a server setting I could find, so litellm sends `reasoning_budget_tokens: 8192` with each request; I tested that on a direct request and not through litellm and pi.
 * **Limits seen on sglang.** `max_running_requests` is capped by its Mamba state cache, at 5 at first and about 8 with `--enable-linear-replayssm-spec` and float32 state. Its KV pool holds 268,377 tokens at fp8 on these cards ( 141,683 at bf16 ), which is above the 262144 context but leaves room for only about one full-length request.
 
 To make the comparison fair, either run the same registry entry's weights on the engines that can read them, or accept that this is a comparison of engine and quant together, as the earlier rows are.
