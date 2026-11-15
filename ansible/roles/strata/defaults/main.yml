@@ -40,9 +40,15 @@ strata_set: []         # STRATA_SET, one engine setting per item, e.g. "prefill=
 # The speculative drafter: auto ( DFlash2 where Strata has it ), mtp, dflash2 or off. The image's entrypoint has no variable for it and `--set drafting=...`
 # crashes the engine ( "unknown argument: --drafting" ), so when this is set the container runs a copy of the image's entrypoint.sh with one line added that
 # passes `--drafting $DRAFTING` to `strata launch`. The start fails with a message if the image's script no longer has the line that is patched.
-# The choice is saved in the launch preset, so taking the key out of an entry doesn't go back to auto: set "auto" ( or "dflash2" ) to change it back.
-strata_drafting: ""
-strata_env: {}         # any other environment variable the image reads, name: value
+# Default mtp: in a pi session DFlash2 was no faster than MTP and it answers one request at a time ( setup/SETUP-LLM-BE-STRATA.md ). "" leaves it to Strata ( auto ).
+# Taking the key out of an entry now goes back to this default, because strata_reset_saved_settings clears what Strata saved.
+strata_drafting: "mtp"
+strata_env: {}         # any other environment variable the image reads, name: value. Unlike the ones above these are only written when set, so one removed from an entry stays on the live Deployment: `kubectl set env deploy/strata NAME-`
+
+# An init container that moves Strata's saved launch preset and run config aside at every start, so that only the registry entry and the container's environment decide how it starts.
+# Without it Strata keeps what an earlier entry set ( ple-io, a drafter, kv, parallel ... ) in /data/config/strata/launch-presets/docker.json and /data/state/strata/launch/docker.json and applies it again.
+# Turning this off doesn't remove the init container from a Deployment that already has it: `kubectl -n dev-strata patch deploy strata --type=json -p '[{"op":"remove","path":"/spec/template/spec/initContainers"}]'`.
+strata_reset_saved_settings: true
 
 # docker's --stop-timeout 120: on SIGTERM the container runs `strata launch --stop` so the engine releases its memory, and the default 30s is too short for a big model
 strata_stop_grace_seconds: 120

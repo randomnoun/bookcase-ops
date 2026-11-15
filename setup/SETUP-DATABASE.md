@@ -312,11 +312,13 @@ echo -n "put-the-opencode-litellm-virtual-key-here" | vault kv put   -mount=secr
 echo -n "$(openssl rand -hex 24)"                   | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-opencode/opencode" server_password=-
 ```
 
-**openhands** doesn't read its litellm key from vault; you paste it into the OpenHands settings UI instead ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#openhands) ). 
-Vault only needs the key you'll be asked for when you first open the UI:
+**openhands** doesn't read its litellm key from vault at deploy time; `llm.py model sync` reads it from here and creates a `litellm` provider connection and
+a profile per model inside OpenHands ( see [SETUP-LLM-FRONTEND.md](SETUP-LLM-FRONTEND.md#openhands) ). 
+Vault also holds the key you'll be asked for when you first open the UI:
 
 ```
 echo -n "$(openssl rand -hex 24)" | vault kv put -mount=secret "k8s/bnekub03/secret/dev-openhands/openhands" session_api_key=-
+echo -n "put-the-openhands-litellm-virtual-key-here" | vault kv patch -mount=secret "k8s/bnekub03/secret/dev-openhands/openhands" litellm_virtual_key=-
 
 # for first login
 vault kv get -mount=secret -field=session_api_key "k8s/bnekub03/secret/dev-openhands/openhands"

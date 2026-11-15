@@ -45,6 +45,31 @@ spec:
       nodeSelector:
         {{ strata_gpu_node_selector_key }}: "{{ strata_gpu_node_selector_value }}"
       runtimeClassName: "{{ strata_gpu_runtime_class_name }}"
+{% if strata_reset_saved_settings | bool %}
+      initContainers:
+        # Strata saves what it was started with ( launch preset, run config ) on the volume and reads it back at every start, so a setting that one registry entry used,
+        # such as ple-io=direct or a drafter, stayed in force after the next entry stopped naming it. This moves both files aside before the engine starts, so the registry
+        # and the container's environment are all that count. Nothing is lost: the next start writes them again, and the last copies are kept in /data/state/strata/reset-backup.
+        - name: reset-saved-settings
+          image: "{{ strata_image }}"
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              b=/data/state/strata/reset-backup
+              mkdir -p "$b" || exit 1
+              for f in /data/config/strata/launch-presets/docker.json /data/state/strata/launch/docker.json; do
+                if [ -f "$f" ]; then
+                  cp -p "$f" "$b/$(basename "$(dirname "$f")")-$(basename "$f")" || { echo "[X] could not keep a copy of $f in $b" >&2; exit 1; }
+                  rm -f "$f" && echo "removed $f ( a copy is in $b )"
+                else
+                  echo "no $f ( first start, or already reset )"
+                fi
+              done
+          volumeMounts:
+            - mountPath: /data
+              name: data
+{% endif %}
       containers:
         - name: strata
           image: "{{ strata_image }}"
@@ -71,30 +96,20 @@ spec:
                 secretKeyRef:
                   name: strata-api-key
                   key: api_key
-{% if strata_context | string | length > 0 %}
+            # These are always written, empty when an entry leaves them out: the playbook merges into the live Deployment and a variable that is left out
+            # of the template is NOT removed from it, so a value from the previous entry would stay. The image ignores an empty one ( it tests each with `[ -n ... ]` ).
             - name: CONTEXT
               value: "{{ strata_context }}"
-{% endif %}
-{% if strata_parallel | string | length > 0 %}
             - name: PARALLEL
               value: "{{ strata_parallel }}"
-{% endif %}
-{% if strata_kv | string | length > 0 %}
             - name: KV
               value: "{{ strata_kv }}"
-{% endif %}
-{% if strata_vision | string | length > 0 %}
             - name: VISION
               value: "{{ strata_vision }}"
-{% endif %}
-{% if strata_drafting | string | length > 0 %}
             - name: DRAFTING
               value: "{{ strata_drafting | string | lower }}"
-{% endif %}
-{% if strata_set | length > 0 %}
             - name: STRATA_SET
               value: {{ strata_set | map('string') | join(' ') | to_json }}
-{% endif %}
 {% for name, value in strata_env.items() %}
             - name: {{ name }}
               value: {{ value | string | to_json }}

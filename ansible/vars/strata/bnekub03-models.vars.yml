@@ -14,7 +14,7 @@
 # Once it is scaled up, `kubectl -n dev-strata exec deploy/strata -- strata launch --plan --family qwen --model IQ3_XXS --context 128k`
 # prints what a choice would download, where the model goes and whether it fits ( it needs a running pod, so there is no way to ask before the first start ).
 
-strata_active_model: "flash-next-iq3-s"
+strata_active_model: "flash-next-q2-0"
 
 strata_models:
 
@@ -63,9 +63,11 @@ strata_models:
     model: "Q2_0"
     # 256k like the IQ3_XXS entry. Started at this size ( 2026-11-15 ): `/health` says max_context 262144, a 45-request pi session ( prompts up to 63k tokens ) ran at a
     # median 166 tok/sec with no restart, and a 249k-token test prompt ( bin/llm_util.py longprompt ) was answered correctly. Downloaded in 13 minutes ( its second shard is shared with IQ3_XXS ).
-    # This entry sets no `drafting`, yet it ran MTP: the saved launch preset on the volume holds "drafting": "mtp" from the IQ3_XXS entry, and the live deployment still has
-    # DRAFTING=mtp, which the playbook doesn't remove. Add `drafting: "mtp"` here if you want it stated rather than inherited.
+    # This entry sets no `drafting`: it gets the role default, `strata_drafting: "mtp"` ( it ran MTP before only because it inherited it from the saved preset ).
     context: "256k"
+    # No `set`: the `ple-io=direct` trial on this entry ( 2026-11-15 ) is over. Q2_0 fits with the PLE table locked in RAM and ran 166.2 tok/sec in a pi session that way, so there is no reason to
+    # read it from disk. The role now writes STRATA_SET empty when an entry has none, and an init container clears the saved preset at every start, so nothing is carried over from IQ3_S
+    # ( setup/SETUP-LLM-BE-STRATA.md ). Not yet run on the cluster: after the first `model load flash-next-q2-0`, check the log says `PLE table locked in RAM` and not `PLE direct read probe`.
     litellm:
       public_name: "strata-qwen3.8-flash-next:q2_0"
       upstream: "strata"
@@ -78,13 +80,39 @@ strata_models:
   flash-next-iq3-s:
     family: "qwen"
     model: "IQ3_S"
-    # 256k like the IQ3_XXS entry, but not started yet at this size ( 2026-11-15 ). This is the biggest model ( 8 GB more than IQ3_XXS, which already leaves
-    # about 1 GiB free on each GPU at 256k ), so it may not fit: if the start fails or the pod restarts on a long prompt, add `kv: "k8v4"` or drop to 192k or 128k.
+    # STARTS ONLY WITH `ple-io=direct` ( 2026-11-15; Ready in 2 min, answered 8k/189k/249k-token prompts, no restart ). WITHOUT it the node's OOM killer killed the engine about 70 seconds into every load ( pod OOMKilled, exit 137, six restarts ). The log's plan was a 46.8 GiB
+    # expert arena plus the 26.8 GiB PLE table locked in RAM, 78% of the 94.2 GiB the engine saw, against 71% for IQ3_XXS which fits. Context isn't the cause ( pinned KV is 1.55 GiB at 256k ).
+    # To try, in order, on Q2_0 first so a bad flag doesn't crash-loop this: `set: ["ple-io=direct"]` ( the PLE table read from SSD instead of locked in RAM, gives back 26.8 GiB, costs speed ),
+    # then `set: ["ram-keep-gib=12"]`. See setup/SETUP-LLM-BE-STRATA.md. The files are on the volume ( download 19 min 39 s, 46.5 MB/s ), so a retry costs only the load.
+    # `ple-io=direct` is set below and is what lets it start ( it gave back 27.9 GiB on Q2_0; with IQ3_S loaded and used, `free` showed about 20 GiB available ). The failed starts took the node's kubelet down twice ( NotReady, langfuse and opencode stuck ), so if this
+    # OOMs again, scale strata to 0 before the node does that: `kubectl -n dev-strata scale deploy/strata --replicas=0`.
     context: "256k"
+    set:
+      - "ple-io=direct"
     litellm:
       public_name: "strata-qwen3.8-flash-next:iq3_s"
       upstream: "strata"
       params:
         num_ctx: 262144
+        extra_body:
+          reasoning_budget_tokens: 8192
+
+  # NOT TRIED. Unsloth's UD-IQ4_XS of the same Flash-Next model ( family "unsloth" in Strata ): 94 GB to download, about 72 GB of RAM for the experts by Strata's docs, 88.9% same top token
+  # as Q8_0 ( ISTA-DASLab's IQ3_S: 87.7% ). Strata's docs list it as the Unsloth size that fits all experts in 94 GB, but that is more than IQ3_S needs and IQ3_S was OOM-killed on this node,
+  # so expect the same unless the PLE table is moved out of RAM first ( see flash-next-iq3-s ); `set: ple-io=direct` below is that guess, untested. Disk: about 454 GB free before this download.
+  # Whether its 28.8 GB second shard is shared with the ISTA-DASLab sizes ( as theirs are ) is not known: it is a different quant, so assume not.
+  # Not active; load it with `llm.py model load flash-next-unsloth-ud-iq4-xs` once a model that needs this much RAM is known to fit.
+  flash-next-unsloth-ud-iq4-xs:
+    family: "unsloth"
+    model: "UD-IQ4_XS"
+    context: "128k"
+    drafting: "mtp"
+    set:
+      - "ple-io=direct"
+    litellm:
+      public_name: "strata-qwen3.8-flash-next:unsloth-ud-iq4-xs"
+      upstream: "strata"
+      params:
+        num_ctx: 131072
         extra_body:
           reasoning_budget_tokens: 8192
