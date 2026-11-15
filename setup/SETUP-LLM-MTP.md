@@ -6,7 +6,7 @@ This is all claude-written, I'll rewrite this whole doc at some stage once I've 
 
 Notes from 2026-10-29, enabling MTP self-speculative decoding for `turboderp/Qwen3.8-27B-exl3` (5.00bpw) on both EXL3 backends.
 See [SETUP-LLM-BACKEND.md](SETUP-LLM-BACKEND.md) for how the engines are deployed and switched.
-Section 7 adds `ninfer` ( 2026-11-07 ), which is a different engine with its own speculative decoding. Section 13 adds `sglang` and section 14 `mistralrs` ( both 2026-11-14 ), and section 15 `strata` ( 2026-11-15 ), which runs a different, much larger model.
+Section 7 adds `ninfer` ( 2026-11-07 ), which is a different engine with its own speculative decoding. Section 13 adds `sglang` and section 14 `mistralrs` ( both 2026-11-14 ), and sections 15 and 16 `strata` ( 2026-11-15, IQ3_XXS and Q2_0 ), which runs a different, much larger model.
 
 ## Background
 
@@ -489,9 +489,32 @@ Results are strata's own per-request figures from its engine log ( `python bin/l
 * **Later runs ( 2026-11-15 ).** The context was raised to 192k and then 256k, and the same engine log grew to 183 pi requests with MTP ( my synthetic long-prompt tests and the 53-token warm-ups left out ): median decode **149.8 tok/sec** over the 172 with 100+ tokens out ( range 122-198; the first session's 158.4 was a little higher ), draft acceptance 71%, 98.3% of prompt tokens reused, prompts up to 102,583 tokens.
   After fetching Strata's DFlash2 drafter and restarting, 86 more requests ( 76 with 100+ out ) gave a median **149.2 tok/sec** ( range 114-204 ), 141.1 on the 22 replies of 1,000+ tokens against 158.1 for MTP's 57, 61% acceptance ( windows of up to 8 tokens ) and the same 98.4% reuse: no faster than MTP in an agent session, and it takes one request at a time.
   Back on MTP ( IQ3_XXS, 64 requests, 46 with 100+ out ) the median was 140.7, with reuse down to 93.6% because Strata had sized its conversation cache at 1,024 MiB on that start.
-  The smaller **Q2_0** size ( 37.6 GB against 47.0 GB for the model, MTP, 256k context; 45 requests, 38 with 100+ out, prompts up to 63k tokens ) decoded at a median **166.2 tok/sec** ( p10-p90 146-195; 165.6 on its 16 replies of 1,000+ tokens ), 73% acceptance, 96.9% reuse, median first token 0.38 s: about 11% faster than IQ3_XXS with the same drafter overall, though only in the 45-65k prompt band when split by size.
-  Single runs of different tasks each, so the differences are within noise except possibly the long replies and Q2_0's lead. I haven't compared the quality of Q2_0's and IQ3_XXS's answers. Details in [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md#what-was-found-running-it-2026-11-15).
+  The smaller Q2_0 size is in section 16.
+  Single runs of different tasks each, so the differences are within noise except possibly the long replies. Details in [SETUP-LLM-BE-STRATA.md](SETUP-LLM-BE-STRATA.md#what-was-found-running-it-2026-11-15).
 * **Not measured:** output quality, tool calls and thinking through litellm and pi ( the thinking cap went with each request, and I only tested that it works on a direct one ), langfuse end-to-end figures, and a comparison on the same prompts as the other engines.
+
+### 16. strata ( Qwen3.8-Flash-Next 125B, Q2_0, two GPUs )
+
+Measured 2026-11-15, one pi agent session of 45 requests ( 38 with 100+ tokens out; the 53-token warm-up left out ) with prompts of 2,100 to 63,267 tokens, then `bin/llm_util.py longprompt`, on the same Strata 0.2.13 as section 15 with **context 256k ( 262,144 )**, pictures on and MTP drafting.
+Only the quant changed from section 15: `Q2_0` is ISTA-DASLab's smallest size of the same 125B model ( 37.6 GB of RAM and VRAM for the model against 47.0 GB for IQ3_XXS, and Strata's docs rate it "good" against "great" ), and 99% of its experts are resident in VRAM against 77% for IQ3_XXS with MTP. So this is the same model at lower precision, not another model;
+the sessions were different tasks, one run each.
+
+| Prompt tokens | n | Median decode tok/sec | Range |
+|---|---|---|---|
+| < 15k | 5 | 155.7 | 137.9-182.0 |
+| 15-45k | 12 | 163.7 | 138.3-200.2 |
+| 45-65k | 21 | 167.6 | 147.5-222.8 |
+| all ( >= 100 tokens out ) | 38 | **166.2** | 137.9-222.8 |
+
+* **Against IQ3_XXS with MTP ( section 15, 172 requests ):** 166.2 against 149.8 tok/sec overall, 11% higher ( p10-p90 146-195 against 131-170 ). By prompt size the lead is only in the 45-65k band ( 167.6 against 148.5 ); under 45k the two are level or Q2_0 is lower ( 155.7 against 163.2, 163.7 against 165.3 ), and I have no Q2_0 data over 65k. Replies of 1,000+ tokens: 165.6 ( n = 16 ) against 158.1 ( n = 57 ); the longest reply was 11,835 tokens at 194.9 tok/sec.
+  Against the second IQ3_XXS MTP session ( 140.7 median, 64 requests ) the lead is 18%, which shows how far a session's task alone moves the figure.
+* **Draft acceptance** 73% mean ( range 54-94% ), against 71% for IQ3_XXS with MTP.
+* **Conversation cache:** 96.9% of prompt tokens reused ( 1.80 of 1.86 million ), median first token 0.38 s ( p90 1.5 s, 6.6 s at worst ). Strata had sized the cache at 4,352 MiB from the free RAM at start-up, and it never logged `skip parking`.
+* **Long prompts:** one request each of 7,985, 189,289 and 249,031 tokens ( the last 72% cached ), a passphrase on the first line and the question at the end. All three answered correctly in 3.8, 43.8 and 22.6 s, the engine's read speed was 2,282, 4,378 and 3,122 tok/sec, decode 167.0, 151.7 and 137.2 tok/sec, with no pod restart and no out-of-memory, "too long" or truncation lines.
+  The same prompts on IQ3_XXS ( 189,083 and 252,093 tokens, 256k ) decoded at 121.3 and 135.7 tok/sec with MTP and at 139.6 and 138.3 with DFlash2 ( 113.0 at 8,493 tokens, DFlash2 only ), and read the cold 189k prompt in 47.9 s with MTP and 41.2 s with DFlash2; Q2_0 took 43.8 s. It is filler text and a 1-word answer, so it shows the 256k KV and the prompt path fit, not quality at depth, a long reply after a 250k prompt, or two requests together.
+* **Download and start:** 37.6 GB ( its second shard is the same file as IQ3_XXS's, so the 28.8 GB was already on the volume ) in 13 min 14 s at 47 MB/s, pod created to serving in 15 min, with 75 s of loading the engine.
+* **Memory:** GPUs 23.5 and 23.7 GiB with the model idle, host RAM 8.3 GiB available, 26.8 GiB locked as before. Q2_0 isn't smaller in what it takes: the engine sizes its expert cache to the free VRAM, so a smaller model keeps more of its experts on the cards ( 12,288 slots against 7,107 ) and nothing else could run beside it.
+* **Not measured:** output quality ( no comparison of Q2_0's answers with IQ3_XXS's ), prompts over 65k in a real session, tool calls through litellm and pi, and DFlash2 on Q2_0.
 
 ## Comparison ( Qwen3.8-27B 5.00bpw, tensor parallel on both 3090s, 262144 context, single stream )
 
@@ -510,6 +533,7 @@ Results are strata's own per-request figures from its engine log ( `python bin/l
 | sglang, MTP via EAGLE, GPTQ 4-bit, **two** GPUs ( tensor parallel ) | median ~95 tok/sec in a tool-calling session ( range 73.5-144 ) | 88.5 and 92.1 tok/sec ( 6.6k and 8.2k tokens out ) | 123 ( 15-45k, n=4 ) and 91 ( 45-65k, n=6 ) median, engine decode, not end-to-end ( see section 13 ) | accept length 2.9 of 4, rate 63%; 97.5% of prompt tokens cached; fp8 KV; needed a patched quantization config for MTP to work at all |
 | mistralrs, MTP, `q4k` quantized at load, **two** GPUs ( tensor parallel ) | median 36.8 tok/sec over 7 requests of 5.5k tokens or less ( range 18.0-43.1 ) | 18.0 tok/sec ( one 6,850-token reply, 5.5k prompt ) | not measured; prompts stopped at 5.5k tokens ( see section 14 ) | accept length 2.0-2.75, rate 49-79%; **0% prefix cache** ( MTP recomputes prefixes ); 63,840-token KV cache; one hang after a cancelled request |
 | strata, MTP, Qwen3.8-**Flash-Next 125B** IQ3_XXS ( a different model ), **two** GPUs ( layer split ) | median 158.6 tok/sec in a pi agent session ( range 127-178, n=54 ) | 127.3 tok/sec ( one 6,144-token reply ); 150.1 on a 16,384-token one | 158.4 median above 15k tokens, up to 89k ( bands 148.5-162.8 ), engine decode, not end-to-end ( n=47; see section 15 ) | acceptance mean 72%; **98% of prompt tokens reused**; median TTFT 0.5 s; experts held in RAM ( 26.8 GiB pinned ); both GPUs at 97% memory; **not comparable with the rows above** |
+| strata, MTP, Qwen3.8-**Flash-Next 125B** **Q2_0** ( a different model; the smaller quant of the row above ), **two** GPUs ( layer split ), 256k | median 166.2 tok/sec in a pi agent session ( range 138-223, n=38 ) | 194.9 tok/sec ( one 11,835-token reply ) | 167.6 median at 45-65k tokens ( n=21 ), engine decode, not end-to-end; 137-152 on 189k and 249k filler prompts with 52-63 tokens out ( see section 16 ) | acceptance mean 73%; 96.9% of prompt tokens reused; median TTFT 0.38 s; 99% of experts resident in VRAM; no pod restart on a 249k-token prompt; **not comparable with the 27B rows** |
 
 The first three speed columns are engine-reported decode tok/sec; the 29-59k column is end-to-end tok/sec from langfuse ( output tokens / total latency, includes prefill ), so only compare within it.
 All numbers are single runs, not averaged. The short-reply and 7-8k figures used different prompts; the 29-59k column is the same coding task in both sonar rows.
@@ -556,7 +580,7 @@ To compare them properly: one prompt set, run through litellm against each engin
 
 ## The models behind each engine ( are they comparable? )
 
-Every engine serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-14 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang is measured in section 13 and mistralrs, on 9 requests only, in section 14. strata ( section 15 ) serves Qwen3.8-Flash-Next 125B instead of the 27B, so it is not in this table.
+Every engine serves Qwen3.8-27B, but not the same weights. These are the registry entries as of 2026-11-14 ( `ansible/vars/<engine>/bnekub03-models.vars.yml` ); sglang is measured in section 13 and mistralrs, on 9 requests only, in section 14. strata ( sections 15 and 16 ) serves Qwen3.8-Flash-Next 125B instead of the 27B, so it is not in this table.
 
 | Engine | Registry entry | Weights | GPUs | Speculation | KV cache | Context | Thinking cap |
 |---|---|---|---|---|---|---|---|

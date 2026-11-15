@@ -14,7 +14,7 @@
 # Once it is scaled up, `kubectl -n dev-strata exec deploy/strata -- strata launch --plan --family qwen --model IQ3_XXS --context 128k`
 # prints what a choice would download, where the model goes and whether it fits ( it needs a running pod, so there is no way to ask before the first start ).
 
-strata_active_model: "flash-next-q2-0"
+strata_active_model: "flash-next-iq3-s"
 
 strata_models:
 
