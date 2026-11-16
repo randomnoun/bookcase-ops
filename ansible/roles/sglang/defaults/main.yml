@@ -74,3 +74,9 @@ sglang_memory_limit: "64Gi"
 # sglang's processes talk to each other through /dev/shm; docker's 64Mi default is far too small ( sglang's docs say to set it
 # for docker and kubernetes ). Only consumes memory for what's actually written.
 sglang_shm_size: "16Gi"
+
+# false = force GPU-to-GPU traffic off NVLink, for A/B timing: sets NCCL_P2P_DISABLE=1 and NCCL_SHM_DISABLE=0 and adds
+# --disable-custom-all-reduce. The flag is needed because sglang's custom all-reduce uses CUDA IPC peer access directly and
+# doesn't read NCCL_P2P_DISABLE, so with the env vars alone it would still use the bridge. true = set nothing, so NCCL and
+# the custom all-reduce use NVLink whenever the driver reports peer access. Override per run with -e sglang_nvlink=false.
+sglang_nvlink: true
