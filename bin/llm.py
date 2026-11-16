@@ -343,7 +343,7 @@ def sonar_metrics(namespace, deployment, port, file):
 # --- tabbyapi ---------------------------------------------------------------------------------------------------------
 
 TABBY_RE = re.compile(
-    r"(\d\d:\d\d:\d\d)\.\d+ INFO:\s+#(\d+) \S+ \([^)]*\): ([\d,]+) tokens generated at ([\d.,]+) T/s\s+\S+\s+"
+    r"(\d\d:\d\d:\d\d)\.\d+ INFO:\s+#(\d+) \S+(?: \([^)]*\))?: ([\d,]+) tokens generated at ([\d.,]+) T/s\s+\S+\s+"
     r"prompt ([\d,]+) tokens, (none|\d+%) cached, ([\d,]+) new in [\d.,]+ s \([\d.,]+ T/s\)\s+\S+\s+"
     r"first token ([\d.]+) s, total ([\d.]+) s(?:\s+\S+\s+draft ([\d,]+)/([\d,]+) accepted \((\d+)%\))?")
 
