@@ -72,6 +72,9 @@ spec:
 {% if sonar_tokenizer | length > 0 %}
             - "--tokenizer={{ sonar_tokenizer }}"
 {% endif %}
+{% if not (sonar_nvlink | bool) %}
+            - "--disable-custom-all-reduce"
+{% endif %}
 {% for arg in sonar_extra_args %}
             - {{ arg | to_json }}
 {% endfor %}
@@ -84,6 +87,12 @@ spec:
 {% if sonar_hf_token | length > 0 %}
             - name: HF_TOKEN
               value: "{{ sonar_hf_token }}"
+{% endif %}
+{% if not (sonar_nvlink | bool) %}
+            - name: NCCL_P2P_DISABLE
+              value: "1"
+            - name: NCCL_SHM_DISABLE
+              value: "0"
 {% endif %}
           # loading a 70b model (and downloading it first, the first time) takes
           # many minutes; /health returns 503 until the model is loaded. This

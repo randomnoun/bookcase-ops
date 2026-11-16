@@ -60,6 +60,9 @@ spec:
 {% if sglang_thinking_budget | string | length > 0 %}
             - "--enable-strict-thinking"
 {% endif %}
+{% if not (sglang_nvlink | bool) %}
+            - "--disable-custom-all-reduce"
+{% endif %}
 {% for arg in sglang_extra_args %}
             - {{ arg | to_json }}
 {% endfor %}
@@ -76,6 +79,12 @@ spec:
 {% if sglang_thinking_budget | string | length > 0 %}
             - name: SGLANG_MAX_THINK_TOKENS
               value: "{{ sglang_thinking_budget }}"
+{% endif %}
+{% if not (sglang_nvlink | bool) %}
+            - name: NCCL_P2P_DISABLE
+              value: "1"
+            - name: NCCL_SHM_DISABLE
+              value: "0"
 {% endif %}
           # downloading ( the first time ) and loading a 27b model takes many minutes: 90 x 20s = 30 minutes before kubernetes gives up.
           # /health returns 503 until the server is up, and then takes about 1.0s to answer, which is the probe default

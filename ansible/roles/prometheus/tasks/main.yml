@@ -21,7 +21,10 @@
 # to uninstall, uncomment this    
 #    release_state: "absent"
     wait: true
-    chart_ref: "prometheus-community/kube-prometheus-stack" 
+    chart_ref: "prometheus-community/kube-prometheus-stack"
+    # pinned to what is deployed ( 2026-11-17 ): unpinned, an apply upgrades to whatever the local helm repo has ( 92.13.1 then ), a major version.
+    # Raise it deliberately, after reading the chart's upgrade notes.
+    chart_version: "91.9.0"
     values: "{{ lookup('template', '03-prometheus-values.j2.yml') | from_yaml }}"
 
 - name: "kubernetes prometheus nginx podmonitor"

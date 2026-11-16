@@ -96,3 +96,9 @@ sonar_shm_size: "8Gi"
 #   - "--kv-cache-dtype=fp8"
 #   - "--enforce-eager"
 sonar_extra_args: []
+
+# false = force GPU-to-GPU traffic off NVLink, for A/B timing: sets NCCL_P2P_DISABLE=1 and NCCL_SHM_DISABLE=0 and adds
+# --disable-custom-all-reduce. The flag is needed because sonar's custom all-reduce asks CUDA about peer access itself
+# ( torch.cuda.can_device_access_peer; APHRODITE_SKIP_P2P_CHECK defaults to 1, so no probe file is written ) and doesn't read
+# NCCL_P2P_DISABLE. true = set nothing. Override per run with -e sonar_nvlink=false.
+sonar_nvlink: true

@@ -14,7 +14,10 @@ prometheus_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=
 alertmanager_tls_secret_cert: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/prometheus/alertmanager-tls-secret:tls.crt')}}"
 alertmanager_tls_secret_key: "{{ lookup('hashi_vault', 'mount_point=secret secret=secret/data/k8s/bnekub03/secret/prometheus/alertmanager-tls-secret:tls.key')}}"
 
-prometheus_retention: 10d
+# 90d is about 23 GB at the rate seen on 2026-11-17 ( 2.7 GB of blocks for 10.5 days, 60k series ), which more series will push up.
+# The 32GiB cap is 80% of the volume: whichever of retention and size is hit first wins.
+prometheus_retention: 90d
+prometheus_retention_size: 32GiB
 prometheus_volume_size_gb: 40
 # prometheus_memory_request: "4Gi"
 # prometheus_memory_limit: "4.5Gi"

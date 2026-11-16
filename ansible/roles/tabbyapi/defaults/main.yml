@@ -52,6 +52,12 @@ tabbyapi_cache_mode: "FP16"
 # faster when it works, but verify it with your cards before relying on it).
 tabbyapi_tensor_parallel: false
 
+# Only used when tensor parallel is on: picks tabby's tensor_parallel_backend. true = "nccl", an NCCL all-reduce that uses NVLink
+# ( tabby's docs: recommended for NVLink ). false = "native", which stages every all-reduce through host shared memory and never
+# touches NVLink ( recommended for PCIe; this was the setting before the bridge was installed ). Tabby has no disable_p2p option,
+# so this is the only switch. Override per run with -e tabbyapi_nvlink=false.
+tabbyapi_nvlink: true
+
 # Load the model's vision tower ( for a model that has one ), and keep its weights in system RAM instead of VRAM.
 # Off by default: without vision the tower isn't loaded at all.
 tabbyapi_vision: false

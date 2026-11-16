@@ -21,6 +21,8 @@ commonLabels:
 prometheus:
   prometheusSpec:
     retention: "{{ prometheus_retention }}"
+    # a size cap as well, so a long retention can't fill the volume ( Prometheus drops the oldest blocks first ). Aim for about 80% of the volume.
+    retentionSize: "{{ prometheus_retention_size }}"
     externalLabels:
       # This helps thanos distinguish between metrics from different prometheus instances
       cluster: "{{ prometheus_deployment_name }}"
@@ -50,15 +52,16 @@ prometheus:
 #        memory: { { prometheus_memory_request } }
 #      limits:
 #        memory: { { prometheus_memory_limit } }                 
-  storageSpec:
-    volumeClaimTemplate:
-      spec:
-        storageClassName: {{ kube_storageclass_prometheus }}
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: "{{ prometheus_volume_size_gb }}Gi"
+    # must be under prometheusSpec: one level up, the chart ignores it and Prometheus keeps its data in an emptyDir
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: {{ kube_storageclass_prometheus }}
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: "{{ prometheus_volume_size_gb }}Gi"
   ingress:
     enabled: true
 #    ingressClassName: {{ prometheus_ingress_class }}
@@ -73,7 +76,8 @@ prometheus:
           
 alertmanager:
   # note different key to 'server' above
-  alertManagerSpec:
+  # the chart's key is alertmanagerSpec ( lower-case m ): with the wrong case this block, storage included, was ignored
+  alertmanagerSpec:
 #    resources:
 #      requests:
 #        cpu: 100m

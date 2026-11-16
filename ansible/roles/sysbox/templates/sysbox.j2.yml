@@ -41,6 +41,23 @@ data:
   SYSBOX_MGR_CONFIG: ""
   SYSBOX_FS_CONFIG: ""
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sysbox-containerd-dropin
+  namespace: kube-system
+data:
+  sysbox.toml: |
+    [plugins.'io.containerd.cri.v1.runtime']
+      enable_unprivileged_ports = false
+      enable_unprivileged_icmp = false
+
+    [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.sysbox-runc]
+      runtime_type = 'io.containerd.runc.v2'
+      [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.sysbox-runc.options]
+        BinaryName = '/usr/bin/sysbox-runc'
+        SystemdCgroup = true
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -63,6 +80,29 @@ spec:
           operator: "Equal"
           value: "not-running"
           effect: "NoSchedule"
+      # containerd 2.x ( config version 3 ): the installer registers sysbox-runc where containerd doesn't look ( nestybox/sysbox#997 ), and
+      # containerd's unprivileged port/icmp sysctls stop sysbox pods starting ( #1025 ). This writes the fix as a conf.d drop-in
+      # before the installer restarts containerd. Both sysctls end up off for every pod on the node, sysbox or not.
+      initContainers:
+        - name: containerd-dropin
+          image: "registry.nestybox.com/nestybox/sysbox-deploy-k8s:{{ sysbox_deploy_image_tag }}"
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              if ! grep -qE '^imports.*conf\.d' /mnt/host/etc/containerd/config.toml; then
+                echo "/etc/containerd/config.toml doesn't import conf.d/*.toml, so containerd would ignore the sysbox drop-in" >&2
+                exit 1
+              fi
+              mkdir -p /mnt/host/etc/containerd/conf.d
+              cp /dropin/sysbox.toml /mnt/host/etc/containerd/conf.d/sysbox.toml
+          volumeMounts:
+            - name: host-etc
+              mountPath: /mnt/host/etc
+            - name: containerd-dropin
+              mountPath: /dropin
       containers:
         - name: sysbox-deploy-k8s
           image: "registry.nestybox.com/nestybox/sysbox-deploy-k8s:{{ sysbox_deploy_image_tag }}"
@@ -167,6 +207,9 @@ spec:
         - name: host-var-lib
           hostPath:
             path: /var/lib
+        - name: containerd-dropin
+          configMap:
+            name: sysbox-containerd-dropin
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 1
