@@ -2,6 +2,9 @@ kube_context_prometheus: ""
 kube_namespace_prometheus: "prometheus"
 kube_storageclass_prometheus: "freenas-nfs"
 
+# --storage.tsdb.retention.size, in the form "50GiB". Empty = no size cap.
+prometheus_retention_size: ""
+
 
       
 
