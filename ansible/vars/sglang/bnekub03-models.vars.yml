@@ -48,6 +48,10 @@ sglang_models:
       # sglang lists; check them against `python3 -m sglang.launch_server --help` for the image you pin.
       - "--tool-call-parser=qwen3_coder"
       - "--reasoning-parser=qwen3"
+      # Without this the server leaves usage.prompt_tokens_details out of its replies, so bin/llm_util.py longprompt reads 0% cached on every
+      # request ( the engine's prefill log shows the real counts ). Reporting only; added 2026-11-16, after the NVLink on / off runs, which
+      # were started without it.
+      - "--enable-cache-report"
       # MTP, using the head in the checkpoint: sglang's recipe for this model is these four flags ( EAGLE is the algorithm
       # sglang runs MTP through ). The recipe is written for Blackwell cards; if the server fails at startup on the 3090s, the
       # attention backend may need setting ( --attention-backend triton ), or remove these four lines.
