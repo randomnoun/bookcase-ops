@@ -15,6 +15,11 @@ takes its own path, with different tool calls, different numbers of requests, di
 Where this doc says a session was "a different task" or that it "can't show the prompts are the same task", read that as "the same starting prompt, a different trajectory" ( written before this was recorded here; sections 5-6 and 15-18 were not all re-checked ). The effect is that request counts, prompt-size bands and output lengths aren't matched between runs, which is why the bands
 with few requests are not worth leaning on. A fixed prompt set avoids this, see [SETUP-LLM-TIMING.md](SETUP-LLM-TIMING.md).
 
+**Sampling, and why sonar's sessions look alike ( 2026-11-16, not tested ).** Nothing in this repo or in pi's `settings.json` / `models.json` sets a temperature, so requests carry no sampling parameters and each engine uses the model's own defaults. Sonar logs at startup that it took `{'temperature': 1.0, 'top_k': 20, 'top_p': 0.95}` from the model's `generation_config.json`, so it samples; it isn't greedy.
+Sonar also has a global `seed` that defaults to 0 ( `aphrodite/config/model.py`; the pod isn't started with `--seed` ), which I'd expect to make its sessions follow much the same path. The two sonar NVLink sessions produced nearly identical visual results, which the other engines' sessions don't, and this is my best guess for why.
+I haven't confirmed it: no same-prompt-twice test was run, I haven't checked how sonar uses the seed per request, and I haven't read sglang's or tabby's seed defaults ( their pods were not running when I looked ), so "the others don't fix a seed" is an assumption. GPU nondeterminism can still make runs differ.
+One consequence: sonar's pairs of sessions are better matched than the other engines' ( similar request counts, prompt sizes and output lengths ), so its on/off comparison is probably the cleanest.
+
 ## Background
 
 The model ships one MTP layer (`mtp_num_hidden_layers: 1`). The 5.00bpw branch of the EXL3 quant keeps it:
